@@ -77,7 +77,7 @@ back_keyboard = ReplyKeyboardMarkup(
 )
 
 # Sizning jonli Ngrok havolangiz:
-MINI_APP_URL = "https://train-clad-navigator.ngrok-free.dev"
+MINI_APP_URL = "https://christine-places-horses-planned.trycloudflare.com"
 
 # Bosh menyu tugmalari
 main_menu = ReplyKeyboardMarkup(
