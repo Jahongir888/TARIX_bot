@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+  <meta charset="UTF-8">
+  <title>PHAROS - Telegram Profil Avatarkasi (1024x1024)</title>
+  <style>
+    body { font-family: sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; background: #0b1120; color: white; margin: 0; padding: 20px; }
+    .card { background: #1e293b; padding: 30px; border-radius: 20px; box-shadow: 0 15px 35px rgba(0,0,0,0.6); text-align: center; max-width: 520px; width: 100%; }
+    .btn { background: #f59e0b; color: #0f172a; border: none; padding: 14px 22px; font-size: 15px; font-weight: 800; border-radius: 10px; cursor: pointer; margin: 8px; transition: 0.2s; }
+    .btn:hover { background: #fbbf24; transform: translateY(-2px); }
+    svg { background: #0f172a; border-radius: 50%; box-shadow: 0 0 0 4px #334155; margin-bottom: 24px; max-width: 320px; height: auto; }
+    p { color: #94a3b8; font-size: 14px; margin-top: 5px; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h2 style="margin-top:0;">Telegram Profil Logotipi (1:1)</h2>
+    <p>Doira shaklidagi profil (avatar) uchun to‘liq moslangan</p>
+
+    <!-- SVG Preview (1024x1024 Square) -->
+    <svg id="pharosAvatarSvg" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="320" height="320">
+      <defs>
+        <!-- Fon Gradienti -->
+        <radialGradient id="bgGlow" cx="50%" cy="45%" r="60%">
+          <stop offset="0%" stop-color="#1e293b"/>
+          <stop offset="100%" stop-color="#090d16"/>
+        </radialGradient>
+
+        <!-- Nur Nurlanishi (Beam) -->
+        <linearGradient id="avatarBeam" x1="0%" y1="50%" x2="100%" y2="50%">
+          <stop offset="0%" stop-color="#F59E0B" stop-opacity="1"/>
+          <stop offset="50%" stop-color="#FBBF24" stop-opacity="0.85"/>
+          <stop offset="100%" stop-color="#FDE68A" stop-opacity="0.05"/>
+        </linearGradient>
+
+        <!-- Yumshoq Glow filteri -->
+        <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
+          <feGaussianBlur stdDeviation="8" result="blur" />
+          <feComposite in="SourceGraphic" in2="blur" operator="over" />
+        </filter>
+      </defs>
+
+      <!-- Asosiy Fon (To'q nufuzli fon) -->
+      <rect width="1024" height="1024" fill="url(#bgGlow)"/>
+
+      <!-- Telegram doira chegarasini hisobga oluvchi markaziy kompozitsiya -->
+      <g transform="translate(0, 20)">
+        <!-- 1. MAYOQ BELGISI -->
+        <!-- Poydevor -->
+        <rect x="362" y="550" width="300" height="36" rx="18" fill="#F8FAFC"/>
+
+        <!-- Mayoq minorasi -->
+        <path d="M 397 550 L 467 250 L 557 250 L 627 550 Z" fill="#F8FAFC"/>
+
+        <!-- Mayoq maydonchasi -->
+        <rect x="447" y="235" width="130" height="15" rx="7" fill="#F8FAFC"/>
+
+        <!-- Chiroq xonasi ustunlari -->
+        <path d="M 462 235 L 462 190 L 562 190 L 562 235 Z" fill="#F8FAFC"/>
+
+        <!-- Gumbaz -->
+        <path d="M 452 190 C 452 145, 572 145, 572 190 Z" fill="#F8FAFC"/>
+        <circle cx="512" cy="148" r="8" fill="#F8FAFC"/>
+
+        <!-- Mayoq Nuri (Wisdom Gold) -->
+        <polygon points="562,195 860,110 860,305 562,228" fill="url(#avatarBeam)" filter="url(#glow)"/>
+
+        <!-- Chiroq ichki yadrosi -->
+        <circle cx="512" cy="212" r="16" fill="#FFFBEB"/>
+        <circle cx="512" cy="212" r="8" fill="#F59E0B"/>
+
+        <!-- 2. PHAROS MATNI (Markazda, to'liq sig'adigan hajmda) -->
+        <text
+          x="512"
+          y="710"
+          text-anchor="middle"
+          font-family="system-ui, -apple-system, 'Plus Jakarta Sans', 'Inter', sans-serif"
+          font-size="118"
+          font-weight="900"
+          letter-spacing="18"
+          fill="#FFFFFF">PHAROS</text>
+
+        <!-- Kichik shior / Subtitr -->
+        <text
+          x="512"
+          y="760"
+          text-anchor="middle"
+          font-family="system-ui, -apple-system, sans-serif"
+          font-size="28"
+          font-weight="600"
+          letter-spacing="8"
+          fill="#94A3B8">TA'LIM PLATFORMASI</text>
+      </g>
+    </svg>
+
+    <div>
+      <button class="btn" onclick="exportAvatar('png')">📥 Profil uchun PNG yuklab olish</button>
+      <button class="btn" onclick="exportAvatar('jpeg')">📥 Profil uchun JPEG yuklab olish</button>
+    </div>
+  </div>
+
+  <canvas id="avatarCanvas" width="1024" height="1024" style="display:none;"></canvas>
+
+  <script>
+    function exportAvatar(format) {
+      const svg = document.getElementById('pharosAvatarSvg');
+      const canvas = document.getElementById('avatarCanvas');
+      const ctx = canvas.getContext('2d');
+      const svgData = new XMLSerializer().serializeToString(svg);
+      const img = new Image();
+
+      img.onload = function() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        if (format === 'jpeg') {
+          ctx.fillStyle = '#0F172A';
+          ctx.fillRect(0, 0, canvas.width, canvas.height);
+        }
+
+        ctx.drawImage(img, 0, 0, 1024, 1024);
+
+        const link = document.createElement('a');
+        link.download = `pharos_avatar_${format}.${format === 'jpeg' ? 'jpg' : 'png'}`;
+        link.href = canvas.toDataURL(format === 'jpeg' ? 'image/jpeg' : 'image/png', 0.98);
+        link.click();
+      };
+
+      img.src = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svgData)));
+    }
+  </script>
+</body>
+</html>

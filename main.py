@@ -1,33 +1,54 @@
 import asyncio
-from aiogram import Bot, Dispatcher, types
-from aiogram.filters import CommandStart, Command
+import logging
+from aiogram import Bot, Dispatcher
+from aiogram.types import BotCommand
+from database.db import init_db
+from handlers import payment
 
-# BotFather bergan tokenni qo'ying
-BOT_TOKEN = "8870408083:AAFYvNySTkP8DA6EaKiP2_xXUX6Nqh1l15Q"
+# Sozlamalar va routerlar importi
+from data.config import BOT_TOKEN, ADMINS
+from handlers import start, payment
 
-bot = Bot(token=BOT_TOKEN)
-dp = Dispatcher()
 
-@dp.message(CommandStart())
-async def cmd_start(message: types.Message):
-    await message.answer(f"Assalomu alaykum, {message.from_user.full_name}! Bot muvaffaqiyatli ishga tushdi.")
+# 1. Bot komandalarini menyuda ko'rsatish
+async def set_default_commands(bot: Bot):
+    commands = [
+        BotCommand(command="start", description="Botni ishga tushirish"),
+        BotCommand(command="help", description="Yordam va qo'llanma")
+    ]
+    await bot.set_my_commands(commands)
 
-@dp.message(Command("help"))
-async def cmd_help(message: types.Message):
-    await message.answer(
-        "Botdan foydalanish bo'yicha qo'llanma:\n"
-        "• /start — Botni qayta ishga tushirish\n"
-        "• /help — Mavjud buyruqlar ro'yxati"
-    )
 
-@dp.message()
-async def echo_handler(message: types.Message):
-    await message.send_copy(chat_id=message.chat.id)
+# 2. Bot ishga tushganda adminga xabar yuborish
+async def notify_admins(bot: Bot):
+    for admin_id in ADMINS:
+        try:
+            await bot.send_message(admin_id, "Bot muvaffaqiyatli ishga tushdi! 🚀")
+        except Exception:
+            pass
 
+
+# 3. Asosiy ishga tushirish funksiyasi
 async def main():
-    await bot.delete_webhook(drop_pending_updates=True)
-    print("Bot ishga tushdi...")
+    # 1. Ma'lumotlar bazasini ishga tushirish
+    await init_db()
+    print("Ma'lumotlar bazasi tayyor!")
+
+    logging.basicConfig(level=logging.INFO)
+
+    bot = Bot(token=BOT_TOKEN)
+    dp = Dispatcher()
+
+    # Routerlarni ro'yxatdan o'tkazamiz
+    dp.include_router(start.router)
+    dp.include_router(payment.router)
+    # Boshlang'ich amallar
+    await set_default_commands(bot)
+    await notify_admins(bot)
+
+    print("Bot muvaffaqiyatli ishga tushdi va xabarlarni eshitmoqda...")
     await dp.start_polling(bot)
+
 
 if __name__ == "__main__":
     asyncio.run(main())
