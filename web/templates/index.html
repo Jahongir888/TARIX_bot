@@ -7,19 +7,19 @@
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
 
-    <!-- Zamonaviy va o'qilishi oson Plus Jakarta Sans shrifti -->
+    <!-- Outfit shrifti va Lucide ikonkalar tizimi -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <script src="https://unpkg.com/lucide@latest"></script>
 
     <style>
       body {
-        font-family: 'Plus Jakarta Sans', sans-serif;
+        font-family: 'Outfit', sans-serif;
       }
     </style>
 </head>
-<body class="bg-gradient-to-b from-slate-900 via-[#0a0f1d] to-[#05070d] text-slate-100 min-h-screen flex flex-col select-none pb-20">
+<body class="bg-gradient-to-b from-slate-900 via-[#0a0f1d] to-[#05070d] text-slate-100 min-h-screen flex flex-col select-none pb-24">
 
     <!-- 1. YUQORI SARLAVHA (Chapda Profil, Markazda Logotip, O'ngda Taymer) -->
     <header class="px-4 py-3 bg-slate-900/90 backdrop-blur-md border-b border-amber-500/20 flex items-center justify-between sticky top-0 z-20 shadow-lg shadow-black/40">
@@ -43,7 +43,7 @@
             </div>
         </div>
 
-        <!-- O'NG BURCHAK: Jonli Taymer (Test paytida ko'rinadi) yoki simmetriya uchun bo'sh joy -->
+        <!-- O'NG BURCHAK: Jonli Taymer -->
         <div class="flex justify-end min-w-[75px]">
             <div id="test-timer-box" class="hidden flex items-center gap-1.5 bg-slate-800/90 border border-amber-500/30 px-2.5 py-1.5 rounded-xl shadow-inner">
                 <i data-lucide="clock" class="w-3.5 h-3.5 text-amber-400"></i>
@@ -52,15 +52,13 @@
         </div>
     </header>
 
-    <!-- PROFIL MODAL OYNASI (Profilim bosilganda ochiladi) -->
+    <!-- PROFIL MODAL OYNASI -->
     <div id="profile-modal" class="hidden fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
         <div class="bg-slate-900 border border-amber-500/30 rounded-2xl w-full max-w-xs p-5 shadow-2xl relative text-center">
-            <!-- Yopish tugmasi -->
             <button onclick="closeProfileModal()" class="absolute top-3 right-3 text-slate-400 hover:text-white p-1 rounded-lg">
                 <i data-lucide="x" class="w-5 h-5"></i>
             </button>
 
-            <!-- Profil avatari -->
             <div class="w-16 h-16 rounded-2xl bg-amber-500/20 border border-amber-500/40 text-amber-400 mx-auto flex items-center justify-center text-2xl mb-3 shadow-inner">
                 <i data-lucide="user-check" class="w-8 h-8"></i>
             </div>
@@ -85,8 +83,48 @@
         </div>
     </div>
 
-    <!-- 2. BO'LIM: DARSLAR -->
-    <main id="tab-lessons" class="flex-1 px-4 py-4 max-w-md mx-auto w-full">
+    <!-- 1-BO'LIM: ASOSIY (HOME TAB) -->
+    <main id="tab-home" class="flex-1 px-4 py-4 max-w-md mx-auto w-full">
+        <div class="bg-gradient-to-r from-amber-500/20 via-purple-500/20 to-slate-900 border border-white/10 rounded-2xl p-4 mb-4 shadow-xl">
+            <h2 class="text-base font-bold text-white flex items-center gap-2">
+                <i data-lucide="sparkles" class="w-4 h-4 text-amber-400"></i> Xush kelibsiz!
+            </h2>
+            <p class="text-xs text-slate-300 mt-1 leading-relaxed">
+                Tarix fanidan videodarslar, namunaviy testlar va qulay adabiyotlar to'plami bitta platformada.
+            </p>
+        </div>
+
+        <div class="grid grid-cols-2 gap-3 mb-4">
+            <div onclick="switchTab('lessons')" class="bg-slate-900/90 border border-white/10 hover:border-amber-500/40 p-4 rounded-2xl cursor-pointer active:scale-95 transition-all">
+                <div class="w-9 h-9 rounded-xl bg-amber-500/10 text-amber-400 flex items-center justify-center mb-2">
+                    <i data-lucide="graduation-cap" class="w-5 h-5"></i>
+                </div>
+                <h4 class="text-sm font-bold text-white">Fanlar va Darslar</h4>
+                <p class="text-[11px] text-slate-400 mt-0.5">6-11 sinf videolari</p>
+            </div>
+
+            <div onclick="switchTab('tests')" class="bg-slate-900/90 border border-white/10 hover:border-emerald-500/40 p-4 rounded-2xl cursor-pointer active:scale-95 transition-all">
+                <div class="w-9 h-9 rounded-xl bg-emerald-500/10 text-emerald-400 flex items-center justify-center mb-2">
+                    <i data-lucide="clipboard-check" class="w-5 h-5"></i>
+                </div>
+                <h4 class="text-sm font-bold text-white">Namunaviy testlar</h4>
+                <p class="text-[11px] text-slate-400 mt-0.5">Jonli taymer bilan</p>
+            </div>
+        </div>
+
+        <div class="bg-slate-900/70 border border-white/10 p-3.5 rounded-2xl flex items-center justify-between">
+            <div>
+                <span class="text-xs font-bold text-white">Platforma holati:</span>
+                <p class="text-[11px] text-emerald-400">Onlayn rejimda faol</p>
+            </div>
+            <button onclick="switchTab('rating')" class="px-3 py-1.5 bg-slate-800 border border-white/10 rounded-xl text-xs font-semibold text-white">
+                Reytingni ko'rish
+            </button>
+        </div>
+    </main>
+
+    <!-- 2-BO'LIM: FANLAR / DARSLAR TAB -->
+    <main id="tab-lessons" class="hidden flex-1 px-4 py-4 max-w-md mx-auto w-full">
         <!-- Sinflar tanlovi -->
         <p class="text-xs font-bold text-slate-400 mb-2.5 uppercase tracking-wider flex items-center gap-1.5">
             <i data-lucide="layers" class="w-3.5 h-3.5 text-amber-400"></i> Sinfni tanlang:
@@ -111,12 +149,10 @@
         <p class="text-xs font-bold text-slate-400 mb-2.5 uppercase tracking-wider flex items-center gap-1.5">
             <i data-lucide="play-circle" class="w-3.5 h-3.5 text-amber-400"></i> Mavzular:
         </p>
-        <div id="lessons-list" class="space-y-2.5">
-            <!-- JavaScript dinamik chiqaradi -->
-        </div>
+        <div id="lessons-list" class="space-y-2.5"></div>
     </main>
 
-    <!-- 3. BO'LIM: TESTLAR -->
+    <!-- TESTLAR TAB (Asosiy sahifadan yoki test tugmasidan ochiladi) -->
     <main id="tab-tests" class="hidden flex-1 px-4 py-4 max-w-md mx-auto w-full">
         <section class="p-3 bg-slate-900/70 border border-slate-800 rounded-2xl mb-4 backdrop-blur-sm">
             <p class="text-xs font-bold text-slate-400 mb-2 uppercase tracking-wider">Savollar to'ri:</p>
@@ -144,7 +180,7 @@
         </footer>
     </main>
 
-    <!-- 4. BO'LIM: KITOBLAR -->
+    <!-- 3-BO'LIM: KITOBLAR TAB -->
     <main id="tab-books" class="hidden flex-1 px-4 py-4 max-w-md mx-auto w-full">
         <p class="text-xs font-bold text-slate-400 mb-3 uppercase tracking-wider flex items-center gap-1.5">
             <i data-lucide="bookmark" class="w-3.5 h-3.5 text-amber-400"></i> Rasmiy qo'llanma va to'plamlar:
@@ -166,19 +202,65 @@
         </div>
     </main>
 
-    <!-- 5. PASTKI NAVIGATSIYA PANELI (BOTTOM BAR) -->
-    <nav class="fixed bottom-0 left-0 right-0 bg-slate-900/95 backdrop-blur-md border-t border-slate-800 py-2.5 px-6 flex justify-around items-center z-30 shadow-2xl">
-        <button onclick="switchTab('lessons')" id="nav-btn-lessons" class="flex flex-col items-center gap-1 text-amber-400">
-            <i data-lucide="book-open" class="w-5 h-5"></i>
-            <span class="text-xs font-bold tracking-tight">Darslar</span>
+    <!-- 4-BO'LIM: REYTING TAB -->
+    <main id="tab-rating" class="hidden flex-1 px-4 py-4 max-w-md mx-auto w-full">
+        <p class="text-xs font-bold text-slate-400 mb-3 uppercase tracking-wider flex items-center gap-1.5">
+            <i data-lucide="trophy" class="w-3.5 h-3.5 text-amber-400"></i> O'quvchilar umumiy reytingi:
+        </p>
+        <div class="bg-slate-900/90 border border-slate-800 rounded-2xl divide-y divide-slate-800 overflow-hidden shadow-xl">
+            <div class="p-3.5 flex items-center justify-between">
+                <div class="flex items-center gap-3">
+                    <span class="w-6 h-6 rounded-full bg-amber-500/20 text-amber-400 flex items-center justify-center font-bold text-xs">1</span>
+                    <div>
+                        <h4 class="text-xs font-bold text-white">Jahongir Qadamov</h4>
+                        <p class="text-[10px] text-slate-400">100% natija (15/15)</p>
+                    </div>
+                </div>
+                <span class="text-xs font-extrabold text-amber-400">1500 ball</span>
+            </div>
+            <div class="p-3.5 flex items-center justify-between">
+                <div class="flex items-center gap-3">
+                    <span class="w-6 h-6 rounded-full bg-slate-800 text-slate-300 flex items-center justify-center font-bold text-xs">2</span>
+                    <div>
+                        <h4 class="text-xs font-bold text-white">Ali Valiyev</h4>
+                        <p class="text-[10px] text-slate-400">85% natija (12/15)</p>
+                    </div>
+                </div>
+                <span class="text-xs font-extrabold text-slate-300">1200 ball</span>
+            </div>
+        </div>
+    </main>
+
+    <!-- 5. PASTKI NAVIGATSIYA PANELI (BOTTOM BAR - DARK AMETHYST & OUTFIT) -->
+    <nav style="background-color: #1C102A;" class="fixed bottom-0 left-0 right-0 border-t border-white/10 py-2 px-2 flex justify-around items-center z-30 shadow-2xl backdrop-blur-md">
+        <!-- 1. Asosiy -->
+        <button onclick="switchTab('home')" id="nav-btn-home" class="flex flex-col items-center gap-1 text-white transition-all active:scale-95">
+            <i data-lucide="house" class="w-5 h-5 stroke-white"></i>
+            <span class="text-[11px] font-semibold tracking-tight text-white">Asosiy</span>
         </button>
-        <button onclick="switchTab('tests')" id="nav-btn-tests" class="flex flex-col items-center gap-1 text-slate-400">
-            <i data-lucide="check-square" class="w-5 h-5"></i>
-            <span class="text-xs font-bold tracking-tight">Testlar</span>
+
+        <!-- 2. Fanlar -->
+        <button onclick="switchTab('lessons')" id="nav-btn-lessons" class="flex flex-col items-center gap-1 text-white/70 hover:text-white transition-all active:scale-95">
+            <i data-lucide="graduation-cap" class="w-5 h-5 stroke-white/80"></i>
+            <span class="text-[11px] font-medium tracking-tight text-white/80">Fanlar</span>
         </button>
-        <button onclick="switchTab('books')" id="nav-btn-books" class="flex flex-col items-center gap-1 text-slate-400">
-            <i data-lucide="shopping-bag" class="w-5 h-5"></i>
-            <span class="text-xs font-bold tracking-tight">Kitoblar</span>
+
+        <!-- 3. Kitoblar -->
+        <button onclick="switchTab('books')" id="nav-btn-books" class="flex flex-col items-center gap-1 text-white/70 hover:text-white transition-all active:scale-95">
+            <i data-lucide="library-big" class="w-5 h-5 stroke-white/80"></i>
+            <span class="text-[11px] font-medium tracking-tight text-white/80">Kitoblar</span>
+        </button>
+
+        <!-- 4. Reyting -->
+        <button onclick="switchTab('rating')" id="nav-btn-rating" class="flex flex-col items-center gap-1 text-white/70 hover:text-white transition-all active:scale-95">
+            <i data-lucide="trophy" class="w-5 h-5 stroke-white/80"></i>
+            <span class="text-[11px] font-medium tracking-tight text-white/80">Reyting</span>
+        </button>
+
+        <!-- 5. Chiqish / Profil modal -->
+        <button onclick="openProfileModal()" id="nav-btn-profile" class="flex flex-col items-center gap-1 text-white/70 hover:text-white transition-all active:scale-95">
+            <i data-lucide="user" class="w-5 h-5 stroke-white/80"></i>
+            <span class="text-[11px] font-medium tracking-tight text-white/80">Profil</span>
         </button>
     </nav>
 
@@ -187,26 +269,35 @@
         const tg = window.Telegram?.WebApp;
         if (tg) { tg.ready(); tg.expand(); }
 
-        let currentTab = 'lessons';
+        let currentTab = 'home';
         let currentClass = '7';
 
         function switchTab(tab) {
             currentTab = tab;
-            document.getElementById('tab-lessons').classList.add('hidden');
-            document.getElementById('tab-tests').classList.add('hidden');
-            document.getElementById('tab-books').classList.add('hidden');
+            ['home', 'lessons', 'tests', 'books', 'rating'].forEach(t => {
+                const el = document.getElementById(`tab-${t}`);
+                if (el) el.classList.add('hidden');
+            });
             document.getElementById('test-timer-box').classList.add('hidden');
 
-            ['lessons', 'tests', 'books'].forEach(t => {
+            ['home', 'lessons', 'books', 'rating'].forEach(t => {
                 const btn = document.getElementById(`nav-btn-${t}`);
+                if (!btn) return;
+                const icon = btn.querySelector('i');
+                const span = btn.querySelector('span');
                 if (t === tab) {
-                    btn.className = "flex flex-col items-center gap-1 text-amber-400";
+                    btn.className = "flex flex-col items-center gap-1 text-white transition-all active:scale-95";
+                    if (icon) icon.className = "w-5 h-5 stroke-white";
+                    if (span) span.className = "text-[11px] font-bold tracking-tight text-white";
                 } else {
-                    btn.className = "flex flex-col items-center gap-1 text-slate-400";
+                    btn.className = "flex flex-col items-center gap-1 text-white/70 hover:text-white transition-all active:scale-95";
+                    if (icon) icon.className = "w-5 h-5 stroke-white/70";
+                    if (span) span.className = "text-[11px] font-medium tracking-tight text-white/70";
                 }
             });
 
-            document.getElementById(`tab-${tab}`).classList.remove('hidden');
+            const targetTab = document.getElementById(`tab-${tab}`);
+            if (targetTab) targetTab.classList.remove('hidden');
 
             if (tab === 'tests') {
                 document.getElementById('test-timer-box').classList.remove('hidden');
@@ -214,7 +305,8 @@
             } else if (tab === 'lessons') {
                 loadLessons(currentClass);
             }
-            setTimeout(() => lucide.createIcons(), 50);
+
+            setTimeout(() => lucide.createIcons(), 30);
         }
 
         async function loadLessons(classId) {
@@ -233,7 +325,7 @@
                 const lessons = await res.json();
                 container.innerHTML = '';
 
-                if (lessons.length === 0) {
+                if (!lessons || lessons.length === 0) {
                     container.innerHTML = '<p class="text-xs text-slate-500 py-6 text-center">Bu sinf uchun hozircha darslar mavjud emas.</p>';
                     return;
                 }
@@ -273,7 +365,7 @@
             player.play();
         }
 
-        // Test mantig'i
+        // Test qismi logikasi
         let quizData = { questions: [] };
         let currentIndex = 0;
         let userAnswers = {};
@@ -284,7 +376,7 @@
             try {
                 const res = await fetch('/api/test-data');
                 quizData = await res.json();
-                timerSeconds = quizData.duration_minutes * 60;
+                timerSeconds = (quizData.duration_minutes || 15) * 60;
                 renderGrid();
                 renderQuestion(0);
                 startTimer();
@@ -389,9 +481,8 @@
                 </div>
             `;
         }
-// Profil oynasini boshqarish
+
         function openProfileModal() {
-            // Telegram orqali o'quvchining haqiqiy ismini aniqlash
             if (tg && tg.initDataUnsafe && tg.initDataUnsafe.user) {
                 const u = tg.initDataUnsafe.user;
                 document.getElementById('user-display-name').innerText = `${u.first_name || ''} ${u.last_name || ''}`.trim() || 'O\'quvchi';
@@ -406,8 +497,9 @@
         function closeProfileModal() {
             document.getElementById('profile-modal').classList.add('hidden');
         }
+
         window.onload = () => {
-            loadLessons('7');
+            switchTab('home');
             lucide.createIcons();
         };
     </script>
