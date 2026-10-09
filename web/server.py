@@ -1,27 +1,18 @@
+import os
+import uvicorn
 from fastapi import FastAPI, Response
 from fastapi.responses import HTMLResponse
-import uvicorn
 
 app = FastAPI()
 
+# index.html fayliga aniq va mustahkam manzil ko'rsatamiz
+CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
+TEMPLATE_PATH = os.path.join(CURRENT_DIR, "templates", "index.html")
 
-@app.get("/", response_class=HTMLResponse)
-async def read_root(response: Response):
-    # Ngrok ogohlantirish oynasini avtomatik chetlab o'tish sarlavhasi
-    response.headers["ngrok-skip-browser-warning"] = "true"
-
-    with open("web/templates/index.html", "r", encoding="utf-8") as f:
-        return f.read()
-
-
-if __name__ == "__main__":
-    uvicorn.run("web.server:app", host="127.0.0.1", port=8000, reload=True)
-
-
-# Sinov uchun namunaviy dinamik savollar to'plami (Mavzuga qarab soni o'zgaradi)
+# 1. Sinov uchun namunaviy dinamik savollar to'plami
 SAMPLE_QUIZ = {
     "topic": "7-sinf Tarix: Amir Temur davlati",
-    "duration_minutes": 15,  # Test uchun ajratilgan vaqt
+    "duration_minutes": 15,
     "questions": [
         {
             "id": 1,
@@ -56,22 +47,7 @@ SAMPLE_QUIZ = {
     ]
 }
 
-@app.get("/", response_class=HTMLResponse)
-async def read_root(response: Response):
-    response.headers["ngrok-skip-browser-warning"] = "true"
-    with open("web/templates/index.html", "r", encoding="utf-8") as f:
-        return f.read()
-
-# Mini App ushbu manzil orqali savollarni qabul qiladi
-@app.get("/api/test-data")
-async def get_test_data():
-    return SAMPLE_QUIZ
-
-if __name__ == "__main__":
-    uvicorn.run("web.server:app", host="127.0.0.1", port=8000, reload=True)
-
-
-# Sinov uchun 6-11-sinf darslari ro'yxati va video ma'lumotlari
+# 2. 6-11-sinf darslari ro'yxati va video ma'lumotlari
 SAMPLE_LESSONS = {
     "6": [
         {"id": 601, "title": "1-dars. Qadimgi tosh davri (Paleolit)", "video_url": "https://www.w3schools.com/html/mov_bbb.mp4", "desc": "Eng qadimgi odamlar, ilk mehnat qurollari va olovning kashf etilishi haqida umumiy tushuncha."},
@@ -84,6 +60,25 @@ SAMPLE_LESSONS = {
     "8": [], "9": [], "10": [], "11": []
 }
 
+# 3. Asosiy sahifa
+@app.get("/", response_class=HTMLResponse)
+async def read_root(response: Response):
+    response.headers["ngrok-skip-browser-warning"] = "true"
+    if os.path.exists(TEMPLATE_PATH):
+        with open(TEMPLATE_PATH, "r", encoding="utf-8") as f:
+            return f.read()
+    return f"<h3>Shablon fayli topilmadi: {TEMPLATE_PATH}</h3>"
+
+# 4. Test API
+@app.get("/api/test-data")
+async def get_test_data():
+    return SAMPLE_QUIZ
+
+# 5. Darslar API
 @app.get("/api/lessons/{class_id}")
 async def get_lessons_by_class(class_id: str):
     return SAMPLE_LESSONS.get(class_id, [])
+
+# 6. Ishga tushirish bloki (faqat fayl oxirida, bitta bo'ladi)
+if __name__ == "__main__":
+    uvicorn.run(app, host="127.0.0.1", port=8000)
