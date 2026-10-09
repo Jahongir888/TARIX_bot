@@ -1,4 +1,4 @@
-from aiogram.types import ReplyKeyboardMarkup, KeyboardButton, WebAppInfo
+from aiogram.types import ReplyKeyboardMarkup, KeyboardButton
 
 # 1. Telefon raqamni yuborish tugmasi
 phone_keyboard = ReplyKeyboardMarkup(
@@ -13,7 +13,7 @@ phone_keyboard = ReplyKeyboardMarkup(
 regions_keyboard = ReplyKeyboardMarkup(
     keyboard=[
         [KeyboardButton(text="Toshkent sh."), KeyboardButton(text="Toshkent vil.")],
-[KeyboardButton(text="Jizzax"), KeyboardButton(text="Sirdaryo")],
+        [KeyboardButton(text="Jizzax"), KeyboardButton(text="Sirdaryo")],
         [KeyboardButton(text="Andijon"), KeyboardButton(text="Farg'ona"), KeyboardButton(text="Namangan")],
         [KeyboardButton(text="Samarqand"), KeyboardButton(text="Buxoro"), KeyboardButton(text="Navoiy")],
         [KeyboardButton(text="Qashqadaryo"), KeyboardButton(text="Surxondaryo")],
@@ -23,7 +23,7 @@ regions_keyboard = ReplyKeyboardMarkup(
     one_time_keyboard=True
 )
 
-# 3. O'qish maqsadini tanlash tugmalari (TZ bo'yicha)
+# 3. O'qish maqsadini tanlash tugmalari
 targets_keyboard = ReplyKeyboardMarkup(
     keyboard=[
         [KeyboardButton(text="🎯 Abituriyent (OTMga kirish)")],
@@ -36,7 +36,7 @@ targets_keyboard = ReplyKeyboardMarkup(
     one_time_keyboard=True
 )
 
-# Navigatsiya (Orqaga / Bosh menyuga) tugmalari
+# 4. Universal navigatsiya tugmalari (Ichki bo'limlar uchun)
 nav_keyboard = ReplyKeyboardMarkup(
     keyboard=[
         [KeyboardButton(text="⬅️ Orqaga"), KeyboardButton(text="🏠 Boshiga qaytish")]
@@ -45,26 +45,6 @@ nav_keyboard = ReplyKeyboardMarkup(
     is_persistent=True
 )
 
-# 1. Yangilangan Bosh menyu (Namunaviy testlar va Kitoblar qo'shildi)
-main_menu = ReplyKeyboardMarkup(
-    keyboard=[
-        [
-            KeyboardButton(text="📚 Darslar"),
-            KeyboardButton(text="📝 Namunaviy testlar")
-        ],
-        [
-            KeyboardButton(text="📖 Kitoblar"),
-            KeyboardButton(text="👤 Profilim")
-        ],
-        [
-            KeyboardButton(text="ℹ️ Bot haqida")
-        ]
-    ],
-    resize_keyboard=True,
-    is_persistent=True
-)
-
-# 2. Universal navigatsiya tugmalari (Ichki bo'limlar uchun)
 back_keyboard = ReplyKeyboardMarkup(
     keyboard=[
         [
@@ -76,15 +56,12 @@ back_keyboard = ReplyKeyboardMarkup(
     is_persistent=True
 )
 
-# Sizning jonli Ngrok havolangiz:
-MINI_APP_URL = "https://christine-places-horses-planned.trycloudflare.com"
-
-# Bosh menyu tugmalari
+# 5. ASOSIY BOSH MENYU (Ssilkasiz, toza Reply tugmalar)
 main_menu = ReplyKeyboardMarkup(
     keyboard=[
         [
             KeyboardButton(text="📚 Darslar"),
-            KeyboardButton(text="📝 Namunaviy testlar", web_app=WebAppInfo(url=MINI_APP_URL))
+            KeyboardButton(text="📝 Namunaviy testlar")
         ],
         [
             KeyboardButton(text="📖 Kitoblar"),
@@ -99,7 +76,7 @@ main_menu = ReplyKeyboardMarkup(
     is_persistent=True
 )
 
-# Chek yuborishni bekor qilish tugmasi
+# 6. Chek yuborishni bekor qilish tugmasi
 cancel_payment = ReplyKeyboardMarkup(
     keyboard=[
         [KeyboardButton(text="❌ Bekor qilish")]
