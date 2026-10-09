@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>TARIX GRAND</title>
+    <title>PHAROS Ta'lim</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
 
@@ -19,34 +19,34 @@
       }
     </style>
 </head>
-<body class="bg-gradient-to-b from-slate-900 via-[#0a0f1d] to-[#05070d] text-slate-100 min-h-screen flex flex-col select-none pb-24">
+<body class="bg-[#0A0E17] text-[#F9FAFB] min-h-screen flex flex-col select-none pb-24">
 
     <!-- 1. YUQORI SARLAVHA (Chapda Profil, Markazda Logotip, O'ngda Taymer) -->
-    <header class="px-4 py-3 bg-slate-900/90 backdrop-blur-md border-b border-amber-500/20 flex items-center justify-between sticky top-0 z-20 shadow-lg shadow-black/40">
+    <header class="px-4 py-3 bg-[#111827]/90 backdrop-blur-md border-b border-[#1F2937] flex items-center justify-between sticky top-0 z-20 shadow-md">
 
         <!-- CHAP BURCHAK: Profilim tugmasi -->
-        <button onclick="openProfileModal()" class="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-slate-800/80 border border-slate-700/80 hover:border-amber-500/50 text-slate-200 active:scale-95 transition-all shadow-sm">
-            <div class="w-6 h-6 rounded-lg bg-amber-500/20 text-amber-400 flex items-center justify-center">
-                <i data-lucide="user" class="w-3.5 h-3.5"></i>
+        <button onclick="openProfileModal()" class="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-[#161F30] border border-[#1F2937] hover:border-emerald-500/50 text-[#F9FAFB] active:scale-95 transition-all shadow-sm">
+            <div class="w-6 h-6 rounded-lg bg-emerald-500/10 text-emerald-400 flex items-center justify-center">
+                <i data-lucide="user" class="w-3.5 h-3.5 stroke-emerald-400"></i>
             </div>
-            <span class="text-xs font-bold tracking-tight pr-0.5">Profilim</span>
+            <span class="text-xs font-semibold tracking-tight pr-0.5">Profil</span>
         </button>
 
         <!-- O'RTA: Markazga surilgan Logotip va Sarlavha -->
         <div class="flex items-center gap-2 text-center">
-            <div class="w-7 h-7 rounded-lg bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400 shrink-0">
-                <i data-lucide="graduation-cap" class="w-4 h-4"></i>
+            <div class="w-7 h-7 rounded-lg bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-400 shrink-0">
+                <i data-lucide="graduation-cap" class="w-4 h-4 stroke-emerald-400"></i>
             </div>
             <div class="text-left">
-                <h1 id="app-title" class="text-sm font-extrabold text-amber-400 tracking-wide leading-tight">TARIX GRAND</h1>
-                <p id="app-subtitle" class="text-[10px] text-slate-400 font-medium">Platforma</p>
+                <h1 id="app-title" class="text-sm font-extrabold text-[#F9FAFB] tracking-wide leading-tight">PHAROS</h1>
+                <p id="app-subtitle" class="text-[10px] text-[#9CA3AF] font-medium">Ta'lim Platformasi</p>
             </div>
         </div>
 
-        <!-- O'NG BURCHAK: Jonli Taymer -->
+        <!-- O'NG BURCHAK: Jonli Taymer (Test paytida ko'rinadi) -->
         <div class="flex justify-end min-w-[75px]">
-            <div id="test-timer-box" class="hidden flex items-center gap-1.5 bg-slate-800/90 border border-amber-500/30 px-2.5 py-1.5 rounded-xl shadow-inner">
-                <i data-lucide="clock" class="w-3.5 h-3.5 text-amber-400"></i>
+            <div id="test-timer-box" class="hidden flex items-center gap-1.5 bg-[#161F30] border border-emerald-500/30 px-2.5 py-1.5 rounded-xl shadow-inner">
+                <i data-lucide="clock" class="w-3.5 h-3.5 stroke-emerald-400"></i>
                 <span id="timer" class="font-mono text-xs font-bold text-emerald-400">00:00</span>
             </div>
         </div>
@@ -54,30 +54,30 @@
 
     <!-- PROFIL MODAL OYNASI -->
     <div id="profile-modal" class="hidden fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-        <div class="bg-slate-900 border border-amber-500/30 rounded-2xl w-full max-w-xs p-5 shadow-2xl relative text-center">
-            <button onclick="closeProfileModal()" class="absolute top-3 right-3 text-slate-400 hover:text-white p-1 rounded-lg">
+        <div class="bg-[#111827] border border-[#1F2937] rounded-2xl w-full max-w-xs p-5 shadow-2xl relative text-center">
+            <button onclick="closeProfileModal()" class="absolute top-3 right-3 text-[#9CA3AF] hover:text-white p-1 rounded-lg">
                 <i data-lucide="x" class="w-5 h-5"></i>
             </button>
 
-            <div class="w-16 h-16 rounded-2xl bg-amber-500/20 border border-amber-500/40 text-amber-400 mx-auto flex items-center justify-center text-2xl mb-3 shadow-inner">
-                <i data-lucide="user-check" class="w-8 h-8"></i>
+            <div class="w-16 h-16 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 mx-auto flex items-center justify-center text-2xl mb-3 shadow-inner">
+                <i data-lucide="user-check" class="w-8 h-8 stroke-emerald-400"></i>
             </div>
 
-            <h3 id="user-display-name" class="text-base font-bold text-slate-100">O'quvchi</h3>
-            <p id="user-display-phone" class="text-xs text-slate-400 mt-0.5">TARIX GRAND a'zosi</p>
+            <h3 id="user-display-name" class="text-base font-bold text-[#F9FAFB]">O'quvchi</h3>
+            <p id="user-display-phone" class="text-xs text-[#9CA3AF] mt-0.5">PHAROS a'zosi</p>
 
-            <div class="mt-4 pt-3 border-t border-slate-800 text-left space-y-2 text-xs">
-                <div class="flex justify-between text-slate-300">
-                    <span class="text-slate-400">Holat:</span>
+            <div class="mt-4 pt-3 border-t border-[#1F2937] text-left space-y-2 text-xs">
+                <div class="flex justify-between text-[#E2E8F0]">
+                    <span class="text-[#9CA3AF]">Holat:</span>
                     <span class="font-semibold text-emerald-400">Faol o'quvchi</span>
                 </div>
-                <div class="flex justify-between text-slate-300">
-                    <span class="text-slate-400">Yechilgan testlar:</span>
-                    <span class="font-semibold text-amber-400">1 ta</span>
+                <div class="flex justify-between text-[#E2E8F0]">
+                    <span class="text-[#9CA3AF]">Yechilgan testlar:</span>
+                    <span class="font-semibold text-emerald-400">1 ta</span>
                 </div>
             </div>
 
-            <button onclick="closeProfileModal()" class="w-full mt-5 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold rounded-xl transition-all">
+            <button onclick="closeProfileModal()" class="w-full mt-5 py-2.5 bg-[#161F30] hover:bg-[#1F2937] text-[#F9FAFB] text-xs font-semibold rounded-xl border border-[#1F2937] transition-all">
                 Yopish
             </button>
         </div>
@@ -85,39 +85,39 @@
 
     <!-- 1-BO'LIM: ASOSIY (HOME TAB) -->
     <main id="tab-home" class="flex-1 px-4 py-4 max-w-md mx-auto w-full">
-        <div class="bg-gradient-to-r from-amber-500/20 via-purple-500/20 to-slate-900 border border-white/10 rounded-2xl p-4 mb-4 shadow-xl">
-            <h2 class="text-base font-bold text-white flex items-center gap-2">
-                <i data-lucide="sparkles" class="w-4 h-4 text-amber-400"></i> Xush kelibsiz!
+        <div class="bg-[#111827] border border-[#1F2937] rounded-2xl p-4 mb-4 shadow-sm">
+            <h2 class="text-base font-bold text-[#F9FAFB] flex items-center gap-2">
+                <i data-lucide="sparkles" class="w-4 h-4 stroke-emerald-400"></i> Xush kelibsiz!
             </h2>
-            <p class="text-xs text-slate-300 mt-1 leading-relaxed">
-                Tarix fanidan videodarslar, namunaviy testlar va qulay adabiyotlar to'plami bitta platformada.
+            <p class="text-xs text-[#9CA3AF] mt-1 leading-relaxed">
+                Tarix fanidan videodarslar, namunaviy testlar va rasmiy adabiyotlar to'plami.
             </p>
         </div>
 
         <div class="grid grid-cols-2 gap-3 mb-4">
-            <div onclick="switchTab('lessons')" class="bg-slate-900/90 border border-white/10 hover:border-amber-500/40 p-4 rounded-2xl cursor-pointer active:scale-95 transition-all">
-                <div class="w-9 h-9 rounded-xl bg-amber-500/10 text-amber-400 flex items-center justify-center mb-2">
-                    <i data-lucide="graduation-cap" class="w-5 h-5"></i>
+            <div onclick="switchTab('lessons')" class="bg-[#111827] border border-[#1F2937] hover:border-emerald-500/40 p-4 rounded-2xl cursor-pointer active:scale-95 transition-all">
+                <div class="w-9 h-9 rounded-xl bg-emerald-500/10 text-emerald-400 flex items-center justify-center mb-2">
+                    <i data-lucide="graduation-cap" class="w-5 h-5 stroke-emerald-400"></i>
                 </div>
-                <h4 class="text-sm font-bold text-white">Fanlar va Darslar</h4>
-                <p class="text-[11px] text-slate-400 mt-0.5">6-11 sinf videolari</p>
+                <h4 class="text-sm font-semibold text-[#F9FAFB]">Fanlar va Darslar</h4>
+                <p class="text-[11px] text-[#9CA3AF] mt-0.5">6-11 sinf videolari</p>
             </div>
 
-            <div onclick="switchTab('tests')" class="bg-slate-900/90 border border-white/10 hover:border-emerald-500/40 p-4 rounded-2xl cursor-pointer active:scale-95 transition-all">
+            <div onclick="switchTab('tests')" class="bg-[#111827] border border-[#1F2937] hover:border-emerald-500/40 p-4 rounded-2xl cursor-pointer active:scale-95 transition-all">
                 <div class="w-9 h-9 rounded-xl bg-emerald-500/10 text-emerald-400 flex items-center justify-center mb-2">
-                    <i data-lucide="clipboard-check" class="w-5 h-5"></i>
+                    <i data-lucide="circle-check-big" class="w-5 h-5 stroke-emerald-400"></i>
                 </div>
-                <h4 class="text-sm font-bold text-white">Namunaviy testlar</h4>
-                <p class="text-[11px] text-slate-400 mt-0.5">Jonli taymer bilan</p>
+                <h4 class="text-sm font-semibold text-[#F9FAFB]">Namunaviy testlar</h4>
+                <p class="text-[11px] text-[#9CA3AF] mt-0.5">Jonli taymer bilan</p>
             </div>
         </div>
 
-        <div class="bg-slate-900/70 border border-white/10 p-3.5 rounded-2xl flex items-center justify-between">
+        <div class="bg-[#111827] border border-[#1F2937] p-3.5 rounded-2xl flex items-center justify-between">
             <div>
-                <span class="text-xs font-bold text-white">Platforma holati:</span>
+                <span class="text-xs font-semibold text-[#F9FAFB]">Platforma holati:</span>
                 <p class="text-[11px] text-emerald-400">Onlayn rejimda faol</p>
             </div>
-            <button onclick="switchTab('rating')" class="px-3 py-1.5 bg-slate-800 border border-white/10 rounded-xl text-xs font-semibold text-white">
+            <button onclick="switchTab('rating')" class="px-3 py-1.5 bg-[#161F30] border border-[#1F2937] rounded-xl text-xs font-semibold text-emerald-400">
                 Reytingni ko'rish
             </button>
         </div>
@@ -125,142 +125,139 @@
 
     <!-- 2-BO'LIM: FANLAR / DARSLAR TAB -->
     <main id="tab-lessons" class="hidden flex-1 px-4 py-4 max-w-md mx-auto w-full">
-        <!-- Sinflar tanlovi -->
-        <p class="text-xs font-bold text-slate-400 mb-2.5 uppercase tracking-wider flex items-center gap-1.5">
-            <i data-lucide="layers" class="w-3.5 h-3.5 text-amber-400"></i> Sinfni tanlang:
+        <p class="text-xs font-semibold text-[#9CA3AF] mb-2.5 uppercase tracking-wider flex items-center gap-1.5">
+            <i data-lucide="layers" class="w-3.5 h-3.5 stroke-emerald-400"></i> Sinfni tanlang:
         </p>
         <div class="grid grid-cols-6 gap-2 mb-4">
-            <button onclick="selectClass('6')" id="c-btn-6" class="class-btn py-2.5 text-sm font-bold rounded-xl border border-slate-800 bg-slate-900/80 text-slate-300 active:scale-95 transition-all">6</button>
-            <button onclick="selectClass('7')" id="c-btn-7" class="class-btn py-2.5 text-sm font-bold rounded-xl border border-amber-500 bg-amber-500/20 text-amber-300 shadow-md shadow-amber-500/10 active:scale-95 transition-all">7</button>
-            <button onclick="selectClass('8')" id="c-btn-8" class="class-btn py-2.5 text-sm font-bold rounded-xl border border-slate-800 bg-slate-900/80 text-slate-300 active:scale-95 transition-all">8</button>
-            <button onclick="selectClass('9')" id="c-btn-9" class="class-btn py-2.5 text-sm font-bold rounded-xl border border-slate-800 bg-slate-900/80 text-slate-300 active:scale-95 transition-all">9</button>
-            <button onclick="selectClass('10')" id="c-btn-10" class="class-btn py-2.5 text-sm font-bold rounded-xl border border-slate-800 bg-slate-900/80 text-slate-300 active:scale-95 transition-all">10</button>
-            <button onclick="selectClass('11')" id="c-btn-11" class="class-btn py-2.5 text-sm font-bold rounded-xl border border-slate-800 bg-slate-900/80 text-slate-300 active:scale-95 transition-all">11</button>
+            <button onclick="selectClass('6')" id="c-btn-6" class="class-btn py-2.5 text-sm font-semibold rounded-xl border border-[#1F2937] bg-[#111827] text-[#9CA3AF] active:scale-95 transition-all">6</button>
+            <button onclick="selectClass('7')" id="c-btn-7" class="class-btn py-2.5 text-sm font-bold rounded-xl border border-emerald-500 bg-emerald-500/20 text-emerald-300 shadow-sm active:scale-95 transition-all">7</button>
+            <button onclick="selectClass('8')" id="c-btn-8" class="class-btn py-2.5 text-sm font-semibold rounded-xl border border-[#1F2937] bg-[#111827] text-[#9CA3AF] active:scale-95 transition-all">8</button>
+            <button onclick="selectClass('9')" id="c-btn-9" class="class-btn py-2.5 text-sm font-semibold rounded-xl border border-[#1F2937] bg-[#111827] text-[#9CA3AF] active:scale-95 transition-all">9</button>
+            <button onclick="selectClass('10')" id="c-btn-10" class="class-btn py-2.5 text-sm font-semibold rounded-xl border border-[#1F2937] bg-[#111827] text-[#9CA3AF] active:scale-95 transition-all">10</button>
+            <button onclick="selectClass('11')" id="c-btn-11" class="class-btn py-2.5 text-sm font-semibold rounded-xl border border-[#1F2937] bg-[#111827] text-[#9CA3AF] active:scale-95 transition-all">11</button>
         </div>
 
-        <!-- Video Ko'rish Qismi -->
-        <div id="video-box" class="hidden mb-5 bg-slate-900/90 border border-slate-800 rounded-2xl overflow-hidden p-3 shadow-xl">
-            <video id="lesson-player" controls controlsList="nodownload nofullscreen" oncontextmenu="return false;" playsinline class="w-full rounded-xl bg-black aspect-video mb-3 shadow-md" src=""></video>
-            <h3 id="player-title" class="text-sm font-bold text-amber-400">Dars videosi</h3>
-            <p id="player-desc" class="text-xs text-slate-300 mt-1.5 leading-relaxed font-normal"></p>
+        <div id="video-box" class="hidden mb-5 bg-[#111827] border border-[#1F2937] rounded-2xl overflow-hidden p-3 shadow-md">
+            <video id="lesson-player" controls controlsList="nodownload nofullscreen" oncontextmenu="return false;" playsinline class="w-full rounded-xl bg-black aspect-video mb-3 shadow-sm" src=""></video>
+            <h3 id="player-title" class="text-sm font-bold text-emerald-400">Dars videosi</h3>
+            <p id="player-desc" class="text-xs text-[#9CA3AF] mt-1.5 leading-relaxed font-normal"></p>
         </div>
 
-        <!-- Darslar ro'yxati -->
-        <p class="text-xs font-bold text-slate-400 mb-2.5 uppercase tracking-wider flex items-center gap-1.5">
-            <i data-lucide="play-circle" class="w-3.5 h-3.5 text-amber-400"></i> Mavzular:
+        <p class="text-xs font-semibold text-[#9CA3AF] mb-2.5 uppercase tracking-wider flex items-center gap-1.5">
+            <i data-lucide="play-circle" class="w-3.5 h-3.5 stroke-emerald-400"></i> Mavzular:
         </p>
         <div id="lessons-list" class="space-y-2.5"></div>
     </main>
 
-    <!-- TESTLAR TAB (Asosiy sahifadan yoki test tugmasidan ochiladi) -->
+    <!-- 3-BO'LIM: REYTING TAB -->
+    <main id="tab-rating" class="hidden flex-1 px-4 py-4 max-w-md mx-auto w-full">
+        <p class="text-xs font-semibold text-[#9CA3AF] mb-3 uppercase tracking-wider flex items-center gap-1.5">
+            <i data-lucide="trophy" class="w-3.5 h-3.5 stroke-emerald-400"></i> O'quvchilar umumiy reytingi:
+        </p>
+        <div class="bg-[#111827] border border-[#1F2937] rounded-2xl divide-y divide-[#1F2937] overflow-hidden shadow-sm">
+            <div class="p-3.5 flex items-center justify-between">
+                <div class="flex items-center gap-3">
+                    <span class="w-6 h-6 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center font-bold text-xs">1</span>
+                    <div>
+                        <h4 class="text-xs font-semibold text-[#F9FAFB]">Jahongir Qadamov</h4>
+                        <p class="text-[10px] text-[#9CA3AF]">100% natija (15/15)</p>
+                    </div>
+                </div>
+                <span class="text-xs font-extrabold text-emerald-400">1500 ball</span>
+            </div>
+            <div class="p-3.5 flex items-center justify-between">
+                <div class="flex items-center gap-3">
+                    <span class="w-6 h-6 rounded-full bg-[#161F30] text-[#9CA3AF] flex items-center justify-center font-semibold text-xs">2</span>
+                    <div>
+                        <h4 class="text-xs font-semibold text-[#F9FAFB]">Ali Valiyev</h4>
+                        <p class="text-[10px] text-[#9CA3AF]">85% natija (12/15)</p>
+                    </div>
+                </div>
+                <span class="text-xs font-semibold text-[#9CA3AF]">1200 ball</span>
+            </div>
+        </div>
+    </main>
+
+    <!-- 4-BO'LIM: TESTLAR TAB -->
     <main id="tab-tests" class="hidden flex-1 px-4 py-4 max-w-md mx-auto w-full">
-        <section class="p-3 bg-slate-900/70 border border-slate-800 rounded-2xl mb-4 backdrop-blur-sm">
-            <p class="text-xs font-bold text-slate-400 mb-2 uppercase tracking-wider">Savollar to'ri:</p>
+        <section class="p-3 bg-[#111827] border border-[#1F2937] rounded-2xl mb-4">
+            <p class="text-xs font-semibold text-[#9CA3AF] mb-2 uppercase tracking-wider">Savollar to'ri:</p>
             <div id="grid-container" class="flex flex-wrap gap-2 max-h-28 overflow-y-auto"></div>
         </section>
 
         <div id="quiz-box">
-            <div class="bg-slate-900/90 p-4 rounded-2xl border border-slate-800 mb-4 shadow-lg">
-                <span id="question-number" class="text-xs font-extrabold text-amber-400 uppercase tracking-wider block mb-1.5">Savol 1</span>
-                <p id="question-text" class="text-sm font-semibold leading-relaxed text-slate-100">Yuklanmoqda...</p>
+            <div class="bg-[#111827] p-4 rounded-2xl border border-[#1F2937] mb-4 shadow-sm">
+                <span id="question-number" class="text-xs font-bold text-emerald-400 uppercase tracking-wider block mb-1.5">Savol 1</span>
+                <p id="question-text" class="text-sm font-medium leading-relaxed text-[#F9FAFB]">Yuklanmoqda...</p>
             </div>
             <div id="options-container" class="space-y-2.5"></div>
         </div>
 
-        <footer class="mt-5 pt-3 border-t border-slate-800/80 flex gap-2">
-            <button id="prev-btn" onclick="prevQuestion()" class="flex-1 py-3 bg-slate-800 hover:bg-slate-700 text-xs font-bold rounded-xl disabled:opacity-30 flex items-center justify-center gap-1.5">
+        <footer class="mt-5 pt-3 border-t border-[#1F2937] flex gap-2">
+            <button id="prev-btn" onclick="prevQuestion()" class="flex-1 py-3 bg-[#161F30] hover:bg-[#1F2937] text-xs font-semibold rounded-xl disabled:opacity-30 flex items-center justify-center gap-1.5 border border-[#1F2937]">
                 <i data-lucide="arrow-left" class="w-3.5 h-3.5"></i> Oldingi
             </button>
-            <button id="next-btn" onclick="nextQuestion()" class="flex-1 py-3 bg-slate-800 hover:bg-slate-700 text-xs font-bold rounded-xl flex items-center justify-center gap-1.5">
+            <button id="next-btn" onclick="nextQuestion()" class="flex-1 py-3 bg-[#161F30] hover:bg-[#1F2937] text-xs font-semibold rounded-xl flex items-center justify-center gap-1.5 border border-[#1F2937]">
                 Keyingi <i data-lucide="arrow-right" class="w-3.5 h-3.5"></i>
             </button>
-            <button onclick="finishQuizPrompt()" class="px-4 py-3 bg-emerald-600 hover:bg-emerald-500 text-xs font-bold rounded-xl text-white shadow-lg shadow-emerald-900/30">
+            <button onclick="finishQuizPrompt()" class="px-4 py-3 bg-emerald-600 hover:bg-emerald-500 text-xs font-bold rounded-xl text-white shadow-md">
                 Yakunlash ✅
             </button>
         </footer>
     </main>
 
-    <!-- 3-BO'LIM: KITOBLAR TAB -->
+    <!-- 5-BO'LIM: KITOBLAR TAB -->
     <main id="tab-books" class="hidden flex-1 px-4 py-4 max-w-md mx-auto w-full">
-        <p class="text-xs font-bold text-slate-400 mb-3 uppercase tracking-wider flex items-center gap-1.5">
-            <i data-lucide="bookmark" class="w-3.5 h-3.5 text-amber-400"></i> Rasmiy qo'llanma va to'plamlar:
+        <p class="text-xs font-semibold text-[#9CA3AF] mb-3 uppercase tracking-wider flex items-center gap-1.5">
+            <i data-lucide="bookmark" class="w-3.5 h-3.5 stroke-emerald-400"></i> Rasmiy qo'llanma va to'plamlar:
         </p>
         <div class="space-y-3">
-            <div class="bg-slate-900/90 border border-slate-800 p-3.5 rounded-2xl flex gap-3.5 items-center shadow-lg">
-                <div class="w-14 h-18 bg-amber-500/10 rounded-xl flex items-center justify-center text-amber-400 border border-amber-500/30 shrink-0">
-                    <i data-lucide="book" class="w-7 h-7"></i>
+            <div class="bg-[#111827] border border-[#1F2937] p-3.5 rounded-2xl flex gap-3.5 items-center shadow-sm">
+                <div class="w-14 h-18 bg-emerald-500/10 rounded-xl flex items-center justify-center text-emerald-400 border border-emerald-500/20 shrink-0">
+                    <i data-lucide="library-big" class="w-7 h-7 stroke-emerald-400"></i>
                 </div>
                 <div class="flex-1">
-                    <h4 class="text-sm font-bold text-slate-100">Tarix: 6-11 Attestatsiya to'plami</h4>
-                    <p class="text-xs text-slate-400 mt-0.5">Muallif: TARIX GRAND jamoasi</p>
-                    <p class="text-sm font-extrabold text-amber-400 mt-1">45 000 so'm</p>
+                    <h4 class="text-sm font-semibold text-[#F9FAFB]">Tarix: 6-11 Attestatsiya to'plami</h4>
+                    <p class="text-xs text-[#9CA3AF] mt-0.5">Muallif: PHAROS jamoasi</p>
+                    <p class="text-sm font-extrabold text-emerald-400 mt-1">45 000 so'm</p>
                 </div>
-                <button onclick="alert('Tez orada: Ushbu kitobni to\'g\'ridan-to\'g\'ri Click/Payme orqali sotib olasiz!')" class="px-3.5 py-2.5 bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-extrabold rounded-xl shadow-md">
+                <button onclick="alert('Tez orada: Ushbu kitobni to\'g\'ridan-to\'g\'ri Click/Payme orqali sotib olasiz!')" class="px-3.5 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-xl shadow-sm">
                     Xarid
                 </button>
             </div>
         </div>
     </main>
 
-    <!-- 4-BO'LIM: REYTING TAB -->
-    <main id="tab-rating" class="hidden flex-1 px-4 py-4 max-w-md mx-auto w-full">
-        <p class="text-xs font-bold text-slate-400 mb-3 uppercase tracking-wider flex items-center gap-1.5">
-            <i data-lucide="trophy" class="w-3.5 h-3.5 text-amber-400"></i> O'quvchilar umumiy reytingi:
-        </p>
-        <div class="bg-slate-900/90 border border-slate-800 rounded-2xl divide-y divide-slate-800 overflow-hidden shadow-xl">
-            <div class="p-3.5 flex items-center justify-between">
-                <div class="flex items-center gap-3">
-                    <span class="w-6 h-6 rounded-full bg-amber-500/20 text-amber-400 flex items-center justify-center font-bold text-xs">1</span>
-                    <div>
-                        <h4 class="text-xs font-bold text-white">Jahongir Qadamov</h4>
-                        <p class="text-[10px] text-slate-400">100% natija (15/15)</p>
-                    </div>
-                </div>
-                <span class="text-xs font-extrabold text-amber-400">1500 ball</span>
-            </div>
-            <div class="p-3.5 flex items-center justify-between">
-                <div class="flex items-center gap-3">
-                    <span class="w-6 h-6 rounded-full bg-slate-800 text-slate-300 flex items-center justify-center font-bold text-xs">2</span>
-                    <div>
-                        <h4 class="text-xs font-bold text-white">Ali Valiyev</h4>
-                        <p class="text-[10px] text-slate-400">85% natija (12/15)</p>
-                    </div>
-                </div>
-                <span class="text-xs font-extrabold text-slate-300">1200 ball</span>
-            </div>
-        </div>
-    </main>
-
-    <!-- 5. PASTKI NAVIGATSIYA PANELI (BOTTOM BAR - DARK AMETHYST & OUTFIT) -->
-    <nav style="background-color: #1C102A;" class="fixed bottom-0 left-0 right-0 border-t border-white/10 py-2 px-2 flex justify-around items-center z-30 shadow-2xl backdrop-blur-md">
+    <!-- 5. PASTKI NAVIGATSIYA PANELI (BOTTOM BAR) -->
+    <nav class="fixed bottom-0 left-0 right-0 bg-[#111827] border-t border-[#1F2937] py-2 px-2 flex justify-around items-center z-30 shadow-2xl backdrop-blur-md">
         <!-- 1. Asosiy -->
-        <button onclick="switchTab('home')" id="nav-btn-home" class="flex flex-col items-center gap-1 text-white transition-all active:scale-95">
-            <i data-lucide="house" class="w-5 h-5 stroke-white"></i>
-            <span class="text-[11px] font-semibold tracking-tight text-white">Asosiy</span>
+        <button onclick="switchTab('home')" id="nav-btn-home" class="flex flex-col items-center gap-1 text-emerald-400 transition-all active:scale-95">
+            <i data-lucide="house" class="w-5 h-5 stroke-emerald-400"></i>
+            <span class="text-[11px] font-semibold tracking-tight text-emerald-400">Asosiy</span>
         </button>
 
         <!-- 2. Fanlar -->
-        <button onclick="switchTab('lessons')" id="nav-btn-lessons" class="flex flex-col items-center gap-1 text-white/70 hover:text-white transition-all active:scale-95">
-            <i data-lucide="graduation-cap" class="w-5 h-5 stroke-white/80"></i>
-            <span class="text-[11px] font-medium tracking-tight text-white/80">Fanlar</span>
+        <button onclick="switchTab('lessons')" id="nav-btn-lessons" class="flex flex-col items-center gap-1 text-[#9CA3AF] hover:text-[#F9FAFB] transition-all active:scale-95">
+            <i data-lucide="graduation-cap" class="w-5 h-5 stroke-[#9CA3AF]"></i>
+            <span class="text-[11px] font-medium tracking-tight text-[#9CA3AF]">Fanlar</span>
         </button>
 
-        <!-- 3. Kitoblar -->
-        <button onclick="switchTab('books')" id="nav-btn-books" class="flex flex-col items-center gap-1 text-white/70 hover:text-white transition-all active:scale-95">
-            <i data-lucide="library-big" class="w-5 h-5 stroke-white/80"></i>
-            <span class="text-[11px] font-medium tracking-tight text-white/80">Kitoblar</span>
+        <!-- 3. Reyting (O'rtada) -->
+        <button onclick="switchTab('rating')" id="nav-btn-rating" class="flex flex-col items-center gap-1 text-[#9CA3AF] hover:text-[#F9FAFB] transition-all active:scale-95">
+            <i data-lucide="trophy" class="w-5 h-5 stroke-[#9CA3AF]"></i>
+            <span class="text-[11px] font-medium tracking-tight text-[#9CA3AF]">Reyting</span>
         </button>
 
-        <!-- 4. Reyting -->
-        <button onclick="switchTab('rating')" id="nav-btn-rating" class="flex flex-col items-center gap-1 text-white/70 hover:text-white transition-all active:scale-95">
-            <i data-lucide="trophy" class="w-5 h-5 stroke-white/80"></i>
-            <span class="text-[11px] font-medium tracking-tight text-white/80">Reyting</span>
+        <!-- 4. Testlar (CircleCheckBig) -->
+        <button onclick="switchTab('tests')" id="nav-btn-tests" class="flex flex-col items-center gap-1 text-[#9CA3AF] hover:text-[#F9FAFB] transition-all active:scale-95">
+            <i data-lucide="circle-check-big" class="w-5 h-5 stroke-[#9CA3AF]"></i>
+            <span class="text-[11px] font-medium tracking-tight text-[#9CA3AF]">Testlar</span>
         </button>
 
-        <!-- 5. Chiqish / Profil modal -->
-        <button onclick="openProfileModal()" id="nav-btn-profile" class="flex flex-col items-center gap-1 text-white/70 hover:text-white transition-all active:scale-95">
-            <i data-lucide="user" class="w-5 h-5 stroke-white/80"></i>
-            <span class="text-[11px] font-medium tracking-tight text-white/80">Profil</span>
+        <!-- 5. Kitoblar (LibraryBig) -->
+        <button onclick="switchTab('books')" id="nav-btn-books" class="flex flex-col items-center gap-1 text-[#9CA3AF] hover:text-[#F9FAFB] transition-all active:scale-95">
+            <i data-lucide="library-big" class="w-5 h-5 stroke-[#9CA3AF]"></i>
+            <span class="text-[11px] font-medium tracking-tight text-[#9CA3AF]">Kitoblar</span>
         </button>
     </nav>
 
@@ -274,25 +271,25 @@
 
         function switchTab(tab) {
             currentTab = tab;
-            ['home', 'lessons', 'tests', 'books', 'rating'].forEach(t => {
+            ['home', 'lessons', 'rating', 'tests', 'books'].forEach(t => {
                 const el = document.getElementById(`tab-${t}`);
                 if (el) el.classList.add('hidden');
             });
             document.getElementById('test-timer-box').classList.add('hidden');
 
-            ['home', 'lessons', 'books', 'rating'].forEach(t => {
+            ['home', 'lessons', 'rating', 'tests', 'books'].forEach(t => {
                 const btn = document.getElementById(`nav-btn-${t}`);
                 if (!btn) return;
                 const icon = btn.querySelector('i');
                 const span = btn.querySelector('span');
                 if (t === tab) {
-                    btn.className = "flex flex-col items-center gap-1 text-white transition-all active:scale-95";
-                    if (icon) icon.className = "w-5 h-5 stroke-white";
-                    if (span) span.className = "text-[11px] font-bold tracking-tight text-white";
+                    btn.className = "flex flex-col items-center gap-1 text-emerald-400 transition-all active:scale-95";
+                    if (icon) icon.className = "w-5 h-5 stroke-emerald-400";
+                    if (span) span.className = "text-[11px] font-bold tracking-tight text-emerald-400";
                 } else {
-                    btn.className = "flex flex-col items-center gap-1 text-white/70 hover:text-white transition-all active:scale-95";
-                    if (icon) icon.className = "w-5 h-5 stroke-white/70";
-                    if (span) span.className = "text-[11px] font-medium tracking-tight text-white/70";
+                    btn.className = "flex flex-col items-center gap-1 text-[#9CA3AF] hover:text-[#F9FAFB] transition-all active:scale-95";
+                    if (icon) icon.className = "w-5 h-5 stroke-[#9CA3AF]";
+                    if (span) span.className = "text-[11px] font-medium tracking-tight text-[#9CA3AF]";
                 }
             });
 
@@ -312,13 +309,13 @@
         async function loadLessons(classId) {
             currentClass = classId;
             document.querySelectorAll('.class-btn').forEach(b => {
-                b.className = "class-btn py-2.5 text-sm font-bold rounded-xl border border-slate-800 bg-slate-900/80 text-slate-300 active:scale-95 transition-all";
+                b.className = "class-btn py-2.5 text-sm font-semibold rounded-xl border border-[#1F2937] bg-[#111827] text-[#9CA3AF] active:scale-95 transition-all";
             });
             const activeBtn = document.getElementById(`c-btn-${classId}`);
-            if (activeBtn) activeBtn.className = "class-btn py-2.5 text-sm font-bold rounded-xl border border-amber-500 bg-amber-500/20 text-amber-300 shadow-md shadow-amber-500/10 active:scale-95 transition-all";
+            if (activeBtn) activeBtn.className = "class-btn py-2.5 text-sm font-bold rounded-xl border border-emerald-500 bg-emerald-500/20 text-emerald-300 shadow-sm active:scale-95 transition-all";
 
             const container = document.getElementById('lessons-list');
-            container.innerHTML = '<p class="text-xs text-slate-400 py-3 text-center">Yuklanmoqda...</p>';
+            container.innerHTML = '<p class="text-xs text-[#9CA3AF] py-3 text-center">Yuklanmoqda...</p>';
 
             try {
                 const res = await fetch(`/api/lessons/${classId}`);
@@ -326,20 +323,20 @@
                 container.innerHTML = '';
 
                 if (!lessons || lessons.length === 0) {
-                    container.innerHTML = '<p class="text-xs text-slate-500 py-6 text-center">Bu sinf uchun hozircha darslar mavjud emas.</p>';
+                    container.innerHTML = '<p class="text-xs text-[#6B7280] py-6 text-center">Bu sinf uchun hozircha darslar mavjud emas.</p>';
                     return;
                 }
 
                 lessons.forEach((l) => {
                     const item = document.createElement('div');
-                    item.className = "bg-slate-900/90 border border-slate-800 hover:border-slate-700 p-3.5 rounded-2xl flex justify-between items-center shadow-md transition-all";
+                    item.className = "bg-[#111827] border border-[#1F2937] hover:border-[#374151] p-3.5 rounded-2xl flex justify-between items-center shadow-sm transition-all";
                     item.innerHTML = `
                         <div class="pr-2">
-                            <h4 class="text-sm font-bold text-slate-100">${l.title}</h4>
-                            <p class="text-xs text-slate-400 line-clamp-1 mt-1 font-normal">${l.desc}</p>
+                            <h4 class="text-sm font-semibold text-[#F9FAFB]">${l.title}</h4>
+                            <p class="text-xs text-[#9CA3AF] line-clamp-1 mt-1 font-normal">${l.desc}</p>
                         </div>
-                        <button onclick="playLesson('${l.title}', '${l.desc}', '${l.video_url}')" class="px-3 py-2 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/40 text-amber-300 text-xs font-bold rounded-xl shrink-0 flex items-center gap-1 active:scale-95 transition-all">
-                            <i data-lucide="play" class="w-3.5 h-3.5 fill-amber-300"></i> Ko'rish
+                        <button onclick="playLesson('${l.title}', '${l.desc}', '${l.video_url}')" class="px-3 py-2 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 text-emerald-400 text-xs font-semibold rounded-xl shrink-0 flex items-center gap-1 active:scale-95 transition-all">
+                            <i data-lucide="play" class="w-3.5 h-3.5 fill-emerald-400"></i> Ko'rish
                         </button>
                     `;
                     container.appendChild(item);
@@ -365,7 +362,7 @@
             player.play();
         }
 
-        // Test qismi logikasi
+        // Test mantig'i
         let quizData = { questions: [] };
         let currentIndex = 0;
         let userAnswers = {};
@@ -390,7 +387,7 @@
                 const btn = document.createElement('button');
                 btn.id = `grid-btn-${idx}`;
                 btn.innerText = idx + 1;
-                btn.className = "w-8 h-8 text-xs font-bold rounded-lg border border-slate-700 bg-slate-800 text-slate-300";
+                btn.className = "w-8 h-8 text-xs font-semibold rounded-lg border border-[#1F2937] bg-[#161F30] text-[#9CA3AF]";
                 btn.onclick = () => renderQuestion(idx);
                 c.appendChild(btn);
             });
@@ -410,11 +407,11 @@
             q.options.forEach((opt, optIdx) => {
                 const isSelected = userAnswers[index] === optIdx;
                 const btn = document.createElement('button');
-                btn.className = `w-full text-left p-3.5 rounded-xl border text-xs sm:text-sm font-medium flex items-center gap-3 transition-all ${
-                    isSelected ? 'bg-amber-500/10 border-amber-500 text-amber-300 font-semibold shadow-sm' : 'bg-slate-900 border-slate-800 text-slate-300 hover:bg-slate-850'
+                btn.className = `w-full text-left p-3.5 rounded-xl border text-xs sm:text-sm font-normal flex items-center gap-3 transition-all ${
+                    isSelected ? 'bg-emerald-500/10 border-emerald-500 text-emerald-300 font-semibold' : 'bg-[#161F30] border-[#1F2937] text-[#9CA3AF] hover:bg-[#1A2436]'
                 }`;
                 btn.innerHTML = `
-                    <span class="w-6 h-6 rounded-lg flex items-center justify-center text-xs font-bold border ${isSelected ? 'border-amber-400 bg-amber-500 text-slate-950' : 'border-slate-700 bg-slate-800 text-slate-400'}">${labels[optIdx]}</span>
+                    <span class="w-6 h-6 rounded-lg flex items-center justify-center text-xs font-bold border ${isSelected ? 'border-emerald-400 bg-emerald-500 text-[#0A0E17]' : 'border-[#1F2937] bg-[#111827] text-[#9CA3AF]'}">${labels[optIdx]}</span>
                     <span class="flex-1">${opt}</span>
                 `;
                 btn.onclick = () => { userAnswers[index] = optIdx; renderQuestion(index); };
@@ -430,11 +427,11 @@
                 const btn = document.getElementById(`grid-btn-${idx}`);
                 if (!btn) return;
                 if (idx === currentIndex) {
-                    btn.className = "w-8 h-8 text-xs font-extrabold rounded-lg border-2 border-amber-400 bg-amber-500/20 text-amber-300 shadow-md shadow-amber-500/20";
+                    btn.className = "w-8 h-8 text-xs font-bold rounded-lg border-2 border-emerald-400 bg-emerald-500/20 text-emerald-300 shadow-sm";
                 } else if (userAnswers.hasOwnProperty(idx)) {
-                    btn.className = "w-8 h-8 text-xs font-bold rounded-lg border border-emerald-500/80 bg-emerald-500/20 text-emerald-300";
+                    btn.className = "w-8 h-8 text-xs font-semibold rounded-lg border border-emerald-500/80 bg-emerald-500/20 text-emerald-300";
                 } else {
-                    btn.className = "w-8 h-8 text-xs font-bold rounded-lg border border-slate-700 bg-slate-800 text-slate-400";
+                    btn.className = "w-8 h-8 text-xs font-semibold rounded-lg border border-[#1F2937] bg-[#161F30] text-[#9CA3AF]";
                 }
             });
         }
@@ -473,11 +470,11 @@
                 <div class="py-12 flex flex-col items-center justify-center text-center">
                     <div class="w-20 h-20 bg-emerald-500/10 text-emerald-400 rounded-2xl flex items-center justify-center text-4xl mb-4 border border-emerald-500/30">🏆</div>
                     <h2 class="text-xl font-bold text-white mb-1">Test yakunlandi!</h2>
-                    <div class="bg-slate-900/90 border border-slate-800 p-5 rounded-2xl w-full max-w-xs my-4 shadow-xl">
-                        <p class="text-4xl font-extrabold text-amber-400 mb-1">${percent}%</p>
-                        <p class="text-sm text-slate-300">To'g'ri javoblar: <span class="text-emerald-400 font-bold">${correct}</span> / ${quizData.questions.length}</p>
+                    <div class="bg-[#111827] border border-[#1F2937] p-5 rounded-2xl w-full max-w-xs my-4 shadow-sm">
+                        <p class="text-4xl font-extrabold text-emerald-400 mb-1">${percent}%</p>
+                        <p class="text-sm text-[#9CA3AF]">To'g'ri javoblar: <span class="text-emerald-400 font-bold">${correct}</span> / ${quizData.questions.length}</p>
                     </div>
-                    <button onclick="location.reload()" class="w-full max-w-xs py-3 bg-slate-800 hover:bg-slate-700 text-white rounded-xl text-xs font-bold">Qayta topshirish</button>
+                    <button onclick="location.reload()" class="w-full max-w-xs py-3 bg-[#161F30] hover:bg-[#1F2937] text-white rounded-xl text-xs font-bold border border-[#1F2937]">Qayta topshirish</button>
                 </div>
             `;
         }
