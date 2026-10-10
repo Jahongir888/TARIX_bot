@@ -71,9 +71,10 @@
                     <i data-lucide="newspaper" class="w-4 h-4 stroke-emerald-400"></i>
                     <h3 class="text-xs font-bold text-white tracking-wide uppercase">Yangiliklar va E'lonlar</h3>
                 </div>
+                <button onclick="loadNews('')" class="text-[10px] text-emerald-400 hover:underline font-semibold">Barchasi</button>
             </div>
             <div id="news-container" class="flex gap-3 overflow-x-auto pb-2 scrollbar-none snap-x snap-mandatory">
-                <p class="text-xs text-slate-500 py-2">Yuklanmoqda...</p>
+                <p class="text-xs text-slate-500 py-3">Yangiliklar yuklanmoqda...</p>
             </div>
         </section>
 
@@ -92,7 +93,7 @@
                     <i data-lucide="circle-check-big" class="w-4 h-4"></i>
                 </div>
                 <h4 class="text-xs font-bold text-white">Namunaviy testlar</h4>
-                <p class="text-[10px] text-slate-400 mt-0.5">Taymer bilan ishlash[cite: 10, 12]</p>
+                <p class="text-[10px] text-slate-400 mt-0.5">Taymer bilan ishlash</p>
             </div>
         </div>
 
@@ -253,6 +254,66 @@
             </button>
         </div>
     </main>
+
+    <!-- YANGILIK DETAL MODALI (SAYT USLUBIDA TO'LIQ EKRAN) -->
+    <div id="news-detail-modal" class="hidden fixed inset-0 bg-[#0A0E17] z-50 overflow-y-auto pb-10">
+        <!-- Tepa boshqaruv paneli -->
+        <div class="sticky top-0 bg-[#111827]/90 backdrop-blur-md px-4 py-3 border-b border-[#1F2937] flex justify-between items-center z-10">
+            <span class="text-xs font-bold text-slate-400 uppercase tracking-wider">Yangilik tafsiloti</span>
+            <button onclick="closeNewsDetail()" class="p-1.5 rounded-xl bg-[#161F30] border border-[#283548] text-slate-300 active:scale-95">
+                <i data-lucide="x" class="w-4 h-4"></i>
+            </button>
+        </div>
+
+        <div class="max-w-md mx-auto px-4 pt-4 space-y-4">
+            <!-- 1. Asosiy Rasm -->
+            <img id="nd-image" src="" class="w-full h-52 object-cover rounded-2xl border border-[#1F2937] shadow-lg">
+
+            <!-- 2. Sana va Ko'rishlar soni -->
+            <p id="nd-date" class="text-xs text-slate-400 font-mono"></p>
+
+            <!-- 3. Heshteglar -->
+            <div id="nd-hashtags" class="flex flex-wrap gap-1.5"></div>
+
+            <!-- 4. Katta Sarlavha -->
+            <h2 id="nd-title" class="text-base font-extrabold text-white leading-tight"></h2>
+
+            <!-- 5. To'liq Xabar Matni -->
+            <div id="nd-content" class="text-xs text-slate-300 leading-relaxed space-y-2 whitespace-pre-line border-b border-[#1F2937] pb-4"></div>
+
+            <!-- 6. Manba havolasi -->
+            <div id="nd-source-box" class="bg-[#111827] border border-[#1F2937] p-3 rounded-xl flex items-center justify-between text-xs">
+                <span class="text-slate-400">Manba:</span>
+                <a id="nd-source" href="#" target="_blank" class="text-emerald-400 font-bold underline flex items-center gap-1"></a>
+            </div>
+
+            <!-- 7. Reaksiyalar (4 xil) -->
+            <div class="flex gap-2 justify-center py-1">
+                <button onclick="alert('Reaksiyangiz qabul qilindi!')" class="px-3.5 py-1.5 rounded-xl bg-[#111827] border border-[#1F2937] text-sm hover:scale-110 active:scale-95 transition-all">👍</button>
+                <button onclick="alert('Reaksiyangiz qabul qilindi!')" class="px-3.5 py-1.5 rounded-xl bg-[#111827] border border-[#1F2937] text-sm hover:scale-110 active:scale-95 transition-all">❤️</button>
+                <button onclick="alert('Reaksiyangiz qabul qilindi!')" class="px-3.5 py-1.5 rounded-xl bg-[#111827] border border-[#1F2937] text-sm hover:scale-110 active:scale-95 transition-all">🔥</button>
+                <button onclick="alert('Reaksiyangiz qabul qilindi!')" class="px-3.5 py-1.5 rounded-xl bg-[#111827] border border-[#1F2937] text-sm hover:scale-110 active:scale-95 transition-all">💡</button>
+            </div>
+
+            <!-- 8. O'xshash Yangiliklar -->
+            <div class="pt-2">
+                <h4 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">O'xshash yangiliklar</h4>
+                <div id="nd-related" class="space-y-2"></div>
+            </div>
+
+            <!-- 9. Komment maydoni -->
+            <div class="pt-4 border-t border-[#1F2937]">
+                <h4 class="text-xs font-bold text-white mb-2">Fikr bildirish</h4>
+                <div class="flex gap-2">
+                    <input id="nd-comment-input" type="text" placeholder="Fikringizni yozing..." class="flex-1 bg-[#111827] border border-[#1F2937] text-white text-xs rounded-xl px-3 py-2.5 focus:outline-none focus:border-emerald-500">
+                    <button onclick="postComment()" class="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold active:scale-95">Yuborish</button>
+                </div>
+            </div>
+
+            <!-- 10. Avvalgi Kommentlar ro'yxati -->
+            <div id="nd-comments-list" class="space-y-2 pt-2"></div>
+        </div>
+    </div>
 
     <!-- PASTKI NAVIGATSIYA PANELI (ASOSIY, FANLAR, REYTING, TESTLAR, KITOBLAR) -->
     <nav class="fixed bottom-0 left-0 right-0 bg-[#111827] border-t border-[#1F2937] py-2 px-1 flex justify-around items-center z-30 shadow-lg">
@@ -530,8 +591,15 @@
             `;
         }
 
+        <!-- 1. Yangiliklar logikasi ulanadi -->
+    <script src="/static/js/home.js"></script>
+
+    <!-- 2. Asosiy ishga tushirish bloki -->
+    <script>
         window.onload = () => {
             switchTab('home');
+            startSessionTimer();
+            if (typeof loadNews === 'function') loadNews();
             lucide.createIcons();
         };
     </script>

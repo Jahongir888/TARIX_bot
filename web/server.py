@@ -3,9 +3,20 @@ import uvicorn
 from fastapi import FastAPI, Response
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
+from pydantic import BaseModel
+from sqlalchemy import select, update
+
+# Loyihaning ma'lumotlar bazasi va Aiogram bot importlari
+from database.db import async_session
+from database.models import News, NewsComment
+from data.config import BOT_TOKEN
+from aiogram import Bot
 
 # 1. Avval FastAPI obyektini yaratamiz
 app = FastAPI()
+
+# Guruhga post va izohlarni reply qilish uchun Aiogram bot obyekti
+tg_bot = Bot(token=BOT_TOKEN)
 
 # 2. Statik fayllar (home.js va boshqalar) uchun papkani ulaymiz
 static_path = os.path.join(os.path.dirname(__file__), "static")
@@ -17,41 +28,7 @@ app.mount("/static", StaticFiles(directory=static_path), name="static")
 CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
 TEMPLATE_PATH = os.path.join(CURRENT_DIR, "templates", "index.html")
 
-# 3. Dinamik yangiliklar bazasi
-SAMPLE_NEWS = [
-    {
-        "id": 1,
-        "tag": "Attestatsiya",
-        "tag_color": "emerald",
-        "date": "10-oktabr",
-        "title": "2026-yilgi pedagoglar attestatsiyasi namunaviy testlari yuklandi",
-        "desc": "Mutaxassislik fanlari va pedagogik mahorat bo'yicha yangi formatdagi testlar bilan tanishing.",
-        "action_tab": "tests",
-        "action_text": "Testni ishlash →"
-    },
-    {
-        "id": 2,
-        "tag": "Yangi dars",
-        "tag_color": "amber",
-        "date": "Bugun",
-        "title": "7-sinf O'zbekiston tarixi: Yangi videodarslar joylandi",
-        "desc": "Amir Temur davlati va harbiy islohotlar mavzusi tushuntirilgan darslar to'plami.",
-        "action_tab": "lessons",
-        "action_text": "Darslarga o'tish →"
-    },
-    {
-        "id": 3,
-        "tag": "Kutubxona",
-        "tag_color": "blue",
-        "date": "Kecha",
-        "title": "Rasmiy attestatsiya qo'llanmasi elektron shaklda",
-        "desc": "6-11 sinflar bo'yicha jamlangan to'liq savollar banki nashri chiqdi.",
-        "action_tab": "books",
-        "action_text": "Kitoblarni ko'rish →"
-    }
-]
-
-# 4. Sinov uchun savollar to'plami
+# 3. Sinov uchun savollar to'plami
 SAMPLE_QUIZ = {
     "topic": "7-sinf Tarix: Amir Temur davlati",
     "duration_minutes": 15,
@@ -89,7 +66,7 @@ SAMPLE_QUIZ = {
     ]
 }
 
-# 5. Darslar ro'yxati
+# 4. Darslar ro'yxati
 SAMPLE_LESSONS = {
     "6": [
         {"id": 601, "title": "1-dars. Qadimgi tosh davri (Paleolit)", "video_url": "https://www.w3schools.com/html/mov_bbb.mp4", "desc": "Eng qadimgi odamlar, ilk mehnat qurollari va olovning kashf etilishi haqida umumiy tushuncha."},
@@ -102,7 +79,7 @@ SAMPLE_LESSONS = {
     "8": [], "9": [], "10": [], "11": []
 }
 
-# 6. Asosiy sahifa (index.html)
+# 5. Asosiy sahifa (index.html)
 @app.get("/", response_class=HTMLResponse)
 async def read_root(response: Response):
     response.headers["ngrok-skip-browser-warning"] = "true"
@@ -111,21 +88,115 @@ async def read_root(response: Response):
             return f.read()
     return f"<h3>Shablon fayli topilmadi: {TEMPLATE_PATH}</h3>"
 
-# 7. Yangiliklar API
+# 6. Dinamik Yangiliklar API (Bazadan barcha yangiliklarni va teglarni o'qiydi)
 @app.get("/api/news")
-async def get_news():
-    return SAMPLE_NEWS
+async def get_news_list(tag: str = None):
+    async with async_session() as session:
+        query = select(News).order_by(News.created_at.desc())
+        res = await session.execute(query)
+        items = res.scalars().all()
 
-# 8. Test API
+        result = []
+        for n in items:
+            tags = [t.strip() for t in n.hashtags.split() if t.strip()]
+            if tag and tag not in tags:
+                continue
+            result.append({
+                "id": n.id,
+                "title": n.title,
+                "hashtags": tags,
+                "category": n.category,
+                "summary": n.summary,
+                "image_url": n.image_url,
+                "views_count": n.views_count,
+                "date": n.created_at.strftime("%d-%b, %H:%M")
+            })
+        return result
+
+# 7. Bitta yangilik tafsiloti API (Ko'rishlar soni +1 oshadi)
+@app.get("/api/news/{news_id}")
+async def get_news_detail(news_id: int):
+    async with async_session() as session:
+        await session.execute(
+            update(News).where(News.id == news_id).values(views_count=News.views_count + 1)
+        )
+        await session.commit()
+
+        news = await session.get(News, news_id)
+        if not news:
+            return {"error": "Not found"}
+
+        # O'xshash yangiliklar (shu kategoriya bo'yicha 3 ta)
+        rel_q = select(News).where(News.category == news.category, News.id != news.id).limit(3)
+        rel_res = await session.execute(rel_q)
+        related = [{"id": r.id, "title": r.title, "image_url": r.image_url} for r in rel_res.scalars().all()]
+
+        # Izohlar ro'yxati
+        com_q = select(NewsComment).where(NewsComment.news_id == news_id).order_by(NewsComment.created_at.desc())
+        com_res = await session.execute(com_q)
+        comments = [{"user": c.user_name, "text": c.text, "time": c.created_at.strftime("%H:%M")} for c in com_res.scalars().all()]
+
+        return {
+            "id": news.id,
+            "title": news.title,
+            "hashtags": [t.strip() for t in news.hashtags.split() if t.strip()],
+            "content": news.content,
+            "image_url": news.image_url,
+            "source_url": news.source_url,
+            "source_name": news.source_name,
+            "views_count": news.views_count,
+            "date": news.created_at.strftime("%d-%b %Y, %H:%M"),
+            "related": related,
+            "comments": comments
+        }
+
+# 8. Komment yozish sxemasi va API (Community guruhiga reply qilish bilan)
+class CommentSchema(BaseModel):
+    news_id: int
+    user_id: int
+    user_name: str
+    text: str
+
+@app.post("/api/news/comment")
+async def add_comment(data: CommentSchema):
+    async with async_session() as session:
+        news = await session.get(News, data.news_id)
+        if not news:
+            return {"status": "error"}
+
+        comment = NewsComment(
+            news_id=data.news_id,
+            user_id=data.user_id,
+            user_name=data.user_name,
+            text=data.text
+        )
+        session.add(comment)
+        await session.commit()
+
+        # Bog'langan guruh bo'lsa, o'sha postga reply qilamiz
+        if news.discussion_chat_id:
+            try:
+                await tg_bot.send_message(
+                    chat_id=news.discussion_chat_id,
+                    text=f"💬 <b>{data.user_name}</b> dan izoh:\n\n{data.text}",
+                    reply_to_message_id=news.telegram_post_msg_id,
+                    parse_mode="HTML"
+                )
+            except Exception as e:
+                print(f"Guruhga reply yuborishda xatolik: {e}")
+
+        return {"status": "success"}
+
+# 9. Test API
 @app.get("/api/test-data")
 async def get_test_data():
     return SAMPLE_QUIZ
 
-# 9. Darslar API
+# 10. Darslar API
 @app.get("/api/lessons/{class_id}")
 async def get_lessons_by_class(class_id: str):
     return SAMPLE_LESSONS.get(class_id, [])
 
-# 10. Ishga tushirish bloki (har doim eng oxirida turadi)
+# 11. Ishga tushirish bloki (har doim eng oxirida turadi)
 if __name__ == "__main__":
     uvicorn.run(app, host="127.0.0.1", port=8000)
