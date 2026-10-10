@@ -22,7 +22,7 @@
 </head>
 <body class="bg-[#0A0E17] text-slate-100 min-h-screen flex flex-col select-none pb-24">
 
-    <!-- 1. YUQORI SARLAVHA (Chapda Profil, Markazda PHAROS Mayoq Logotipi, O'ngda Taymer) -->
+    <!-- 1. YUQORI SARLAVHA (Chapda Profil, Markazda PHAROS Mayoq Logotipi, O'ngda Oldinga sanovchi Seans Taymeri) -->
     <header class="px-4 py-3 bg-[#111827]/90 backdrop-blur-md border-b border-[#1F2937] flex items-center justify-between sticky top-0 z-20 shadow-md">
 
         <!-- CHAP BURCHAK: Profil bo'limiga o'tish tugmasi -->
@@ -37,18 +37,13 @@
         <div onclick="switchTab('home')" class="flex items-center gap-2.5 cursor-pointer active:scale-95 transition-all">
             <div class="w-8 h-8 rounded-xl bg-[#161F30] border border-[#283548] flex items-center justify-center shrink-0 shadow-inner">
                 <svg viewBox="0 0 100 100" class="w-6 h-6" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <!-- Mayoq poydevori -->
                     <rect x="25" y="76" width="50" height="7" rx="3.5" fill="#FFFFFF"/>
-                    <!-- Mayoq tanasi -->
                     <path d="M32 76L42 34H58L68 76H32Z" fill="#FFFFFF"/>
-                    <!-- Gumbaz va chiroq xonasi -->
                     <rect x="39" y="30" width="22" height="4" rx="2" fill="#FFFFFF"/>
                     <path d="M41 30L41 23H59L59 30H41Z" fill="#FFFFFF"/>
                     <path d="M40 23C40 16 60 16 60 23Z" fill="#FFFFFF"/>
                     <circle cx="50" cy="15" r="2.5" fill="#FFFFFF"/>
-                    <!-- Oltin mayoq nuri -->
                     <polygon points="59,23 94,10 94,37 59,28" fill="#F59E0B" fill-opacity="0.95"/>
-                    <!-- Chiroq yadrosi -->
                     <circle cx="50" cy="26" r="2.5" fill="#F59E0B"/>
                 </svg>
             </div>
@@ -58,11 +53,17 @@
             </div>
         </div>
 
-        <!-- O'NG BURCHAK: Jonli Taymer (Faqat Test paytida ko'rinadi) -->
+        <!-- O'NG BURCHAK: Jonli Seans Taymeri (Oldinga sanovchi) va Test Taymeri -->
         <div class="flex justify-end min-w-[75px]">
-            <div id="test-timer-box" class="hidden flex items-center gap-1.5 bg-[#161F30] border border-emerald-500/30 px-2.5 py-1.5 rounded-xl shadow-inner">
-                <i data-lucide="clock" class="w-3.5 h-3.5 text-emerald-400"></i>
-                <span id="timer" class="font-mono text-xs font-bold text-emerald-400">00:00</span>
+            <!-- Oldinga qarab sanovchi seans taymeri -->
+            <div id="session-timer-box" class="flex items-center gap-1.5 bg-[#161F30] border border-[#283548] px-2.5 py-1.5 rounded-xl shadow-inner">
+                <i data-lucide="clock" class="w-3.5 h-3.5 stroke-emerald-400"></i>
+                <span id="session-timer" class="font-mono text-xs font-semibold text-emerald-400">00:00</span>
+            </div>
+            <!-- Test vaqtidagi teskari taymer (faqat testda ko'rinadi) -->
+            <div id="test-timer-box" class="hidden flex items-center gap-1.5 bg-[#161F30] border border-amber-500/40 px-2.5 py-1.5 rounded-xl shadow-inner">
+                <i data-lucide="timer" class="w-3.5 h-3.5 stroke-amber-400 animate-pulse"></i>
+                <span id="timer" class="font-mono text-xs font-bold text-amber-400">00:00</span>
             </div>
         </div>
     </header>
@@ -178,13 +179,13 @@
         </div>
 
         <footer class="mt-5 pt-3 border-t border-[#1F2937] flex gap-2">
-            <button id="prev-btn" onclick="prevQuestion()" class="flex-1 py-3 bg-[#161F30] hover:bg-[#1F2937] border border-[#283548] text-xs font-semibold rounded-xl disabled:opacity-30 flex items-center justify-center gap-1.5">
+            <button id="prev-btn" onclick="prevQuestion()" class="flex-1 py-3 bg-[#161F30] hover:bg-[#1F2937] border border-[#283548] text-xs font-semibold rounded-xl disabled:opacity-30 disabled:pointer-events-none flex items-center justify-center gap-1.5">
                 <i data-lucide="arrow-left" class="w-3.5 h-3.5"></i> Oldingi
             </button>
-            <button id="next-btn" onclick="nextQuestion()" class="flex-1 py-3 bg-[#161F30] hover:bg-[#1F2937] border border-[#283548] text-xs font-semibold rounded-xl flex items-center justify-center gap-1.5">
+            <button id="next-btn" onclick="nextQuestion()" class="flex-1 py-3 bg-[#161F30] hover:bg-[#1F2937] border border-[#283548] text-xs font-semibold rounded-xl disabled:opacity-30 disabled:pointer-events-none flex items-center justify-center gap-1.5">
                 Keyingi <i data-lucide="arrow-right" class="w-3.5 h-3.5"></i>
             </button>
-            <button onclick="finishQuizPrompt()" class="px-4 py-3 bg-emerald-600 hover:bg-emerald-500 text-xs font-bold rounded-xl text-white shadow-md">
+            <button onclick="finishQuizPrompt()" class="px-4 py-3 bg-emerald-600 hover:bg-emerald-500 text-xs font-bold rounded-xl text-white shadow-md active:scale-95 transition-all">
                 Yakunlash ✅
             </button>
         </footer>
@@ -295,14 +296,37 @@
         let currentTab = 'home';
         let currentClass = '7';
 
+        // 1. Mini App seansida bo'lingan vaqtni hisoblovchi taymer
+        let sessionSeconds = 0;
+        function startSessionTimer() {
+            setInterval(() => {
+                sessionSeconds++;
+                const m = Math.floor(sessionSeconds / 60).toString().padStart(2, '0');
+                const s = (sessionSeconds % 60).toString().padStart(2, '0');
+                const el = document.getElementById('session-timer');
+                if (el) el.innerText = `${m}:${s}`;
+            }, 1000);
+        }
+
+        // 2. Bo'limlarni almashtirish
         function switchTab(tab) {
             currentTab = tab;
             ['home', 'lessons', 'tests', 'books', 'rating', 'profile'].forEach(t => {
                 const el = document.getElementById(`tab-${t}`);
                 if (el) el.classList.add('hidden');
             });
-            document.getElementById('test-timer-box').classList.add('hidden');
 
+            // Taymerlar almashinuvi: Testda teskari taymer, boshqa barcha bo'limda jonli seans taymeri
+            if (tab === 'tests') {
+                document.getElementById('session-timer-box')?.classList.add('hidden');
+                document.getElementById('test-timer-box')?.classList.remove('hidden');
+                if (!quizData.questions || quizData.questions.length === 0) loadQuiz();
+            } else {
+                document.getElementById('session-timer-box')?.classList.remove('hidden');
+                document.getElementById('test-timer-box')?.classList.add('hidden');
+            }
+
+            // Pastki navigatsiya tugmalari faolligini belgilash
             ['home', 'lessons', 'rating', 'tests', 'books'].forEach(t => {
                 const btn = document.getElementById(`nav-btn-${t}`);
                 if (!btn) return;
@@ -322,10 +346,7 @@
             const targetTab = document.getElementById(`tab-${tab}`);
             if (targetTab) targetTab.classList.remove('hidden');
 
-            if (tab === 'tests') {
-                document.getElementById('test-timer-box').classList.remove('hidden');
-                if (!quizData.questions.length) loadQuiz();
-            } else if (tab === 'lessons') {
+            if (tab === 'lessons') {
                 loadLessons(currentClass);
             } else if (tab === 'profile') {
                 loadUserData();
@@ -372,7 +393,7 @@
                             <h4 class="text-xs font-bold text-slate-100">${l.title}</h4>
                             <p class="text-[10px] text-slate-400 line-clamp-1 mt-1 font-normal">${l.desc}</p>
                         </div>
-                        <button onclick="playLesson('${l.title}', '${l.desc}', '${l.video_url}')" class="px-3 py-1.5 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 text-emerald-400 text-xs font-semibold rounded-xl shrink-0 flex items-center gap-1 active:scale-95 transition-all">
+                        <button onclick="playLesson('${l.title.replace(/'/g, "\\'")}', '${l.desc.replace(/'/g, "\\'")}', '${l.video_url}')" class="px-3 py-1.5 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 text-emerald-400 text-xs font-semibold rounded-xl shrink-0 flex items-center gap-1 active:scale-95 transition-all">
                             <i data-lucide="play" class="w-3.5 h-3.5 fill-emerald-400"></i> Ko'rish
                         </button>
                     `;
@@ -399,6 +420,7 @@
             player.play();
         }
 
+        // Test mantig'i
         let quizData = { questions: [] };
         let currentIndex = 0;
         let userAnswers = {};
@@ -455,6 +477,7 @@
             });
 
             document.getElementById('prev-btn').disabled = (index === 0);
+            document.getElementById('next-btn').disabled = (index === total - 1);
             updateGridStyles();
         }
 
@@ -473,11 +496,15 @@
         }
 
         function nextQuestion() {
-            if (currentIndex < quizData.questions.length - 1) renderQuestion(currentIndex + 1);
+            if (currentIndex < quizData.questions.length - 1) {
+                renderQuestion(currentIndex + 1);
+            }
         }
 
         function prevQuestion() {
-            if (currentIndex > 0) renderQuestion(currentIndex - 1);
+            if (currentIndex > 0) {
+                renderQuestion(currentIndex - 1);
+            }
         }
 
         function startTimer() {
@@ -495,7 +522,7 @@
             const answeredCount = Object.keys(userAnswers).length;
             const total = quizData.questions.length;
             if (answeredCount < total) {
-                if (confirm(`Siz hamma savolga javob bermadingiz. Yakunlaysizmi?`)) finishQuiz(false);
+                if (confirm(`Siz hamma savolga javob bermadingiz (${answeredCount}/${total}). Yakunlaysizmi?`)) finishQuiz(false);
             } else {
                 finishQuiz(false);
             }
@@ -515,13 +542,14 @@
                         <p class="text-3xl font-extrabold text-emerald-400 mb-1">${percent}%</p>
                         <p class="text-xs text-slate-300">To'g'ri javoblar: <span class="text-emerald-400 font-bold">${correct}</span> / ${quizData.questions.length}</p>
                     </div>
-                    <button onclick="location.reload()" class="w-full max-w-xs py-2.5 bg-[#161F30] hover:bg-[#1F2937] border border-[#283548] text-white rounded-xl text-xs font-semibold">Qayta topshirish</button>
+                    <button onclick="location.reload()" class="w-full max-w-xs py-2.5 bg-[#161F30] hover:bg-[#1F2937] border border-[#283548] text-white rounded-xl text-xs font-semibold active:scale-95 transition-all">Qayta topshirish</button>
                 </div>
             `;
         }
 
         window.onload = () => {
             switchTab('home');
+            startSessionTimer();
             lucide.createIcons();
         };
     </script>
