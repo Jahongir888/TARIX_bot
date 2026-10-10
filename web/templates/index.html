@@ -51,12 +51,10 @@
 
         <!-- O'NG BURCHAK: Bildirishnoma (Notification) yoki Test Taymeri -->
         <div class="flex justify-end min-w-[75px]">
-            <!-- Asosiy holatda bildirishnoma tugmasi -->
             <button id="notification-btn" onclick="alert('Hozircha yangi bildirishnomalar yo\'q')" class="flex items-center justify-center w-8 h-8 rounded-xl bg-[#161F30] border border-[#283548] hover:border-emerald-500/40 text-slate-300 active:scale-95 transition-all">
                 <i data-lucide="bell" class="w-4 h-4 stroke-slate-300"></i>
             </button>
 
-            <!-- Test vaqtidagi teskari taymer (faqat testda ko'rinadi) -->
             <div id="test-timer-box" class="hidden flex items-center gap-1.5 bg-[#161F30] border border-amber-500/40 px-2.5 py-1.5 rounded-xl shadow-inner">
                 <i data-lucide="timer" class="w-3.5 h-3.5 stroke-amber-400 animate-pulse"></i>
                 <span id="timer" class="font-mono text-xs font-bold text-amber-400">00:00</span>
@@ -64,32 +62,37 @@
         </div>
     </header>
 
-    <!-- 1-BO'LIM: ASOSIY (HOME TAB) -->
-    <main id="tab-home" class="flex-1 px-4 py-4 max-w-md mx-auto w-full">
-        <div class="bg-[#111827] border border-[#1F2937] rounded-2xl p-4 mb-4 shadow-sm">
-            <h2 class="text-sm font-bold text-white flex items-center gap-2">
-                <i data-lucide="sparkles" class="w-4 h-4 text-emerald-400"></i> Xush kelibsiz!
-            </h2>
-            <p class="text-xs text-slate-400 mt-1.5 leading-relaxed">
-                Tarix va boshqa fanlardan videodarslar, rasmiy attestatsiya hamda milliy sertifikat testlari yagona tizimda.
-            </p>
-        </div>
+    <!-- 1-BO'LIM: ASOSIY (HOME TAB - MODULLI) -->
+    <main id="tab-home" class="flex-1 px-4 py-4 max-w-md mx-auto w-full space-y-4">
+        <!-- YANGILIKLAR KONTEYNERI (home.js orqali to'ladi) -->
+        <section>
+            <div class="flex items-center justify-between mb-2.5">
+                <div class="flex items-center gap-1.5">
+                    <i data-lucide="newspaper" class="w-4 h-4 stroke-emerald-400"></i>
+                    <h3 class="text-xs font-bold text-white tracking-wide uppercase">Yangiliklar va E'lonlar</h3>
+                </div>
+            </div>
+            <div id="news-container" class="flex gap-3 overflow-x-auto pb-2 scrollbar-none snap-x snap-mandatory">
+                <p class="text-xs text-slate-500 py-2">Yuklanmoqda...</p>
+            </div>
+        </section>
 
-        <div class="grid grid-cols-2 gap-3 mb-4">
-            <div onclick="switchTab('lessons')" class="bg-[#111827] border border-[#1F2937] hover:border-emerald-500/40 p-4 rounded-2xl cursor-pointer active:scale-95 transition-all">
-                <div class="w-9 h-9 rounded-xl bg-emerald-500/10 text-emerald-400 flex items-center justify-center mb-2.5">
-                    <i data-lucide="graduation-cap" class="w-5 h-5"></i>
+        <!-- Tezkor o'tish (Kataloglar) -->
+        <div class="grid grid-cols-2 gap-3 pt-1">
+            <div onclick="switchTab('lessons')" class="bg-[#111827] border border-[#1F2937] hover:border-emerald-500/40 p-3.5 rounded-2xl cursor-pointer active:scale-95 transition-all">
+                <div class="w-8 h-8 rounded-xl bg-emerald-500/10 text-emerald-400 flex items-center justify-center mb-2">
+                    <i data-lucide="graduation-cap" class="w-4 h-4"></i>
                 </div>
                 <h4 class="text-xs font-bold text-white">Fanlar va Darslar</h4>
                 <p class="text-[10px] text-slate-400 mt-0.5">6-11 sinf videolari</p>
             </div>
 
-            <div onclick="switchTab('tests')" class="bg-[#111827] border border-[#1F2937] hover:border-emerald-500/40 p-4 rounded-2xl cursor-pointer active:scale-95 transition-all">
-                <div class="w-9 h-9 rounded-xl bg-emerald-500/10 text-emerald-400 flex items-center justify-center mb-2.5">
-                    <i data-lucide="circle-check-big" class="w-5 h-5"></i>
+            <div onclick="switchTab('tests')" class="bg-[#111827] border border-[#1F2937] hover:border-emerald-500/40 p-3.5 rounded-2xl cursor-pointer active:scale-95 transition-all">
+                <div class="w-8 h-8 rounded-xl bg-emerald-500/10 text-emerald-400 flex items-center justify-center mb-2">
+                    <i data-lucide="circle-check-big" class="w-4 h-4"></i>
                 </div>
                 <h4 class="text-xs font-bold text-white">Namunaviy testlar</h4>
-                <p class="text-[10px] text-slate-400 mt-0.5">Jonli taymer bilan[cite: 10, 12]</p>
+                <p class="text-[10px] text-slate-400 mt-0.5">Taymer bilan ishlash[cite: 10, 12]</p>
             </div>
         </div>
 
@@ -209,7 +212,7 @@
         </div>
     </main>
 
-    <!-- 6-BO'LIM: SHAXSIY PROFIL TAB (ALOHIDA BO'LIM SIFATIDA) -->
+    <!-- 6-BO'LIM: SHAXSIY PROFIL TAB -->
     <main id="tab-profile" class="hidden flex-1 px-4 py-4 max-w-md mx-auto w-full">
         <p class="text-xs font-bold text-slate-400 mb-3 uppercase tracking-wider flex items-center gap-1.5">
             <i data-lucide="user" class="w-3.5 h-3.5 text-emerald-400"></i> Shaxsiy Kabinet:
@@ -253,38 +256,36 @@
 
     <!-- PASTKI NAVIGATSIYA PANELI (ASOSIY, FANLAR, REYTING, TESTLAR, KITOBLAR) -->
     <nav class="fixed bottom-0 left-0 right-0 bg-[#111827] border-t border-[#1F2937] py-2 px-1 flex justify-around items-center z-30 shadow-lg">
-        <!-- 1. Asosiy -->
         <button onclick="switchTab('home')" id="nav-btn-home" class="flex flex-col items-center gap-1 text-emerald-400 transition-all active:scale-95">
             <i data-lucide="house" class="w-5 h-5 stroke-emerald-400"></i>
             <span class="text-[11px] font-semibold tracking-tight text-emerald-400">Asosiy</span>
         </button>
 
-        <!-- 2. Fanlar -->
         <button onclick="switchTab('lessons')" id="nav-btn-lessons" class="flex flex-col items-center gap-1 text-slate-400 hover:text-slate-200 transition-all active:scale-95">
             <i data-lucide="graduation-cap" class="w-5 h-5 stroke-slate-400"></i>
             <span class="text-[11px] font-medium tracking-tight text-slate-400">Fanlar</span>
         </button>
 
-        <!-- 3. Reyting -->
         <button onclick="switchTab('rating')" id="nav-btn-rating" class="flex flex-col items-center gap-1 text-slate-400 hover:text-slate-200 transition-all active:scale-95">
             <i data-lucide="trophy" class="w-5 h-5 stroke-slate-400"></i>
             <span class="text-[11px] font-medium tracking-tight text-slate-400">Reyting</span>
         </button>
 
-        <!-- 4. Testlar -->
         <button onclick="switchTab('tests')" id="nav-btn-tests" class="flex flex-col items-center gap-1 text-slate-400 hover:text-slate-200 transition-all active:scale-95">
             <i data-lucide="circle-check-big" class="w-5 h-5 stroke-slate-400"></i>
             <span class="text-[11px] font-medium tracking-tight text-slate-400">Testlar</span>
         </button>
 
-        <!-- 5. Kitoblar -->
         <button onclick="switchTab('books')" id="nav-btn-books" class="flex flex-col items-center gap-1 text-slate-400 hover:text-slate-200 transition-all active:scale-95">
             <i data-lucide="library-big" class="w-5 h-5 stroke-slate-400"></i>
             <span class="text-[11px] font-medium tracking-tight text-slate-400">Kitoblar</span>
         </button>
     </nav>
 
-    <!-- JAVASCRIPT BOSHQARUV LOGIKASI -->
+    <!-- DINAMIK SKRIPTNI ULASH -->
+    <script src="/static/js/home.js"></script>
+
+    <!-- JAVASCRIPT ASOSIY BOSHQARUV LOGIKASI -->
     <script>
         const tg = window.Telegram?.WebApp;
         if (tg) { tg.ready(); tg.expand(); }
@@ -292,7 +293,6 @@
         let currentTab = 'home';
         let currentClass = '7';
 
-        // 1. Bo'limlarni almashtirish
         function switchTab(tab) {
             currentTab = tab;
             ['home', 'lessons', 'tests', 'books', 'rating', 'profile'].forEach(t => {
@@ -300,7 +300,6 @@
                 if (el) el.classList.add('hidden');
             });
 
-            // Agar test bo'limi bo'lsa - test taymeri chiqadi, qolgan hamma bo'limda bildirishnoma qo'ng'irog'i turadi
             if (tab === 'tests') {
                 document.getElementById('notification-btn')?.classList.add('hidden');
                 document.getElementById('test-timer-box')?.classList.remove('hidden');
@@ -310,7 +309,6 @@
                 document.getElementById('test-timer-box')?.classList.add('hidden');
             }
 
-            // Pastki navigatsiya tugmalari ranglarini yangilash
             ['home', 'lessons', 'rating', 'tests', 'books'].forEach(t => {
                 const btn = document.getElementById(`nav-btn-${t}`);
                 if (!btn) return;
@@ -330,7 +328,9 @@
             const targetTab = document.getElementById(`tab-${tab}`);
             if (targetTab) targetTab.classList.remove('hidden');
 
-            if (tab === 'lessons') {
+            if (tab === 'home') {
+                if (typeof loadNews === 'function') loadNews();
+            } else if (tab === 'lessons') {
                 loadLessons(currentClass);
             } else if (tab === 'profile') {
                 loadUserData();
@@ -404,7 +404,6 @@
             player.play();
         }
 
-        // Test qismi logikasi
         let quizData = { questions: [] };
         let currentIndex = 0;
         let userAnswers = {};
