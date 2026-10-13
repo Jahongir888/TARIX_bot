@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>PHAROS</title>
+    <title>PHAROS Ta'lim Platformasi</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
 
@@ -22,21 +22,43 @@
 </head>
 <body class="bg-[#0A0E17] text-slate-100 min-h-screen flex flex-col select-none pb-24">
 
-    <!-- 1. YUQORI SARLAVHA (Chapda Profil, Markazda Mayoq Logotipi, O'ngda Bildirishnoma / Test Taymeri) -->
+    <!-- 1. YUQORI SARLAVHA -->
     <header class="px-4 py-3 bg-[#111827]/90 backdrop-blur-md border-b border-[#1F2937] flex items-center justify-between sticky top-0 z-20 shadow-md">
+       <!-- CHAP BURCHAK: Dinamik Tugma (Bosh sahifada [Avatar + 3 qator ko'rsatkich], Profil ichida [Bosh sahifa ikonkasi]) -->
+        <button onclick="toggleHeaderLeftAction()" id="header-dynamic-btn" class="flex items-center gap-2 p-1 pr-2 rounded-2xl bg-[#161F30]/90 hover:bg-[#161F30] border border-[#283548] hover:border-emerald-500/40 text-left active:scale-95 transition-all shadow-sm cursor-pointer select-none">
+            <!-- 1. BOSH SAHIFADA KO'RINADIGAN QISM (Avatar + 3 qator ma'lumot) -->
+            <div id="hdr-profile-info-wrap" class="flex items-center gap-2">
+                <!-- Aylana shakldagi rasm/avatar -->
+                <div id="hdr-avatar-box" class="w-9 h-9 rounded-full bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center overflow-hidden shrink-0 shadow-inner">
+                    <span id="hdr-avatar" class="text-base">👤</span>
+                </div>
 
-        <!-- CHAP BURCHAK: Profil bo'limiga o'tish tugmasi -->
-        <button onclick="switchTab('profile')" id="header-btn-profile" class="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-[#161F30] border border-[#283548] hover:border-emerald-500/50 text-slate-200 active:scale-95 transition-all shadow-sm">
-            <div class="w-6 h-6 rounded-lg bg-emerald-500/10 text-emerald-400 flex items-center justify-center">
-                <i data-lucide="user" class="w-3.5 h-3.5 stroke-emerald-400"></i>
+                <!-- 3 qator ustma-ust matn -->
+                <div class="flex flex-col justify-center leading-none">
+                    <!-- 1-qator: Ism -->
+                    <span id="hdr-name" class="text-xs font-bold text-white truncate max-w-[95px] mb-0.5">O'quvchi</span>
+                    <!-- 2-qator: Status -->
+                    <span id="hdr-status" class="text-[9px] font-semibold text-emerald-400 leading-none mb-0.5">Bilimdon</span>
+                    <!-- 3-qator: Balans -->
+                    <span class="text-[9px] font-bold text-amber-400 flex items-center gap-0.5 leading-none">
+                        <span>🪙</span> <span id="hdr-coins" class="font-mono">0</span> <span class="text-[8px] text-slate-400">coin</span>
+                    </span>
+                </div>
             </div>
-            <span class="text-xs font-semibold tracking-tight pr-0.5">Profil</span>
+
+            <!-- 2. PROFIL ICHIDA PAYDO BO'LADIGAN QISM (Bosh sahifaga qaytish) -->
+            <div id="hdr-home-return-wrap" class="hidden flex items-center gap-1.5 px-1 py-0.5">
+                <div class="w-7 h-7 rounded-lg bg-emerald-500/10 text-emerald-400 flex items-center justify-center">
+                    <i data-lucide="house" class="w-4 h-4 stroke-emerald-400"></i>
+                </div>
+                <span class="text-xs font-semibold text-slate-200 pr-1">Bosh sahifa</span>
+            </div>
         </button>
 
-        <!-- O'RTA: Faqat Rasmiy PHAROS Mayoq Logotipining O'zi -->
-        <div onclick="switchTab('home')" class="cursor-pointer active:scale-95 transition-all flex items-center justify-center">
-            <div class="w-9 h-9 rounded-xl bg-[#161F30] border border-[#283548] flex items-center justify-center shadow-inner">
-                <svg viewBox="0 0 100 100" class="w-7 h-7" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <!-- O'RTA: Rasmiy PHAROS Mayoq Logotipi -->
+        <div onclick="switchTab('home')" class="flex items-center gap-2.5 cursor-pointer active:scale-95 transition-all">
+            <div class="w-8 h-8 rounded-xl bg-[#161F30] border border-[#283548] flex items-center justify-center shrink-0 shadow-inner">
+                <svg viewBox="0 0 100 100" class="w-6 h-6" fill="none" xmlns="http://www.w3.org/2000/svg">
                     <rect x="25" y="76" width="50" height="7" rx="3.5" fill="#FFFFFF"/>
                     <path d="M32 76L42 34H58L68 76H32Z" fill="#FFFFFF"/>
                     <rect x="39" y="30" width="22" height="4" rx="2" fill="#FFFFFF"/>
@@ -47,14 +69,25 @@
                     <circle cx="50" cy="26" r="2.5" fill="#F59E0B"/>
                 </svg>
             </div>
+            <div class="text-left">
+                <h1 class="text-sm font-extrabold text-white tracking-[0.16em] leading-none">PHAROS</h1>
+                <p class="text-[9px] text-[#9CA3AF] font-bold tracking-[0.18em] uppercase mt-1 leading-none">TA'LIM PLATFORMASI</p>
+            </div>
         </div>
 
-        <!-- O'NG BURCHAK: Bildirishnoma (Notification) yoki Test Taymeri -->
-        <div class="flex justify-end min-w-[75px]">
-            <button id="notification-btn" onclick="alert('Hozircha yangi bildirishnomalar yo\'q')" class="flex items-center justify-center w-8 h-8 rounded-xl bg-[#161F30] border border-[#283548] hover:border-emerald-500/40 text-slate-300 active:scale-95 transition-all">
-                <i data-lucide="bell" class="w-4 h-4 stroke-slate-300"></i>
-            </button>
+        <!-- BILDIRISHNOMA (BELL) TUGMASI (Logo va Taymer o'rtasida) -->
+        <button onclick="openNotificationDrawer()" type="button" class="relative p-2 rounded-xl bg-[#161F30] border border-[#283548] hover:border-emerald-500/40 text-slate-300 active:scale-95 transition-all cursor-pointer">
+            <i data-lucide="bell" class="w-4 h-4 stroke-slate-200"></i>
+            <!-- Yangi xabar bo'lsa ko'rinuvchi qizil nuqta -->
+            <span id="notif-badge-dot" class="hidden absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-rose-500 border border-[#161F30] animate-pulse"></span>
+        </button>
 
+        <!-- O'NG BURCHAK: Jonli Seans Taymeri / Test Taymeri -->
+        <div class="flex justify-end min-w-[75px]">
+            <div id="session-timer-box" class="flex items-center gap-1.5 bg-[#161F30] border border-[#283548] px-2.5 py-1.5 rounded-xl shadow-inner">
+                <i data-lucide="clock" class="w-3.5 h-3.5 stroke-emerald-400"></i>
+                <span id="session-timer" class="font-mono text-xs font-semibold text-emerald-400">00:00</span>
+            </div>
             <div id="test-timer-box" class="hidden flex items-center gap-1.5 bg-[#161F30] border border-amber-500/40 px-2.5 py-1.5 rounded-xl shadow-inner">
                 <i data-lucide="timer" class="w-3.5 h-3.5 stroke-amber-400 animate-pulse"></i>
                 <span id="timer" class="font-mono text-xs font-bold text-amber-400">00:00</span>
@@ -62,50 +95,230 @@
         </div>
     </header>
 
-    <!-- 1-BO'LIM: ASOSIY (HOME TAB - MODULLI) -->
+    <!-- 1-BO'LIM: ASOSIY (HOME TAB - MODULLI YANGILIKLAR KARUSELI BILAN) -->
     <main id="tab-home" class="flex-1 px-4 py-4 max-w-md mx-auto w-full space-y-4">
-        <!-- YANGILIKLAR KONTEYNERI (home.js orqali to'ladi) -->
+        <!-- YANGILIKLAR VA E'LONLAR (home.js orqali dinamik to'ladi) -->
         <section>
             <div class="flex items-center justify-between mb-2.5">
                 <div class="flex items-center gap-1.5">
                     <i data-lucide="newspaper" class="w-4 h-4 stroke-emerald-400"></i>
                     <h3 class="text-xs font-bold text-white tracking-wide uppercase">Yangiliklar va E'lonlar</h3>
                 </div>
-                <button onclick="loadNews('')" class="text-[10px] text-emerald-400 hover:underline font-semibold">Barchasi</button>
+                <button onclick="if(typeof loadNews === 'function') loadNews('')" class="text-[10px] text-emerald-400 hover:underline font-semibold cursor-pointer">Barchasi</button>
             </div>
+            <!-- Dinamik gorizontal karusel -->
             <div id="news-container" class="flex gap-3 overflow-x-auto pb-2 scrollbar-none snap-x snap-mandatory">
                 <p class="text-xs text-slate-500 py-3">Yangiliklar yuklanmoqda...</p>
             </div>
         </section>
+<!-- YANGILIKLAR VA E'LONLAR (home.js orqali dinamik to'ladi) -->
+        <section>
+            ... (yangiliklar karuseli kodi) ...
+        </div>
+        </section>
 
-        <!-- Tezkor o'tish (Kataloglar) -->
-        <div class="grid grid-cols-2 gap-3 pt-1">
-            <div onclick="switchTab('lessons')" class="bg-[#111827] border border-[#1F2937] hover:border-emerald-500/40 p-3.5 rounded-2xl cursor-pointer active:scale-95 transition-all">
-                <div class="w-8 h-8 rounded-xl bg-emerald-500/10 text-emerald-400 flex items-center justify-center mb-2">
-                    <i data-lucide="graduation-cap" class="w-4 h-4"></i>
+        <!-- ======================================================= -->
+        <!-- SHU YERGA QO'SHILADI: IMTIHON TAYMERI (DEDLAYN VIDJETI) -->
+        <!-- ======================================================= -->
+        <section class="bg-gradient-to-br from-[#161F30] to-[#0E1522] border border-[#283548] rounded-2xl p-4 shadow-lg mb-4">
+            <div class="flex items-center justify-between mb-3">
+                <div class="flex items-center gap-2">
+                    <span class="text-base">⏳</span>
+                    <span id="timer-badge" class="text-[10px] uppercase font-bold tracking-wider bg-emerald-500/10 text-emerald-400 px-2 py-0.5 rounded-md border border-emerald-500/20">BMBA</span>
                 </div>
-                <h4 class="text-xs font-bold text-white">Fanlar va Darslar</h4>
-                <p class="text-[10px] text-slate-400 mt-0.5">6-11 sinf videolari</p>
+                <button type="button" onclick="openAllDeadlinesModal()" class="text-xs text-slate-400 hover:text-emerald-400 flex items-center gap-1 transition">
+                    Barchasi <i data-lucide="chevron-right" class="w-3.5 h-3.5"></i>
+                </button>
             </div>
 
-            <div onclick="switchTab('tests')" class="bg-[#111827] border border-[#1F2937] hover:border-emerald-500/40 p-3.5 rounded-2xl cursor-pointer active:scale-95 transition-all">
-                <div class="w-8 h-8 rounded-xl bg-emerald-500/10 text-emerald-400 flex items-center justify-center mb-2">
-                    <i data-lucide="circle-check-big" class="w-4 h-4"></i>
+            <h3 id="timer-exam-title" class="text-sm font-bold text-white mb-3 line-clamp-1">Yuklanmoqda...</h3>
+
+            <div class="grid grid-cols-4 gap-2 text-center select-none">
+                <div class="bg-[#0A0E17]/80 border border-[#283548]/60 rounded-xl p-2">
+                    <span id="timer-days" class="block font-mono text-lg font-bold text-emerald-400">00</span>
+                    <span class="text-[9px] uppercase tracking-wider text-slate-500">Kun</span>
                 </div>
-                <h4 class="text-xs font-bold text-white">Namunaviy testlar</h4>
-                <p class="text-[10px] text-slate-400 mt-0.5">Taymer bilan ishlash</p>
+                <div class="bg-[#0A0E17]/80 border border-[#283548]/60 rounded-xl p-2">
+                    <span id="timer-hours" class="block font-mono text-lg font-bold text-white">00</span>
+                    <span class="text-[9px] uppercase tracking-wider text-slate-500">Soat</span>
+                </div>
+                <div class="bg-[#0A0E17]/80 border border-[#283548]/60 rounded-xl p-2">
+                    <span id="timer-minutes" class="block font-mono text-lg font-bold text-white">00</span>
+                    <span class="text-[9px] uppercase tracking-wider text-slate-500">Daqiqa</span>
+                </div>
+                <div class="bg-[#0A0E17]/80 border border-[#283548]/60 rounded-xl p-2">
+                    <span id="timer-seconds" class="block font-mono text-lg font-bold text-amber-400">00</span>
+                    <span class="text-[9px] uppercase tracking-wider text-slate-500">Soniya</span>
+                </div>
             </div>
+        </section>
+        <!-- ======================================================= -->
+
+        <!-- O'QUV SUR'ATI VA REJA VIDJETI -->
+        <section class="bg-gradient-to-br from-[#161F30] to-[#0E1522] border border-[#283548] rounded-2xl p-4 shadow-lg mb-4">
+            <div class="flex items-center justify-between mb-3">
+                <div class="flex items-center gap-2">
+                    <span class="text-base">📈</span>
+                    <h3 class="text-xs font-bold text-white uppercase tracking-wider">O'quv sur'ati va Reja</h3>
+                </div>
+                <button type="button" onclick="switchTab('lessons')" class="text-[11px] text-slate-400 hover:text-emerald-400 flex items-center gap-1 transition">
+                    Kurslarim <i data-lucide="chevron-right" class="w-3.5 h-3.5"></i>
+                </button>
+            </div>
+
+            <!-- Ranglar bo'yicha ko'rsatma (Legend) -->
+            <div class="flex items-center gap-3 text-[10px] text-slate-400 mb-3 px-1 select-none">
+                <span class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-emerald-500"></span> O'qilgan</span>
+                <span class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-rose-500"></span> Kechikish</span>
+                <span class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-amber-400"></span> Davomiylik</span>
+            </div>
+
+            <!-- Kurslar progress ro'yxati (JS shu yerga chizadi) -->
+            <div id="course-pace-container" class="space-y-3">
+                <p class="text-xs text-slate-500 text-center py-3">O'quv sur'ati yuklanmoqda...</p>
+            </div>
+        </section>
+
+        <!-- 50/50 QATOR: OKTAGON VA JONLI EFIR -->
+        <div class="grid grid-cols-2 gap-3 mb-4 select-none">
+            <!-- 1. OKTAGON VITRINASI (Chap yarmi) -->
+            <section class="bg-gradient-to-br from-[#1c1917]/90 to-[#0A0E17] border border-amber-500/30 rounded-2xl p-3.5 flex flex-col justify-between shadow-lg relative overflow-hidden group">
+                <!-- Fon nuri -->
+                <div class="absolute -right-4 -top-4 w-16 h-16 bg-amber-500/10 rounded-full blur-xl pointer-events-none"></div>
+
+                <div>
+                    <!-- Tepadagi HandFist ikonkasi va nom -->
+                    <div class="flex items-center justify-between mb-2">
+                        <div class="w-8 h-8 rounded-xl bg-amber-500/15 border border-amber-500/30 text-amber-400 flex items-center justify-center shadow-inner">
+                            <i data-lucide="hand-metal" class="w-4 h-4"></i>
+                        </div>
+                        <span class="text-[9px] font-extrabold uppercase tracking-wider text-amber-400 bg-amber-500/10 border border-amber-500/20 px-1.5 py-0.5 rounded">PvP Arena</span>
+                    </div>
+
+                    <h4 class="text-xs font-extrabold text-white tracking-wide uppercase">Oktagon</h4>
+
+                    <!-- Kurs bo'yicha reyting o'rni -->
+                    <div class="mt-2.5 bg-[#0A0E17]/80 border border-amber-500/20 rounded-xl p-2 text-left">
+                        <p id="oct-course-title" class="text-[9px] text-slate-400 truncate leading-tight">Kurs o'rni:</p>
+                        <p class="text-xs font-extrabold text-amber-400 mt-0.5 font-mono">
+                            #<span id="oct-rank-num">14</span> <span class="text-[9px] font-normal text-slate-400">- o'rin</span>
+                        </p>
+                    </div>
+                </div>
+
+                <!-- Jangni boshlash tugmasi -->
+                <button type="button" onclick="startOctagonBattle()" class="w-full mt-3 py-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 text-[11px] font-bold rounded-xl active:scale-95 transition-all shadow-md flex items-center justify-center gap-1.5 cursor-pointer">
+                    <span>Jangni boshla</span> ⚔️
+                </button>
+            </section>
+
+            <!-- 2. JONLI EFIR ZAXIRA QISMI (O'ng yarmi - Keyingi qadam uchun tayyor joy) -->
+            <section id="live-stream-placeholder" class="bg-gradient-to-br from-[#161F30] to-[#0A0E17] border border-[#283548] rounded-2xl p-3.5 flex flex-col justify-between shadow-lg opacity-60">
+                <div>
+                    <div class="flex items-center justify-between mb-2">
+                        <div class="w-8 h-8 rounded-xl bg-rose-500/15 border border-rose-500/30 text-rose-400 flex items-center justify-center shadow-inner">
+                            <i data-lucide="radio" class="w-4 h-4"></i>
+                        </div>
+                        <span class="text-[9px] font-bold uppercase tracking-wider text-rose-400 bg-rose-500/10 border border-rose-500/20 px-1.5 py-0.5 rounded">Jonli</span>
+                    </div>
+                    <h4 class="text-xs font-extrabold text-white tracking-wide uppercase">Jonli Efir</h4>
+                    <p class="text-[10px] text-slate-400 mt-2">Hozircha faol efirlar mavjud emas</p>
+                </div>
+                <div class="w-full mt-3 py-2 bg-[#1F2937]/50 text-slate-500 text-[11px] font-semibold rounded-xl text-center">
+                    Kutilmoqda
+                </div>
+            </section>
         </div>
 
-        <div class="bg-[#111827] border border-[#1F2937] p-3.5 rounded-2xl flex items-center justify-between">
-            <div>
-                <span class="text-xs font-semibold text-white">Umumiy reyting</span>
-                <p class="text-[11px] text-slate-400 mt-0.5">Top o'quvchilar natijalari</p>
+        <!-- REKLAMA VA AKSIYALAR VIDJETI (BANNER) -->
+        <section id="promo-section" class="relative overflow-hidden bg-gradient-to-r from-amber-500/10 via-[#111827] to-[#161F30] border border-amber-500/30 rounded-2xl p-4 shadow-xl mb-4 select-none">
+            <!-- Orqa fondagi yorug'lik effekti -->
+            <div class="absolute -right-6 -bottom-6 w-24 h-24 bg-amber-500/10 rounded-full blur-2xl pointer-events-none"></div>
+
+            <div class="flex items-center justify-between mb-2">
+                <span id="promo-badge" class="px-2 py-0.5 rounded-md bg-amber-500/20 text-amber-400 border border-amber-500/40 text-[10px] font-extrabold uppercase tracking-wider">
+                    AKSIYA -50%
+                </span>
+                <div class="flex items-center gap-1.5 text-[11px] font-mono text-amber-300">
+                    <span>⏳ Qoldi:</span>
+                    <span id="promo-timer" class="font-bold bg-[#0A0E17]/80 px-2 py-0.5 rounded-lg border border-amber-500/30">00:00:00</span>
+                </div>
             </div>
-            <button onclick="switchTab('rating')" class="px-3 py-1.5 bg-[#161F30] hover:bg-[#1F2937] border border-[#283548] rounded-xl text-xs font-semibold text-emerald-400 transition-all">
-                Ko'rish
-            </button>
-        </div>
+
+            <h3 id="promo-title" class="text-xs font-black text-white tracking-wide uppercase mt-1">SUPER AKSIYA: 2 tasi 1 da!</h3>
+            <p id="promo-subtitle" class="text-[11px] text-slate-300 mt-0.5 leading-snug">Tarix noldan + Harbiy psixologiya kursi</p>
+
+            <div class="flex items-center justify-between mt-3 pt-2.5 border-t border-[#283548]/70">
+                <div class="flex items-baseline gap-2">
+                    <span id="promo-discount-price" class="text-sm font-extrabold text-emerald-400 font-mono">50 000 so'm</span>
+                    <span id="promo-original-price" class="text-[10px] text-slate-500 line-through font-mono">150 000 so'm</span>
+                </div>
+                <button type="button" id="promo-action-btn" onclick="handlePromoClick()" class="px-3.5 py-1.5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 text-xs font-bold rounded-xl active:scale-95 transition-all shadow-md cursor-pointer flex items-center gap-1">
+                    <span id="promo-btn-text">Xarid qilish</span> <span>🛍️</span>
+                </button>
+            </div>
+        </section>
+
+        <!-- PLATFORMA STATISTIKASI VIDJETI (4 TALIK GRID) -->
+        <section class="bg-gradient-to-br from-[#161F30] to-[#0E1522] border border-[#283548] rounded-2xl p-4 shadow-lg mb-4 select-none">
+            <div class="flex items-center justify-between mb-3">
+                <div class="flex items-center gap-2">
+                    <span class="text-base">📊</span>
+                    <h3 class="text-xs font-bold text-white uppercase tracking-wider">PHAROS Ko'rsatkichlari</h3>
+                </div>
+                <span class="text-[9px] uppercase font-bold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded-md">
+                    Jonli baza
+                </span>
+            </div>
+
+            <!-- 4 ta katakdan iborat ixcham statistika to'ri -->
+            <div class="grid grid-cols-2 gap-2.5">
+                <!-- 1. O'quvchilar -->
+                <div class="bg-[#0A0E17]/80 border border-[#283548]/60 rounded-xl p-3 flex items-center gap-3">
+                    <div class="w-9 h-9 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 flex items-center justify-center shrink-0">
+                        <i data-lucide="users" class="w-4 h-4"></i>
+                    </div>
+                    <div>
+                        <span id="stat-students" class="block font-mono text-sm font-extrabold text-white">1 280+</span>
+                        <span class="text-[10px] text-slate-400 font-medium">O'quvchilar</span>
+                    </div>
+                </div>
+
+                <!-- 2. Darslar -->
+                <div class="bg-[#0A0E17]/80 border border-[#283548]/60 rounded-xl p-3 flex items-center gap-3">
+                    <div class="w-9 h-9 rounded-xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 flex items-center justify-center shrink-0">
+                        <i data-lucide="graduation-cap" class="w-4 h-4"></i>
+                    </div>
+                    <div>
+                        <span id="stat-lessons" class="block font-mono text-sm font-extrabold text-white">190+</span>
+                        <span class="text-[10px] text-slate-400 font-medium">Videodarslar</span>
+                    </div>
+                </div>
+
+                <!-- 3. Test savollari -->
+                <div class="bg-[#0A0E17]/80 border border-[#283548]/60 rounded-xl p-3 flex items-center gap-3">
+                    <div class="w-9 h-9 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-400 flex items-center justify-center shrink-0">
+                        <i data-lucide="circle-check-big" class="w-4 h-4"></i>
+                    </div>
+                    <div>
+                        <span id="stat-questions" class="block font-mono text-sm font-extrabold text-white">3 650+</span>
+                        <span class="text-[10px] text-slate-400 font-medium">Test savollari</span>
+                    </div>
+                </div>
+
+                <!-- 4. Kitoblar -->
+                <div class="bg-[#0A0E17]/80 border border-[#283548]/60 rounded-xl p-3 flex items-center gap-3">
+                    <div class="w-9 h-9 rounded-xl bg-teal-500/10 border border-teal-500/20 text-teal-400 flex items-center justify-center shrink-0">
+                        <i data-lucide="library-big" class="w-4 h-4"></i>
+                    </div>
+                    <div>
+                        <span id="stat-books" class="block font-mono text-sm font-extrabold text-white">12 ta</span>
+                        <span class="text-[10px] text-slate-400 font-medium">Qo'llanmalar</span>
+                    </div>
+                </div>
+            </div>
+        </section>
+
     </main>
 
     <!-- 2-BO'LIM: FANLAR / DARSLAR TAB -->
@@ -114,12 +327,12 @@
             <i data-lucide="layers" class="w-3.5 h-3.5 text-emerald-400"></i> Sinfni tanlang:
         </p>
         <div class="grid grid-cols-6 gap-2 mb-4">
-            <button onclick="selectClass('6')" id="c-btn-6" class="class-btn py-2 text-xs font-semibold rounded-xl border border-[#1F2937] bg-[#111827] text-slate-300 active:scale-95 transition-all">6</button>
-            <button onclick="selectClass('7')" id="c-btn-7" class="class-btn py-2 text-xs font-bold rounded-xl border border-emerald-500 bg-emerald-500/15 text-emerald-400 active:scale-95 transition-all">7</button>
-            <button onclick="selectClass('8')" id="c-btn-8" class="class-btn py-2 text-xs font-semibold rounded-xl border border-[#1F2937] bg-[#111827] text-slate-300 active:scale-95 transition-all">8</button>
-            <button onclick="selectClass('9')" id="c-btn-9" class="class-btn py-2 text-xs font-semibold rounded-xl border border-[#1F2937] bg-[#111827] text-slate-300 active:scale-95 transition-all">9</button>
-            <button onclick="selectClass('10')" id="c-btn-10" class="class-btn py-2 text-xs font-semibold rounded-xl border border-[#1F2937] bg-[#111827] text-slate-300 active:scale-95 transition-all">10</button>
-            <button onclick="selectClass('11')" id="c-btn-11" class="class-btn py-2 text-xs font-semibold rounded-xl border border-[#1F2937] bg-[#111827] text-slate-300 active:scale-95 transition-all">11</button>
+            <button onclick="selectClass('6')" id="c-btn-6" class="class-btn py-2 text-xs font-semibold rounded-xl border border-[#1F2937] bg-[#111827] text-slate-300 active:scale-95 transition-all cursor-pointer">6</button>
+            <button onclick="selectClass('7')" id="c-btn-7" class="class-btn py-2 text-xs font-bold rounded-xl border border-emerald-500 bg-emerald-500/15 text-emerald-400 active:scale-95 transition-all cursor-pointer">7</button>
+            <button onclick="selectClass('8')" id="c-btn-8" class="class-btn py-2 text-xs font-semibold rounded-xl border border-[#1F2937] bg-[#111827] text-slate-300 active:scale-95 transition-all cursor-pointer">8</button>
+            <button onclick="selectClass('9')" id="c-btn-9" class="class-btn py-2 text-xs font-semibold rounded-xl border border-[#1F2937] bg-[#111827] text-slate-300 active:scale-95 transition-all cursor-pointer">9</button>
+            <button onclick="selectClass('10')" id="c-btn-10" class="class-btn py-2 text-xs font-semibold rounded-xl border border-[#1F2937] bg-[#111827] text-slate-300 active:scale-95 transition-all cursor-pointer">10</button>
+            <button onclick="selectClass('11')" id="c-btn-11" class="class-btn py-2 text-xs font-semibold rounded-xl border border-[#1F2937] bg-[#111827] text-slate-300 active:scale-95 transition-all cursor-pointer">11</button>
         </div>
 
         <div id="video-box" class="hidden mb-4 bg-[#111827] border border-[#1F2937] rounded-2xl overflow-hidden p-3 shadow-md">
@@ -179,13 +392,13 @@
         </div>
 
         <footer class="mt-5 pt-3 border-t border-[#1F2937] flex gap-2">
-            <button id="prev-btn" onclick="prevQuestion()" class="flex-1 py-3 bg-[#161F30] hover:bg-[#1F2937] border border-[#283548] text-xs font-semibold rounded-xl disabled:opacity-30 disabled:pointer-events-none flex items-center justify-center gap-1.5">
+            <button id="prev-btn" onclick="prevQuestion()" class="flex-1 py-3 bg-[#161F30] hover:bg-[#1F2937] border border-[#283548] text-xs font-semibold rounded-xl disabled:opacity-30 disabled:pointer-events-none flex items-center justify-center gap-1.5 cursor-pointer">
                 <i data-lucide="arrow-left" class="w-3.5 h-3.5"></i> Oldingi
             </button>
-            <button id="next-btn" onclick="nextQuestion()" class="flex-1 py-3 bg-[#161F30] hover:bg-[#1F2937] border border-[#283548] text-xs font-semibold rounded-xl disabled:opacity-30 disabled:pointer-events-none flex items-center justify-center gap-1.5">
+            <button id="next-btn" onclick="nextQuestion()" class="flex-1 py-3 bg-[#161F30] hover:bg-[#1F2937] border border-[#283548] text-xs font-semibold rounded-xl disabled:opacity-30 disabled:pointer-events-none flex items-center justify-center gap-1.5 cursor-pointer">
                 Keyingi <i data-lucide="arrow-right" class="w-3.5 h-3.5"></i>
             </button>
-            <button onclick="finishQuizPrompt()" class="px-4 py-3 bg-emerald-600 hover:bg-emerald-500 text-xs font-bold rounded-xl text-white shadow-md active:scale-95 transition-all">
+            <button onclick="finishQuizPrompt()" class="px-4 py-3 bg-emerald-600 hover:bg-emerald-500 text-xs font-bold rounded-xl text-white shadow-md active:scale-95 transition-all cursor-pointer">
                 Yakunlash ✅
             </button>
         </footer>
@@ -206,154 +419,459 @@
                     <p class="text-[10px] text-slate-400 mt-0.5">Muallif: PHAROS jamoasi</p>
                     <p class="text-xs font-bold text-emerald-400 mt-1">45 000 so'm</p>
                 </div>
-                <button onclick="alert('Tez orada: Ushbu kitobni to\'g\'ridan-to\'g\'ri xarid qilasiz!')" class="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-xl">
+                <button onclick="alert('Tez orada: Ushbu kitobni xarid qilasiz!')" class="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-xl cursor-pointer">
                     Xarid
                 </button>
             </div>
         </div>
     </main>
 
-    <!-- 6-BO'LIM: SHAXSIY PROFIL TAB -->
-    <main id="tab-profile" class="hidden flex-1 px-4 py-4 max-w-md mx-auto w-full">
-        <p class="text-xs font-bold text-slate-400 mb-3 uppercase tracking-wider flex items-center gap-1.5">
-            <i data-lucide="user" class="w-3.5 h-3.5 text-emerald-400"></i> Shaxsiy Kabinet:
-        </p>
+    <!-- 6-BO'LIM: YANGILANGAN SHAXSIY PROFIL TAB -->
+    <main id="tab-profile" class="hidden flex-1 px-4 py-4 max-w-md mx-auto w-full pb-20 text-slate-200">
 
-        <div class="bg-[#111827] border border-[#1F2937] rounded-2xl p-5 shadow-sm text-center mb-4">
-            <div class="w-16 h-16 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 mx-auto flex items-center justify-center text-2xl mb-3 shadow-inner">
-                <i data-lucide="user-check" class="w-8 h-8 stroke-emerald-400"></i>
+        <!-- Profil Bosh Kartochkasi -->
+        <div class="flex flex-col items-center justify-center my-3">
+            <div class="relative w-20 h-20 rounded-full bg-[#111827] border-2 border-emerald-500/40 flex items-center justify-center shadow-lg">
+                <span id="profile-avatar-icon" class="text-3xl select-none">👤</span>
+                <button onclick="alert('Profil rasmini almashtirish tez orada ulanadi!')" class="absolute bottom-0 right-0 w-6 h-6 rounded-full bg-emerald-500 hover:bg-emerald-400 text-slate-950 flex items-center justify-center text-[11px] shadow font-bold transition-all active:scale-95">
+                    ✏️
+                </button>
             </div>
-            <h3 id="user-display-name" class="text-base font-bold text-[#F9FAFB]">Jahongir Qadamov</h3>
-            <p id="user-display-phone" class="text-xs text-slate-400 mt-0.5">@Jahongir_Qadamov</p>
 
-            <div class="mt-4 pt-3 border-t border-[#1F2937] text-left space-y-2.5 text-xs">
-                <div class="flex justify-between items-center text-slate-300">
-                    <span class="text-slate-400">Hisob holati:</span>
-                    <span class="font-semibold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-md border border-emerald-500/20">Faol o'quvchi</span>
+            <h3 id="profile-fullname-top" class="text-base font-bold text-white tracking-tight mt-2.5">Yuklanmoqda...</h3>
+
+            <!-- Status va Kurslar Dropdown bloki -->
+            <div class="relative mt-1 inline-block">
+                <button onclick="toggleCourseDropdown()" class="text-xs font-semibold bg-[#161F30] text-emerald-400 border border-[#283548] hover:border-emerald-500/40 px-3 py-1 rounded-xl flex items-center gap-1.5 active:scale-95 transition-all">
+                    <span id="selected-course-title">6-sinf mavzulashgan test</span>:
+                    <span id="selected-course-level" class="text-amber-400 font-bold">Bilimdon</span>
+                    <i data-lucide="chevron-down" class="w-3.5 h-3.5 ml-1"></i>
+                </button>
+                <div id="course-dropdown" class="hidden absolute left-1/2 -translate-x-1/2 mt-1.5 w-64 bg-[#111827] border border-[#1F2937] rounded-xl shadow-2xl z-30 py-1.5 text-xs divide-y divide-slate-800">
+                    <div class="px-3 py-1 text-[10px] uppercase font-bold text-slate-500">O'qiyotgan kurs va testlaringiz:</div>
+                    <div id="course-dropdown-items" class="max-h-40 overflow-y-auto"></div>
                 </div>
-                <div class="flex justify-between items-center text-slate-300">
-                    <span class="text-slate-400">Topshirilgan testlar:</span>
-                    <span class="font-semibold text-white">1 ta</span>
+            </div>
+
+            <p class="text-xs text-slate-400 mt-1 font-mono">ID: <span id="profile-tg-id" class="text-slate-300 font-bold">---</span></p>
+        </div>
+
+        <!-- 1. MENING MA'LUMOTLARIM -->
+        <div class="mb-4">
+            <p class="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                <i data-lucide="user" class="w-3.5 h-3.5 text-emerald-400"></i> Mening ma'lumotlarim
+            </p>
+            <div class="bg-[#111827] border border-[#1F2937] rounded-2xl p-4 space-y-3 text-xs shadow-sm">
+                <div class="flex justify-between items-center py-0.5 border-b border-slate-800/60 pb-2">
+                    <span class="text-slate-400">Ism-familiya:</span>
+                    <span class="font-medium text-slate-200 flex items-center gap-2">
+                        <span id="info-fullname">---</span>
+                        <button onclick="editFieldPrompt('full_name')" class="text-slate-400 hover:text-emerald-400">✏️</button>
+                    </span>
                 </div>
-                <div class="flex justify-between items-center text-slate-300">
-                    <span class="text-slate-400">O'rtacha ko'rsatkich:</span>
-                    <span class="font-semibold text-emerald-400">100%</span>
+                <div class="flex justify-between items-center py-0.5 border-b border-slate-800/60 pb-2">
+                    <span class="text-slate-400">Manzil:</span>
+                    <span class="font-medium text-slate-200 flex items-center gap-2">
+                        <span id="info-district">Tanlanmagan</span>
+                        <button onclick="openModal('edit-region-modal')" class="text-slate-400 hover:text-emerald-400">✏️</button>
+                    </span>
+                </div>
+                <div class="flex justify-between items-center py-0.5 border-b border-slate-800/60 pb-2">
+                    <span class="text-slate-400">Telefon:</span>
+                    <span class="font-medium text-slate-200 flex items-center gap-2">
+                        <span id="info-phone">---</span>
+                        <button onclick="alert('Telefon raqamni faqat bot orqali yangi kontakt yuborib yangilash mumkin.')" class="text-slate-400 hover:text-emerald-400">✏️</button>
+                    </span>
+                </div>
+                <div class="flex justify-between items-center py-0.5 border-b border-slate-800/60 pb-2">
+                    <span class="text-slate-400">Tug'ilgan kun:</span>
+                    <span class="font-medium text-slate-200 flex items-center gap-2">
+                        <span id="info-birthday">Tanlanmagan</span>
+                        <button onclick="openModal('edit-birthday-modal')" class="text-slate-400 hover:text-emerald-400">✏️</button>
+                    </span>
+                </div>
+                <div class="flex justify-between items-center py-0.5">
+                    <span class="text-slate-400">Ulangan qurilmalar:</span>
+                    <span class="font-medium text-slate-200 flex items-center gap-2">
+                        <span id="info-devices">Mobil qurilma</span>
+                        <button onclick="alert('Barcha boshqa sessiyalar tizimdan chiqarildi!')" title="Sessiyalarni tozalash" class="text-slate-400 hover:text-rose-400">✏️</button>
+                    </span>
                 </div>
             </div>
         </div>
 
-        <div class="space-y-2">
-            <button onclick="switchTab('tests')" class="w-full p-3.5 bg-[#161F30] hover:bg-[#1F2937] border border-[#283548] rounded-xl flex items-center justify-between text-xs font-semibold text-slate-200 transition-all">
-                <span class="flex items-center gap-2">
-                    <i data-lucide="file-check-2" class="w-4 h-4 text-emerald-400"></i> Test natijalarim
-                </span>
-                <i data-lucide="chevron-right" class="w-4 h-4 text-slate-400"></i>
-            </button>
-            <button onclick="switchTab('home')" class="w-full p-3 bg-transparent hover:bg-[#111827] border border-[#1F2937] rounded-xl text-center text-xs font-semibold text-slate-400 transition-all">
-                Bosh sahifaga qaytish
-            </button>
+        <!-- 2. MENING HISOBIM -->
+        <div class="mb-4">
+            <p class="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                <i data-lucide="wallet" class="w-3.5 h-3.5 text-emerald-400"></i> Mening hisobim
+            </p>
+            <div class="bg-[#111827] border border-[#1F2937] rounded-2xl p-4 text-xs space-y-3 shadow-sm">
+                <div class="flex justify-between items-center pb-2 border-b border-slate-800/60">
+                    <div>
+                        <p class="text-slate-400 text-[11px]">Hamyon balansi:</p>
+                        <p class="text-base font-bold text-emerald-400 mt-0.5"><span id="coin-balance">0</span> Coin</p>
+                    </div>
+                    <button onclick="alert('Hisobni to\'ldirish uchun bot orqali to\'lov chekini yuboring.')" class="px-3 py-1.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold rounded-xl text-xs shadow active:scale-95 transition-all cursor-pointer">
+                        + To'ldirish
+                    </button>
+                </div>
+
+                <div class="flex justify-between items-center py-1 cursor-pointer hover:text-emerald-400 transition-colors" onclick="openModal('transactions-modal')">
+                    <span class="text-slate-300">🕒 Tranzaksiyalar tarixi</span>
+                    <span class="text-slate-500 text-sm">›</span>
+                </div>
+                <div class="flex justify-between items-center py-1 cursor-pointer hover:text-emerald-400 transition-colors" onclick="openModal('referral-modal')">
+                    <span class="text-slate-300">👥 Do'stlarni taklif qilish <span class="text-emerald-400 font-semibold">(+1 coin)</span></span>
+                    <span class="text-xs text-slate-400 font-mono"><span id="referral-count">0</span>/10 ›</span>
+                </div>
+
+                <!-- HAFTALIK FAOLLIK DIAGRAMMASI -->
+                <div class="pt-3 border-t border-slate-800/60">
+                    <div class="bg-[#0D121F] border border-[#1A2333] rounded-2xl p-3.5 shadow-inner">
+                        <div class="flex justify-between items-center">
+                            <div>
+                                <h4 class="text-xs font-bold text-white tracking-wide">Haftalik faollik</h4>
+                                <p class="text-[10px] text-slate-400 mt-0.5">Hafta davomidagi XP</p>
+                            </div>
+                            <i data-lucide="trending-up" class="w-4 h-4 text-emerald-400"></i>
+                        </div>
+
+                        <!-- Chiziqli grafik -->
+                        <div class="my-3 px-1">
+                            <div class="flex flex-col gap-2.5 border-b border-slate-800/80 pb-1 text-[9px] text-slate-500 font-mono">
+                                <div class="border-b border-slate-800/40 pb-1">0</div>
+                                <div class="border-b border-slate-800/40 pb-1">0</div>
+                                <div class="border-b border-slate-800/40 pb-1">0</div>
+                            </div>
+                            <div class="flex justify-between text-[10px] text-slate-400 font-medium pt-1.5 px-1">
+                                <span>Ch</span><span>Pa</span><span>Ju</span><span>Sh</span><span>Ya</span><span>Du</span><span class="text-emerald-400 font-bold">Se</span>
+                            </div>
+                        </div>
+
+                        <div class="flex justify-between items-center pt-2 border-t border-slate-800/60 text-xs">
+                            <div class="flex items-center gap-1.5">
+                                <span class="w-2 h-2 rounded-full bg-emerald-400"></span>
+                                <span id="chart-user-name" class="font-medium text-slate-300">Jahongir Qadamov</span>
+                            </div>
+                            <span class="font-bold text-emerald-400"><span id="chart-xp-label">0</span> XP</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 3. BIZ BO'LIMI -->
+        <div class="mb-4">
+            <p class="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                <i data-lucide="info" class="w-3.5 h-3.5 text-emerald-400"></i> Biz
+            </p>
+            <div class="bg-[#111827] border border-[#1F2937] rounded-2xl p-4 text-xs space-y-2.5 shadow-sm">
+                <div class="flex justify-between items-center py-1 cursor-pointer hover:text-emerald-400 transition-colors" onclick="openAboutModal()">
+                    <span>ℹ️ Biz haqimizda</span>
+                    <span class="text-slate-500">›</span>
+                </div>
+                <div class="flex justify-between items-center py-1 border-t border-slate-800/60 pt-2 cursor-pointer hover:text-emerald-400 transition-colors" onclick="claimOfertaBonus()">
+                    <span>📜 Oferta shartnomasi <span id="oferta-bonus-tag" class="text-emerald-400 font-semibold">(+20 coin)</span></span>
+                    <span class="text-slate-500">›</span>
+                </div>
+                <div class="flex justify-between items-center py-1 border-t border-slate-800/60 pt-2 cursor-pointer hover:text-emerald-400 transition-colors" onclick="openManualModal()">
+                    <span>📖 Foydalanish qo'llanmasi</span>
+                    <span class="text-slate-500">›</span>
+                </div>
+                <div class="flex justify-between items-center py-1 border-t border-slate-800/60 pt-2 cursor-pointer hover:text-emerald-400 transition-colors" onclick="openSocialsModal()">
+                    <span>🌐 Ijtimoiy tarmoqlarimiz</span>
+                    <span class="text-slate-500">›</span>
+                </div>
+                <div class="flex justify-between items-center py-1 border-t border-slate-800/60 pt-2 cursor-pointer hover:text-emerald-400 transition-colors" onclick="openModal('feedback-modal')">
+                    <span>💡 Taklif va murojaat yo'llash</span>
+                    <span class="text-slate-500">›</span>
+                </div>
+            </div>
         </div>
     </main>
 
-    <!-- YANGILIK DETAL MODALI (SAYT USLUBIDA TO'LIQ EKRAN) -->
+    <!-- MINI APP ICHKI MODALLARI (DRAWER / BOTTOM SHEET) -->
+    <!-- 1. Tranzaksiyalar tarixi -->
+    <div id="transactions-modal" class="hidden fixed inset-0 bg-black/80 z-50 flex items-end justify-center backdrop-blur-sm">
+        <div class="bg-[#111827] border-t border-[#1F2937] w-full max-w-md rounded-t-3xl p-5 max-h-[75vh] flex flex-col">
+            <div class="flex justify-between items-center mb-4">
+                <h4 class="text-sm font-bold text-white">🕒 Tranzaksiyalar tarixi</h4>
+                <button onclick="closeModal('transactions-modal')" class="text-slate-400 p-1 text-sm">✕</button>
+            </div>
+            <div id="transactions-list" class="space-y-2 overflow-y-auto flex-1 text-xs">
+                <p class="text-slate-500 text-center py-4">Hozircha tranzaksiyalar mavjud emas.</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- 2. Do'stlarni taklif qilish -->
+    <div id="referral-modal" class="hidden fixed inset-0 bg-black/80 z-50 flex items-end justify-center backdrop-blur-sm">
+        <div class="bg-[#111827] border-t border-[#1F2937] w-full max-w-md rounded-t-3xl p-5">
+            <div class="flex justify-between items-center mb-3">
+                <h4 class="text-sm font-bold text-white">👥 Do'stlarni taklif qilish</h4>
+                <button onclick="closeModal('referral-modal')" class="text-slate-400 p-1 text-sm">✕</button>
+            </div>
+            <p class="text-xs text-slate-300 leading-relaxed mb-4">Har bir taklif qilingan do'stingiz uchun hisobingizga +1 Coin qo'shiladi (Maksimum 10 ta).</p>
+            <div class="bg-[#161F30] border border-[#283548] p-2.5 rounded-xl flex items-center justify-between text-xs font-mono text-emerald-400 mb-4 select-all">
+                <span id="referral-link-text">https://t.me/pharos_talim_bot?start=ref84920194</span>
+            </div>
+            <div class="grid grid-cols-2 gap-2">
+                <button onclick="copyReferralLink()" class="py-2.5 bg-[#1F2937] hover:bg-slate-700 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 active:scale-95 cursor-pointer">
+                    📋 Nusxalash
+                </button>
+                <button onclick="shareReferralLink()" class="py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 active:scale-95 cursor-pointer">
+                    🚀 Telegramda ulashish
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 3. Murojaat va taklif yo'llash -->
+    <div id="feedback-modal" class="hidden fixed inset-0 bg-black/80 z-50 flex items-end justify-center backdrop-blur-sm">
+        <div class="bg-[#111827] border-t border-[#1F2937] w-full max-w-md rounded-t-3xl p-5">
+            <div class="flex justify-between items-center mb-3">
+                <h4 class="text-sm font-bold text-white">💡 Murojaat yo'llash</h4>
+                <button onclick="closeModal('feedback-modal')" class="text-slate-400 p-1 text-sm">✕</button>
+            </div>
+            <div class="space-y-3 text-xs">
+                <div>
+                    <label class="text-slate-400 block mb-1">Murojaat turi:</label>
+                    <select id="feedback-type" class="w-full bg-[#161F30] border border-[#283548] rounded-xl px-3 py-2 text-white outline-none">
+                        <option value="taklif">💡 Taklif</option>
+                        <option value="shikoyat">⚠️ Shikoyat</option>
+                        <option value="boshqa">💬 Boshqa</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="text-slate-400 block mb-1">Xabaringiz:</label>
+                    <textarea id="feedback-text" rows="3" placeholder="Fikringizni batafsil yozing..." class="w-full bg-[#161F30] border border-[#283548] rounded-xl p-3 text-white outline-none focus:border-emerald-500"></textarea>
+                </div>
+                <div>
+                    <label class="text-slate-400 block mb-1">Fayl biriktirish (rasm/video/audio):</label>
+                    <input type="file" id="feedback-file" class="text-slate-400 text-xs w-full file:mr-3 file:py-1.5 file:px-3 file:rounded-xl file:border-0 file:bg-emerald-500/10 file:text-emerald-400 file:font-bold">
+                </div>
+                <button onclick="submitFeedback()" class="w-full py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl active:scale-95 cursor-pointer">
+                    Yuborish ✅
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 4. Manzilni tahrirlash modali -->
+    <div id="edit-region-modal" class="hidden fixed inset-0 bg-black/80 z-50 flex items-end justify-center backdrop-blur-sm">
+        <div class="bg-[#111827] border-t border-[#1F2937] w-full max-w-md rounded-t-3xl p-5">
+            <div class="flex justify-between items-center mb-3">
+                <h4 class="text-sm font-bold text-white">📍 Yashash joyingizni tanlang</h4>
+                <button onclick="closeModal('edit-region-modal')" class="text-slate-400 p-1 text-sm">✕</button>
+            </div>
+            <div class="space-y-3 text-xs">
+                <div>
+                    <label class="text-slate-400 block mb-1">Viloyat:</label>
+                    <select id="select-region" onchange="onRegionChange()" class="w-full bg-[#161F30] border border-[#283548] rounded-xl px-3 py-2 text-white outline-none">
+                        <option value="">Viloyatni tanlang</option>
+                        <option value="Toshkent">Toshkent shahri</option>
+                        <option value="Xorazm">Xorazm viloyati</option>
+                        <option value="Samarqand">Samarqand viloyati</option>
+                        <option value="Farg'ona">Farg'ona viloyati</option>
+                        <option value="Andijon">Andijon viloyati</option>
+                        <option value="Namangan">Namangan viloyati</option>
+                        <option value="Buxoro">Buxoro viloyati</option>
+                        <option value="Qashqadaryo">Qashqadaryo viloyati</option>
+                        <option value="Surxondaryo">Surxondaryo viloyati</option>
+                        <option value="Jizzax">Jizzax viloyati</option>
+                        <option value="Sirdaryo">Sirdaryo viloyati</option>
+                        <option value="Navoiy">Navoiy viloyati</option>
+                        <option value="Qoraqalpog'iston">Qoraqalpog'iston Respublikasi</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="text-slate-400 block mb-1">Tuman / Shahar:</label>
+                    <select id="select-district" class="w-full bg-[#161F30] border border-[#283548] rounded-xl px-3 py-2 text-white outline-none">
+                        <option value="">Avval viloyatni tanlang</option>
+                    </select>
+                </div>
+                <button onclick="saveRegionSelection()" class="w-full py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl active:scale-95 cursor-pointer">
+                    Saqlash
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 5. Tug'ilgan kunni tanlash modali -->
+    <div id="edit-birthday-modal" class="hidden fixed inset-0 bg-black/80 z-50 flex items-end justify-center backdrop-blur-sm">
+        <div class="bg-[#111827] border-t border-[#1F2937] w-full max-w-md rounded-t-3xl p-5">
+            <div class="flex justify-between items-center mb-3">
+                <h4 class="text-sm font-bold text-white">📅 Tug'ilgan kuningiz</h4>
+                <button onclick="closeModal('edit-birthday-modal')" class="text-slate-400 p-1 text-sm">✕</button>
+            </div>
+            <div class="space-y-3 text-xs">
+                <input type="date" id="input-birthday" class="w-full bg-[#161F30] border border-[#283548] rounded-xl px-3 py-2.5 text-white outline-none">
+                <button onclick="saveBirthdaySelection()" class="w-full py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl active:scale-95 cursor-pointer">
+                    Saqlash
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- YANGILIK DETAL MODALI (TO'LIQ EKRAN)[cite: 6, 7] -->
     <div id="news-detail-modal" class="hidden fixed inset-0 bg-[#0A0E17] z-50 overflow-y-auto pb-10">
-        <!-- Tepa boshqaruv paneli -->
         <div class="sticky top-0 bg-[#111827]/90 backdrop-blur-md px-4 py-3 border-b border-[#1F2937] flex justify-between items-center z-10">
             <span class="text-xs font-bold text-slate-400 uppercase tracking-wider">Yangilik tafsiloti</span>
-            <button onclick="closeNewsDetail()" class="p-1.5 rounded-xl bg-[#161F30] border border-[#283548] text-slate-300 active:scale-95">
+            <button onclick="closeNewsDetail()" class="p-1.5 rounded-xl bg-[#161F30] border border-[#283548] text-slate-300 active:scale-95 cursor-pointer">
                 <i data-lucide="x" class="w-4 h-4"></i>
             </button>
         </div>
 
         <div class="max-w-md mx-auto px-4 pt-4 space-y-4">
-            <!-- 1. Asosiy Rasm -->
             <img id="nd-image" src="" class="w-full h-52 object-cover rounded-2xl border border-[#1F2937] shadow-lg">
-
-            <!-- 2. Sana va Ko'rishlar soni -->
             <p id="nd-date" class="text-xs text-slate-400 font-mono"></p>
-
-            <!-- 3. Heshteglar -->
             <div id="nd-hashtags" class="flex flex-wrap gap-1.5"></div>
-
-            <!-- 4. Katta Sarlavha -->
             <h2 id="nd-title" class="text-base font-extrabold text-white leading-tight"></h2>
-
-            <!-- 5. To'liq Xabar Matni -->
             <div id="nd-content" class="text-xs text-slate-300 leading-relaxed space-y-2 whitespace-pre-line border-b border-[#1F2937] pb-4"></div>
 
-            <!-- 6. Manba havolasi -->
             <div id="nd-source-box" class="bg-[#111827] border border-[#1F2937] p-3 rounded-xl flex items-center justify-between text-xs">
                 <span class="text-slate-400">Manba:</span>
                 <a id="nd-source" href="#" target="_blank" class="text-emerald-400 font-bold underline flex items-center gap-1"></a>
             </div>
 
-            <!-- 7. Reaksiyalar (4 xil) -->
-            <div class="flex gap-2 justify-center py-1">
-                <button onclick="alert('Reaksiyangiz qabul qilindi!')" class="px-3.5 py-1.5 rounded-xl bg-[#111827] border border-[#1F2937] text-sm hover:scale-110 active:scale-95 transition-all">👍</button>
-                <button onclick="alert('Reaksiyangiz qabul qilindi!')" class="px-3.5 py-1.5 rounded-xl bg-[#111827] border border-[#1F2937] text-sm hover:scale-110 active:scale-95 transition-all">❤️</button>
-                <button onclick="alert('Reaksiyangiz qabul qilindi!')" class="px-3.5 py-1.5 rounded-xl bg-[#111827] border border-[#1F2937] text-sm hover:scale-110 active:scale-95 transition-all">🔥</button>
-                <button onclick="alert('Reaksiyangiz qabul qilindi!')" class="px-3.5 py-1.5 rounded-xl bg-[#111827] border border-[#1F2937] text-sm hover:scale-110 active:scale-95 transition-all">💡</button>
+            <!-- REAKSIYALAR BLOKI (HISOB-KITOBLAR BILAN) -->
+            <div class="flex gap-2 justify-center py-1 select-none">
+                <button id="btn-react-like" onclick="sendReaction('like')" class="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#111827] border border-[#1F2937] text-xs font-semibold text-slate-300 hover:border-emerald-500/40 active:scale-95 transition-all cursor-pointer">
+                    <span>👍</span> <span id="count-react-like" class="font-mono text-slate-400">0</span>
+                </button>
+                <button id="btn-react-heart" onclick="sendReaction('heart')" class="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#111827] border border-[#1F2937] text-xs font-semibold text-slate-300 hover:border-rose-500/40 active:scale-95 transition-all cursor-pointer">
+                    <span>😁</span> <span id="count-react-heart" class="font-mono text-slate-400">0</span>
+                </button>
+                <button id="btn-react-fire" onclick="sendReaction('fire')" class="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#111827] border border-[#1F2937] text-xs font-semibold text-slate-300 hover:border-amber-500/40 active:scale-95 transition-all cursor-pointer">
+                    <span>🔥</span> <span id="count-react-fire" class="font-mono text-slate-400">0</span>
+                </button>
+                <button id="btn-react-idea" onclick="sendReaction('idea')" class="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#111827] border border-[#1F2937] text-xs font-semibold text-slate-300 hover:border-cyan-500/40 active:scale-95 transition-all cursor-pointer">
+                    <span>👎</span> <span id="count-react-idea" class="font-mono text-slate-400">0</span>
+                </button>
             </div>
 
-            <!-- 8. O'xshash Yangiliklar -->
             <div class="pt-2">
                 <h4 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">O'xshash yangiliklar</h4>
                 <div id="nd-related" class="space-y-2"></div>
             </div>
 
-            <!-- 9. Komment maydoni -->
             <div class="pt-4 border-t border-[#1F2937]">
                 <h4 class="text-xs font-bold text-white mb-2">Fikr bildirish</h4>
                 <div class="flex gap-2">
                     <input id="nd-comment-input" type="text" placeholder="Fikringizni yozing..." class="flex-1 bg-[#111827] border border-[#1F2937] text-white text-xs rounded-xl px-3 py-2.5 focus:outline-none focus:border-emerald-500">
-                    <button onclick="postComment()" class="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold active:scale-95">Yuborish</button>
+                    <button onclick="postComment()" class="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold active:scale-95 cursor-pointer">Yuborish</button>
                 </div>
             </div>
 
-            <!-- 10. Avvalgi Kommentlar ro'yxati -->
             <div id="nd-comments-list" class="space-y-2 pt-2"></div>
         </div>
     </div>
 
-    <!-- PASTKI NAVIGATSIYA PANELI (ASOSIY, FANLAR, REYTING, TESTLAR, KITOBLAR) -->
+    <!-- PASTKI NAVIGATSIYA PANELI -->
     <nav class="fixed bottom-0 left-0 right-0 bg-[#111827] border-t border-[#1F2937] py-2 px-1 flex justify-around items-center z-30 shadow-lg">
-        <button onclick="switchTab('home')" id="nav-btn-home" class="flex flex-col items-center gap-1 text-emerald-400 transition-all active:scale-95">
+        <button onclick="switchTab('home')" id="nav-btn-home" class="flex flex-col items-center gap-1 text-emerald-400 transition-all active:scale-95 cursor-pointer">
             <i data-lucide="house" class="w-5 h-5 stroke-emerald-400"></i>
             <span class="text-[11px] font-semibold tracking-tight text-emerald-400">Asosiy</span>
         </button>
 
-        <button onclick="switchTab('lessons')" id="nav-btn-lessons" class="flex flex-col items-center gap-1 text-slate-400 hover:text-slate-200 transition-all active:scale-95">
+        <button onclick="switchTab('lessons')" id="nav-btn-lessons" class="flex flex-col items-center gap-1 text-slate-400 hover:text-slate-200 transition-all active:scale-95 cursor-pointer">
             <i data-lucide="graduation-cap" class="w-5 h-5 stroke-slate-400"></i>
             <span class="text-[11px] font-medium tracking-tight text-slate-400">Fanlar</span>
         </button>
 
-        <button onclick="switchTab('rating')" id="nav-btn-rating" class="flex flex-col items-center gap-1 text-slate-400 hover:text-slate-200 transition-all active:scale-95">
+        <button onclick="switchTab('rating')" id="nav-btn-rating" class="flex flex-col items-center gap-1 text-slate-400 hover:text-slate-200 transition-all active:scale-95 cursor-pointer">
             <i data-lucide="trophy" class="w-5 h-5 stroke-slate-400"></i>
             <span class="text-[11px] font-medium tracking-tight text-slate-400">Reyting</span>
         </button>
 
-        <button onclick="switchTab('tests')" id="nav-btn-tests" class="flex flex-col items-center gap-1 text-slate-400 hover:text-slate-200 transition-all active:scale-95">
+        <button onclick="switchTab('tests')" id="nav-btn-tests" class="flex flex-col items-center gap-1 text-slate-400 hover:text-slate-200 transition-all active:scale-95 cursor-pointer">
             <i data-lucide="circle-check-big" class="w-5 h-5 stroke-slate-400"></i>
             <span class="text-[11px] font-medium tracking-tight text-slate-400">Testlar</span>
         </button>
 
-        <button onclick="switchTab('books')" id="nav-btn-books" class="flex flex-col items-center gap-1 text-slate-400 hover:text-slate-200 transition-all active:scale-95">
+        <button onclick="switchTab('books')" id="nav-btn-books" class="flex flex-col items-center gap-1 text-slate-400 hover:text-slate-200 transition-all active:scale-95 cursor-pointer">
             <i data-lucide="library-big" class="w-5 h-5 stroke-slate-400"></i>
             <span class="text-[11px] font-medium tracking-tight text-slate-400">Kitoblar</span>
         </button>
     </nav>
 
-    <!-- DINAMIK SKRIPTNI ULASH -->
-    <script src="/static/js/home.js"></script>
+   <!-- ======================================================= -->
+    <!-- SHU YERGA QO'SHILADI: BARCHA IMTIHONLAR TAQVIMI MODALI -->
+    <!-- ======================================================= -->
+    <div id="deadlines-modal" class="fixed inset-0 z-50 hidden bg-black/80 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4 transition-all">
+        <div class="bg-[#111827] border border-[#283548] rounded-t-3xl sm:rounded-2xl w-full max-w-md max-h-[85vh] flex flex-col overflow-hidden animate-in slide-in-from-bottom duration-200">
+            <div class="p-4 border-b border-[#283548] flex items-center justify-between">
+                <div class="flex items-center gap-2">
+                    <span class="text-lg">📅</span>
+                    <h3 class="text-sm font-bold text-white">Imtihonlar Taqvimi</h3>
+                </div>
+                <button onclick="closeAllDeadlinesModal()" class="w-8 h-8 rounded-full bg-[#1F2937] text-slate-400 hover:text-white flex items-center justify-center text-sm font-bold">✕</button>
+            </div>
 
-    <!-- JAVASCRIPT ASOSIY BOSHQARUV LOGIKASI -->
+            <div id="deadlines-list-container" class="p-4 space-y-3 overflow-y-auto">
+                <!-- Dinamik elementlar JS orqali joylanadi -->
+            </div>
+        </div>
+    </div>
+    <!-- ======================================================= -->
+
+    <!-- O'NG TOMONDAN SURILUVCHI BILDIRISHNOMA OYNASI (DRAWER) -->
+    <div id="notif-drawer-backdrop" onclick="closeNotificationDrawer()" class="fixed inset-0 z-50 hidden bg-black/60 backdrop-blur-sm transition-opacity duration-300 opacity-0"></div>
+
+    <div id="notif-drawer" class="fixed top-0 right-0 bottom-0 z-50 w-full max-w-xs bg-[#111827] border-l border-[#283548] shadow-2xl flex flex-col transform translate-x-full transition-transform duration-300 ease-in-out">
+        <!-- Panel sarlavhasi va X tugmasi -->
+        <div class="p-4 border-b border-[#283548] flex items-center justify-between bg-[#161F30]/50">
+            <div class="flex items-center gap-2">
+                <i data-lucide="bell" class="w-4 h-4 text-emerald-400"></i>
+                <h3 class="text-xs font-bold text-white uppercase tracking-wider">Bildirishnomalar</h3>
+            </div>
+            <!-- X belgisi: bosganda panel yopilib asosiy menyu ochiq qoladi -->
+            <button onclick="closeNotificationDrawer()" type="button" class="w-7 h-7 rounded-lg bg-[#1F2937] hover:bg-slate-700 text-slate-300 hover:text-white flex items-center justify-center text-xs font-bold transition cursor-pointer">
+                ✕
+            </button>
+        </div>
+
+        <!-- Bildirishnomalar ro'yxati konteyneri -->
+        <div id="notif-list-container" class="flex-1 overflow-y-auto p-3 space-y-2.5">
+            <p class="text-xs text-slate-500 text-center py-6">Yuklanmoqda...</p>
+        </div>
+    </div>
+
+    <!-- MODULLI JAVASCRIPT FAYLLARI (home.js va profile.js)[cite: 1, 5, 7] -->
+    <script src="/static/js/home.js"></script>
+    <script src="/static/js/profile.js"></script>
+
+    <!-- ASOSIY BOSHQARUV LOGIKASI -->
     <script>
         const tg = window.Telegram?.WebApp;
-        if (tg) { tg.ready(); tg.expand(); }
+        if (tg) {
+            try { tg.ready(); tg.expand(); } catch (e) {}
+        }
 
         let currentTab = 'home';
         let currentClass = '7';
 
+        let sessionSeconds = 0;
+        function startSessionTimer() {
+            setInterval(() => {
+                sessionSeconds++;
+                const m = Math.floor(sessionSeconds / 60).toString().padStart(2, '0');
+                const s = (sessionSeconds % 60).toString().padStart(2, '0');
+                const el = document.getElementById('session-timer');
+                if (el) el.innerText = `${m}:${s}`;
+            }, 1000);
+        }
+
+        // 1. Header chap tugmasini bosganda ishlaydigan dinamik harakat
+        function toggleHeaderLeftAction() {
+            if (currentTab === 'profile') {
+                switchTab('home'); // Profil ichida turganda Bosh sahifaga qaytaradi
+            } else {
+                switchTab('profile'); // Boshqa har qanday bo'limda turganda Profilni ochadi
+            }
+        }
+
+        // 2. Bo'limlarni almashtirish va Header tugmasini avtomatik moslash
         function switchTab(tab) {
             currentTab = tab;
             ['home', 'lessons', 'tests', 'books', 'rating', 'profile'].forEach(t => {
@@ -361,31 +879,50 @@
                 if (el) el.classList.add('hidden');
             });
 
-            if (tab === 'tests') {
-                document.getElementById('notification-btn')?.classList.add('hidden');
-                document.getElementById('test-timer-box')?.classList.remove('hidden');
-                if (!quizData.questions || quizData.questions.length === 0) loadQuiz();
+            // DINAMIK HEADER MANTIQI:
+            const profileWrap = document.getElementById('hdr-profile-info-wrap');
+            const returnHomeWrap = document.getElementById('hdr-home-return-wrap');
+
+            if (tab === 'profile') {
+                // Profil ichiga kirganda -> 3 qatorli profil yashiriladi va [🏠 Bosh sahifa] chiqadi
+                profileWrap?.classList.add('hidden');
+                returnHomeWrap?.classList.remove('hidden');
             } else {
-                document.getElementById('notification-btn')?.classList.remove('hidden');
+                // Bosh sahifada (va boshqa menyularda) -> Avatar, ism, status va balans ko'rinadi
+                profileWrap?.classList.remove('hidden');
+                returnHomeWrap?.classList.add('hidden');
+            }
+
+            // Taymerlar ko'rinishi
+            if (tab === 'tests') {
+                document.getElementById('session-timer-box')?.classList.add('hidden');
+                document.getElementById('test-timer-box')?.classList.remove('hidden');
+                if (!quizData.questions || quizData.questions.length === 0) {
+                    loadQuiz();
+                }
+            } else {
+                document.getElementById('session-timer-box')?.classList.remove('hidden');
                 document.getElementById('test-timer-box')?.classList.add('hidden');
             }
 
+            // Pastki navigatsiya tugmalari holati
             ['home', 'lessons', 'rating', 'tests', 'books'].forEach(t => {
                 const btn = document.getElementById(`nav-btn-${t}`);
                 if (!btn) return;
                 const icon = btn.querySelector('i');
                 const span = btn.querySelector('span');
                 if (t === tab) {
-                    btn.className = "flex flex-col items-center gap-1 text-emerald-400 transition-all active:scale-95";
+                    btn.className = "flex flex-col items-center gap-1 text-emerald-400 transition-all active:scale-95 cursor-pointer";
                     if (icon) icon.className = "w-5 h-5 stroke-emerald-400";
                     if (span) span.className = "text-[11px] font-bold tracking-tight text-emerald-400";
                 } else {
-                    btn.className = "flex flex-col items-center gap-1 text-slate-400 hover:text-slate-200 transition-all active:scale-95";
+                    btn.className = "flex flex-col items-center gap-1 text-slate-400 hover:text-slate-200 transition-all active:scale-95 cursor-pointer";
                     if (icon) icon.className = "w-5 h-5 stroke-slate-400";
                     if (span) span.className = "text-[11px] font-medium tracking-tight text-slate-400";
                 }
             });
 
+            // Tanlangan bo'limni ko'rsatish
             const targetTab = document.getElementById(`tab-${tab}`);
             if (targetTab) targetTab.classList.remove('hidden');
 
@@ -394,30 +931,26 @@
             } else if (tab === 'lessons') {
                 loadLessons(currentClass);
             } else if (tab === 'profile') {
-                loadUserData();
+                if (typeof fetchUserProfile === 'function') {
+                    fetchUserProfile();
+                }
             }
 
-            setTimeout(() => lucide.createIcons(), 30);
-        }
-
-        function loadUserData() {
-            if (tg && tg.initDataUnsafe && tg.initDataUnsafe.user) {
-                const u = tg.initDataUnsafe.user;
-                const fullName = `${u.first_name || ''} ${u.last_name || ''}`.trim();
-                if (fullName) document.getElementById('user-display-name').innerText = fullName;
-                if (u.username) document.getElementById('user-display-phone').innerText = `@${u.username}`;
-            }
+            setTimeout(() => {
+                if (window.lucide) lucide.createIcons();
+            }, 30);
         }
 
         async function loadLessons(classId) {
             currentClass = classId;
             document.querySelectorAll('.class-btn').forEach(b => {
-                b.className = "class-btn py-2 text-xs font-semibold rounded-xl border border-[#1F2937] bg-[#111827] text-slate-300 active:scale-95 transition-all";
+                b.className = "class-btn py-2 text-xs font-semibold rounded-xl border border-[#1F2937] bg-[#111827] text-slate-300 active:scale-95 transition-all cursor-pointer";
             });
             const activeBtn = document.getElementById(`c-btn-${classId}`);
-            if (activeBtn) activeBtn.className = "class-btn py-2 text-xs font-bold rounded-xl border border-emerald-500 bg-emerald-500/15 text-emerald-400 active:scale-95 transition-all";
+            if (activeBtn) activeBtn.className = "class-btn py-2 text-xs font-bold rounded-xl border border-emerald-500 bg-emerald-500/15 text-emerald-400 active:scale-95 transition-all cursor-pointer";
 
             const container = document.getElementById('lessons-list');
+            if (!container) return;
             container.innerHTML = '<p class="text-xs text-slate-400 py-3 text-center">Yuklanmoqda...</p>';
 
             try {
@@ -436,15 +969,15 @@
                     item.innerHTML = `
                         <div class="pr-2">
                             <h4 class="text-xs font-bold text-slate-100">${l.title}</h4>
-                            <p class="text-[10px] text-slate-400 line-clamp-1 mt-1 font-normal">${l.desc}</p>
+                            <p class="text-[10px] text-slate-400 line-clamp-1 mt-1 font-normal">${l.desc || ''}</p>
                         </div>
-                        <button onclick="playLesson('${l.title.replace(/'/g, "\\'")}', '${l.desc.replace(/'/g, "\\'")}', '${l.video_url}')" class="px-3 py-1.5 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 text-emerald-400 text-xs font-semibold rounded-xl shrink-0 flex items-center gap-1 active:scale-95 transition-all">
+                        <button onclick="playLesson('${l.title.replace(/'/g, "\\'")}', '${(l.desc || '').replace(/'/g, "\\'")}', '${l.video_url}')" class="px-3 py-1.5 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 text-emerald-400 text-xs font-semibold rounded-xl shrink-0 flex items-center gap-1 active:scale-95 transition-all cursor-pointer">
                             <i data-lucide="play" class="w-3.5 h-3.5 fill-emerald-400"></i> Ko'rish
                         </button>
                     `;
                     container.appendChild(item);
                 });
-                lucide.createIcons();
+                if (window.lucide) lucide.createIcons();
             } catch (e) {
                 container.innerHTML = '<p class="text-xs text-rose-400 py-3 text-center">Darslarni yuklashda xatolik yuz berdi.</p>';
             }
@@ -465,6 +998,7 @@
             player.play();
         }
 
+        // Test mantig'i
         let quizData = { questions: [] };
         let currentIndex = 0;
         let userAnswers = {};
@@ -484,12 +1018,13 @@
 
         function renderGrid() {
             const c = document.getElementById('grid-container');
+            if (!c) return;
             c.innerHTML = '';
-            quizData.questions.forEach((_, idx) => {
+            (quizData.questions || []).forEach((_, idx) => {
                 const btn = document.createElement('button');
                 btn.id = `grid-btn-${idx}`;
                 btn.innerText = idx + 1;
-                btn.className = "w-8 h-8 text-xs font-semibold rounded-lg border border-[#1F2937] bg-[#161F30] text-slate-300";
+                btn.className = "w-8 h-8 text-xs font-semibold rounded-lg border border-[#1F2937] bg-[#161F30] text-slate-300 cursor-pointer";
                 btn.onclick = () => renderQuestion(idx);
                 c.appendChild(btn);
             });
@@ -506,10 +1041,10 @@
             const optC = document.getElementById('options-container');
             optC.innerHTML = '';
             const labels = ['A', 'B', 'C', 'D'];
-            q.options.forEach((opt, optIdx) => {
+            (q.options || []).forEach((opt, optIdx) => {
                 const isSelected = userAnswers[index] === optIdx;
                 const btn = document.createElement('button');
-                btn.className = `w-full text-left p-3 rounded-xl border text-xs sm:text-sm font-medium flex items-center gap-3 transition-all ${
+                btn.className = `w-full text-left p-3 rounded-xl border text-xs sm:text-sm font-medium flex items-center gap-3 transition-all cursor-pointer ${
                     isSelected ? 'bg-emerald-500/10 border-emerald-500 text-emerald-300 font-semibold shadow-sm' : 'bg-[#111827] border-[#1F2937] text-slate-300 hover:bg-[#161F30]'
                 }`;
                 btn.innerHTML = `
@@ -526,7 +1061,7 @@
         }
 
         function updateGridStyles() {
-            quizData.questions.forEach((_, idx) => {
+            (quizData.questions || []).forEach((_, idx) => {
                 const btn = document.getElementById(`grid-btn-${idx}`);
                 if (!btn) return;
                 if (idx === currentIndex) {
@@ -558,7 +1093,8 @@
                 timerSeconds--;
                 const m = Math.floor(timerSeconds / 60).toString().padStart(2, '0');
                 const s = (timerSeconds % 60).toString().padStart(2, '0');
-                document.getElementById('timer').innerText = `${m}:${s}`;
+                const tEl = document.getElementById('timer');
+                if (tEl) tEl.innerText = `${m}:${s}`;
             }, 1000);
         }
 
@@ -586,22 +1122,19 @@
                         <p class="text-3xl font-extrabold text-emerald-400 mb-1">${percent}%</p>
                         <p class="text-xs text-slate-300">To'g'ri javoblar: <span class="text-emerald-400 font-bold">${correct}</span> / ${quizData.questions.length}</p>
                     </div>
-                    <button onclick="location.reload()" class="w-full max-w-xs py-2.5 bg-[#161F30] hover:bg-[#1F2937] border border-[#283548] text-white rounded-xl text-xs font-semibold active:scale-95 transition-all">Qayta topshirish</button>
+                    <button onclick="location.reload()" class="w-full max-w-xs py-2.5 bg-[#161F30] hover:bg-[#1F2937] border border-[#283548] text-white rounded-xl text-xs font-semibold active:scale-95 transition-all cursor-pointer">Qayta topshirish</button>
                 </div>
             `;
         }
 
-        <!-- 1. Yangiliklar logikasi ulanadi -->
-    <script src="/static/js/home.js"></script>
-
-    <!-- 2. Asosiy ishga tushirish bloki -->
-    <script>
-        window.onload = () => {
+        // Sahifa to'liq yuklanganda
+        window.addEventListener('DOMContentLoaded', () => {
             switchTab('home');
             startSessionTimer();
             if (typeof loadNews === 'function') loadNews();
-            lucide.createIcons();
-        };
+            if (typeof loadExamDeadlines === 'function') loadExamDeadlines(); // <-- SHU QATORNI QO'SHING
+            if (window.lucide) lucide.createIcons();
+        });
     </script>
 </body>
 </html>
