@@ -93,9 +93,9 @@
         </div>
     </header>
 
-    <!-- 1-BO'LIM: ASOSIY (HOME TAB - MODULLI YANGILIKLAR KARUSELI BILAN) -->
+    <!-- 1-BO'LIM: ASOSIY (HOME TAB) -->
     <main id="tab-home" class="flex-1 px-4 py-4 max-w-md mx-auto w-full space-y-4">
-        <!-- YANGILIKLAR VA E'LONLAR (home.js orqali dinamik to'ladi) -->
+        <!-- YANGILIKLAR VA E'LONLAR -->
         <section>
             <div class="flex items-center justify-between mb-2.5">
                 <div class="flex items-center gap-1.5">
@@ -109,15 +109,8 @@
                 <p class="text-xs text-slate-500 py-3">Yangiliklar yuklanmoqda...</p>
             </div>
         </section>
-<!-- YANGILIKLAR VA E'LONLAR (home.js orqali dinamik to'ladi) -->
-        <section>
-            ... (yangiliklar karuseli kodi) ...
-        </div>
-        </section>
 
-        <!-- ======================================================= -->
-        <!-- SHU YERGA QO'SHILADI: IMTIHON TAYMERI (DEDLAYN VIDJETI) -->
-        <!-- ======================================================= -->
+        <!-- IMTIHON TAYMERI (DEDLAYN VIDJETI) -->
         <section class="bg-gradient-to-br from-[#161F30] to-[#0E1522] border border-[#283548] rounded-2xl p-4 shadow-lg mb-4">
             <div class="flex items-center justify-between mb-3">
                 <div class="flex items-center gap-2">
@@ -150,7 +143,6 @@
                 </div>
             </div>
         </section>
-        <!-- ======================================================= -->
 
         <!-- O'QUV SUR'ATI VA REJA VIDJETI -->
         <section class="bg-gradient-to-br from-[#161F30] to-[#0E1522] border border-[#283548] rounded-2xl p-4 shadow-lg mb-4">
@@ -171,7 +163,7 @@
                 <span class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-amber-400"></span> Davomiylik</span>
             </div>
 
-            <!-- Kurslar progress ro'yxati (JS shu yerga chizadi) -->
+            <!-- Kurslar progress ro'yxati -->
             <div id="course-pace-container" class="space-y-3">
                 <p class="text-xs text-slate-500 text-center py-3">O'quv sur'ati yuklanmoqda...</p>
             </div>
@@ -181,11 +173,9 @@
         <div class="grid grid-cols-2 gap-3 mb-4 select-none">
             <!-- 1. OKTAGON VITRINASI (Chap yarmi) -->
             <section class="bg-gradient-to-br from-[#1c1917]/90 to-[#0A0E17] border border-amber-500/30 rounded-2xl p-3.5 flex flex-col justify-between shadow-lg relative overflow-hidden group">
-                <!-- Fon nuri -->
                 <div class="absolute -right-4 -top-4 w-16 h-16 bg-amber-500/10 rounded-full blur-xl pointer-events-none"></div>
 
                 <div>
-                    <!-- Tepadagi HandFist ikonkasi va nom -->
                     <div class="flex items-center justify-between mb-2">
                         <div class="w-8 h-8 rounded-xl bg-amber-500/15 border border-amber-500/30 text-amber-400 flex items-center justify-center shadow-inner">
                             <i data-lucide="hand-metal" class="w-4 h-4"></i>
@@ -195,7 +185,6 @@
 
                     <h4 class="text-xs font-extrabold text-white tracking-wide uppercase">Oktagon</h4>
 
-                    <!-- Kurs bo'yicha reyting o'rni -->
                     <div class="mt-2.5 bg-[#0A0E17]/80 border border-amber-500/20 rounded-xl p-2 text-left">
                         <p id="oct-course-title" class="text-[9px] text-slate-400 truncate leading-tight">Kurs o'rni:</p>
                         <p class="text-xs font-extrabold text-amber-400 mt-0.5 font-mono">
@@ -204,13 +193,12 @@
                     </div>
                 </div>
 
-                <!-- Jangni boshlash tugmasi -->
                 <button type="button" onclick="startOctagonBattle()" class="w-full mt-3 py-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 text-[11px] font-bold rounded-xl active:scale-95 transition-all shadow-md flex items-center justify-center gap-1.5 cursor-pointer">
                     <span>Jangni boshla</span> ⚔️
                 </button>
             </section>
 
-            <!-- 2. JONLI EFIR ZAXIRA QISMI (O'ng yarmi - Keyingi qadam uchun tayyor joy) -->
+            <!-- 2. JONLI EFIR ZAXIRA QISMI (O'ng yarmi) -->
             <section id="live-stream-placeholder" class="bg-gradient-to-br from-[#161F30] to-[#0A0E17] border border-[#283548] rounded-2xl p-3.5 flex flex-col justify-between shadow-lg opacity-60">
                 <div>
                     <div class="flex items-center justify-between mb-2">
@@ -230,7 +218,6 @@
 
         <!-- REKLAMA VA AKSIYALAR VIDJETI (BANNER) -->
         <section id="promo-section" class="relative overflow-hidden bg-gradient-to-r from-amber-500/10 via-[#111827] to-[#161F30] border border-amber-500/30 rounded-2xl p-4 shadow-xl mb-4 select-none">
-            <!-- Orqa fondagi yorug'lik effekti -->
             <div class="absolute -right-6 -bottom-6 w-24 h-24 bg-amber-500/10 rounded-full blur-2xl pointer-events-none"></div>
 
             <div class="flex items-center justify-between mb-2">
@@ -271,7 +258,6 @@
 
             <!-- 4 ta katakdan iborat ixcham statistika to'ri -->
             <div class="grid grid-cols-2 gap-2.5">
-                <!-- 1. O'quvchilar -->
                 <div class="bg-[#0A0E17]/80 border border-[#283548]/60 rounded-xl p-3 flex items-center gap-3">
                     <div class="w-9 h-9 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 flex items-center justify-center shrink-0">
                         <i data-lucide="users" class="w-4 h-4"></i>
@@ -282,7 +268,6 @@
                     </div>
                 </div>
 
-                <!-- 2. Darslar -->
                 <div class="bg-[#0A0E17]/80 border border-[#283548]/60 rounded-xl p-3 flex items-center gap-3">
                     <div class="w-9 h-9 rounded-xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 flex items-center justify-center shrink-0">
                         <i data-lucide="graduation-cap" class="w-4 h-4"></i>
@@ -293,7 +278,6 @@
                     </div>
                 </div>
 
-                <!-- 3. Test savollari -->
                 <div class="bg-[#0A0E17]/80 border border-[#283548]/60 rounded-xl p-3 flex items-center gap-3">
                     <div class="w-9 h-9 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-400 flex items-center justify-center shrink-0">
                         <i data-lucide="circle-check-big" class="w-4 h-4"></i>
@@ -304,7 +288,6 @@
                     </div>
                 </div>
 
-                <!-- 4. Kitoblar -->
                 <div class="bg-[#0A0E17]/80 border border-[#283548]/60 rounded-xl p-3 flex items-center gap-3">
                     <div class="w-9 h-9 rounded-xl bg-teal-500/10 border border-teal-500/20 text-teal-400 flex items-center justify-center shrink-0">
                         <i data-lucide="library-big" class="w-4 h-4"></i>
@@ -426,7 +409,6 @@
 
     <!-- 6-BO'LIM: YANGILANGAN SHAXSIY PROFIL TAB -->
     <main id="tab-profile" class="hidden flex-1 px-4 py-4 max-w-md mx-auto w-full pb-20 text-slate-200">
-
         <!-- Profil Bosh Kartochkasi -->
         <div class="flex flex-col items-center justify-center my-3">
             <div class="relative w-20 h-20 rounded-full bg-[#111827] border-2 border-emerald-500/40 flex items-center justify-center shadow-lg">
@@ -711,7 +693,7 @@
         </div>
     </div>
 
-    <!-- YANGILIK DETAL MODALI (TO'LIQ EKRAN)[cite: 6, 7] -->
+    <!-- YANGILIK DETAL MODALI (TO'LIQ EKRAN) -->
     <div id="news-detail-modal" class="hidden fixed inset-0 bg-[#0A0E17] z-50 overflow-y-auto pb-10">
         <div class="sticky top-0 bg-[#111827]/90 backdrop-blur-md px-4 py-3 border-b border-[#1F2937] flex justify-between items-center z-10">
             <span class="text-xs font-bold text-slate-400 uppercase tracking-wider">Yangilik tafsiloti</span>
@@ -732,7 +714,7 @@
                 <a id="nd-source" href="#" target="_blank" class="text-emerald-400 font-bold underline flex items-center gap-1"></a>
             </div>
 
-            <!-- REAKSIYALAR BLOKI (HISOB-KITOBLAR BILAN) -->
+            <!-- REAKSIYALAR BLOKI -->
             <div class="flex gap-2 justify-center py-1 select-none">
                 <button id="btn-react-like" onclick="sendReaction('like')" class="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#111827] border border-[#1F2937] text-xs font-semibold text-slate-300 hover:border-emerald-500/40 active:scale-95 transition-all cursor-pointer">
                     <span>👍</span> <span id="count-react-like" class="font-mono text-slate-400">0</span>
@@ -808,9 +790,7 @@
         </button>
     </nav>
 
-   <!-- ======================================================= -->
-    <!-- SHU YERGA QO'SHILADI: BARCHA IMTIHONLAR TAQVIMI MODALI -->
-    <!-- ======================================================= -->
+    <!-- IMTIHONLAR TAQVIMI MODALI -->
     <div id="deadlines-modal" class="fixed inset-0 z-50 hidden bg-black/80 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4 transition-all">
         <div class="bg-[#111827] border border-[#283548] rounded-t-3xl sm:rounded-2xl w-full max-w-md max-h-[85vh] flex flex-col overflow-hidden animate-in slide-in-from-bottom duration-200">
             <div class="p-4 border-b border-[#283548] flex items-center justify-between">
@@ -820,37 +800,29 @@
                 </div>
                 <button onclick="closeAllDeadlinesModal()" class="w-8 h-8 rounded-full bg-[#1F2937] text-slate-400 hover:text-white flex items-center justify-center text-sm font-bold">✕</button>
             </div>
-
-            <div id="deadlines-list-container" class="p-4 space-y-3 overflow-y-auto">
-                <!-- Dinamik elementlar JS orqali joylanadi -->
-            </div>
+            <div id="deadlines-list-container" class="p-4 space-y-3 overflow-y-auto"></div>
         </div>
     </div>
-    <!-- ======================================================= -->
 
     <!-- O'NG TOMONDAN SURILUVCHI BILDIRISHNOMA OYNASI (DRAWER) -->
     <div id="notif-drawer-backdrop" onclick="closeNotificationDrawer()" class="fixed inset-0 z-50 hidden bg-black/60 backdrop-blur-sm transition-opacity duration-300 opacity-0"></div>
 
     <div id="notif-drawer" class="fixed top-0 right-0 bottom-0 z-50 w-full max-w-xs bg-[#111827] border-l border-[#283548] shadow-2xl flex flex-col transform translate-x-full transition-transform duration-300 ease-in-out">
-        <!-- Panel sarlavhasi va X tugmasi -->
         <div class="p-4 border-b border-[#283548] flex items-center justify-between bg-[#161F30]/50">
             <div class="flex items-center gap-2">
                 <i data-lucide="bell" class="w-4 h-4 text-emerald-400"></i>
                 <h3 class="text-xs font-bold text-white uppercase tracking-wider">Bildirishnomalar</h3>
             </div>
-            <!-- X belgisi: bosganda panel yopilib asosiy menyu ochiq qoladi -->
             <button onclick="closeNotificationDrawer()" type="button" class="w-7 h-7 rounded-lg bg-[#1F2937] hover:bg-slate-700 text-slate-300 hover:text-white flex items-center justify-center text-xs font-bold transition cursor-pointer">
                 ✕
             </button>
         </div>
-
-        <!-- Bildirishnomalar ro'yxati konteyneri -->
         <div id="notif-list-container" class="flex-1 overflow-y-auto p-3 space-y-2.5">
             <p class="text-xs text-slate-500 text-center py-6">Yuklanmoqda...</p>
         </div>
     </div>
 
-    <!-- MODULLI JAVASCRIPT FAYLLARI (home.js va profile.js)[cite: 1, 5, 7] -->
+    <!-- MODULLI JAVASCRIPT FAYLLARI -->
     <script src="/static/js/home.js"></script>
     <script src="/static/js/profile.js"></script>
 
@@ -875,18 +847,25 @@
             }, 1000);
         }
 
-        // 1. Header chap tugmasini bosganda ishlaydigan dinamik harakat
         function toggleHeaderLeftAction() {
             if (currentTab === 'profile') {
-                switchTab('home'); // Profil ichida turganda Bosh sahifaga qaytaradi
+                switchTab('home');
             } else {
-                switchTab('profile'); // Boshqa har qanday bo'limda turganda Profilni ochadi
+                switchTab('profile');
             }
         }
 
-        // 2. Bo'limlarni almashtirish va Header tugmasini avtomatik moslash
+        // BO'LIMLARNI ALMASHTIRISH (TO'G'RILANGAN ASOSIY MANTIQ)
         function switchTab(tab) {
             currentTab = tab;
+
+            // 1. HAR BIR BO'LIMNI BIRING-KETIN YASHIRISH (MUTLAQO SHART)
+            ['home', 'lessons', 'rating', 'tests', 'books', 'profile'].forEach(t => {
+                const el = document.getElementById(`tab-${t}`);
+                if (el) el.classList.add('hidden');
+            });
+
+            // 2. PASTKI NAVIGATSIYA TUGMALARINI ZAMONAVIY CHIZISH
             ['home', 'lessons', 'rating', 'tests', 'books'].forEach(t => {
                 const btn = document.getElementById(`nav-btn-${t}`);
                 if (!btn) return;
@@ -905,21 +884,19 @@
                 }
             });
 
-            // DINAMIK HEADER MANTIQI:
+            // 3. HEADER CHAP QISMINI MOSLASH
             const profileWrap = document.getElementById('hdr-profile-info-wrap');
             const returnHomeWrap = document.getElementById('hdr-home-return-wrap');
 
             if (tab === 'profile') {
-                // Profil ichiga kirganda -> 3 qatorli profil yashiriladi va [🏠 Bosh sahifa] chiqadi
                 profileWrap?.classList.add('hidden');
                 returnHomeWrap?.classList.remove('hidden');
             } else {
-                // Bosh sahifada (va boshqa menyularda) -> Avatar, ism, status va balans ko'rinadi
                 profileWrap?.classList.remove('hidden');
                 returnHomeWrap?.classList.add('hidden');
             }
 
-            // Taymerlar ko'rinishi
+            // 4. TAYMERLAR KO'RINISHI
             if (tab === 'tests') {
                 document.getElementById('session-timer-box')?.classList.add('hidden');
                 document.getElementById('test-timer-box')?.classList.remove('hidden');
@@ -931,29 +908,18 @@
                 document.getElementById('test-timer-box')?.classList.add('hidden');
             }
 
-            // Pastki navigatsiya tugmalari holati
-            ['home', 'lessons', 'rating', 'tests', 'books'].forEach(t => {
-                const btn = document.getElementById(`nav-btn-${t}`);
-                if (!btn) return;
-                const icon = btn.querySelector('i');
-                const span = btn.querySelector('span');
-                if (t === tab) {
-                    btn.className = "flex flex-col items-center gap-1 text-emerald-400 transition-all active:scale-95 cursor-pointer";
-                    if (icon) icon.className = "w-5 h-5 stroke-emerald-400";
-                    if (span) span.className = "text-[11px] font-bold tracking-tight text-emerald-400";
-                } else {
-                    btn.className = "flex flex-col items-center gap-1 text-slate-400 hover:text-slate-200 transition-all active:scale-95 cursor-pointer";
-                    if (icon) icon.className = "w-5 h-5 stroke-slate-400";
-                    if (span) span.className = "text-[11px] font-medium tracking-tight text-slate-400";
-                }
-            });
-
-            // Tanlangan bo'limni ko'rsatish
+            // 5. TANLANGAN BO'LIMNIGINA KO'RSATISH
             const targetTab = document.getElementById(`tab-${tab}`);
             if (targetTab) targetTab.classList.remove('hidden');
 
+            // 6. BO'LIM MA'LUMOTLARINI YUKLASH
             if (tab === 'home') {
                 if (typeof loadNews === 'function') loadNews();
+                if (typeof loadExamDeadlines === 'function') loadExamDeadlines();
+                if (typeof loadCoursePace === 'function') loadCoursePace();
+                if (typeof loadOctagonWidget === 'function') loadOctagonWidget();
+                if (typeof loadPromotions === 'function') loadPromotions();
+                if (typeof loadPlatformStats === 'function') loadPlatformStats();
             } else if (tab === 'lessons') {
                 loadLessons(currentClass);
             } else if (tab === 'profile') {
@@ -1157,8 +1123,6 @@
         window.addEventListener('DOMContentLoaded', () => {
             switchTab('home');
             startSessionTimer();
-            if (typeof loadNews === 'function') loadNews();
-            if (typeof loadExamDeadlines === 'function') loadExamDeadlines(); // <-- SHU QATORNI QO'SHING
             if (window.lucide) lucide.createIcons();
         });
     </script>
