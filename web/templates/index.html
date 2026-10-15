@@ -71,7 +71,7 @@
 
         <!-- O'NG BURCHAK: Bildirishnoma + Taymerlar -->
         <div class="flex items-center gap-2">
-            <!-- BILDIRISHNOMA (BELL) TUGMASI (Dual-tone konteyner) -->
+            <!-- BILDIRISHNOMA (BELL) TUGMASI -->
             <button onclick="openNotificationDrawer()" type="button" class="relative w-9 h-9 rounded-xl bg-[#161F30] border border-[#283548] hover:border-emerald-500/50 flex items-center justify-center text-slate-300 hover:text-emerald-400 active:scale-95 transition-all cursor-pointer shadow-inner">
                 <i data-lucide="bell" class="w-4 h-4 stroke-[2.2]"></i>
                 <span id="notif-badge-dot" class="hidden absolute top-1.5 right-1.5 w-2.5 h-2.5 rounded-full bg-rose-500 border-2 border-[#161F30] shadow-[0_0_8px_#f43f5e] animate-pulse"></span>
@@ -188,7 +188,7 @@
                     <div class="mt-2.5 bg-[#0A0E17]/80 border border-amber-500/20 rounded-xl p-2 text-left">
                         <p id="oct-course-title" class="text-[9px] text-slate-400 truncate leading-tight">Kurs o'rni:</p>
                         <p class="text-xs font-extrabold text-amber-400 mt-0.5 font-mono">
-                            #<span id="oct-rank-num">14</span> <span class="text-[9px] font-normal text-slate-400">- o'rin</span>
+                            #<span id="oct-rank-num">14</span> <span class="text-[9px] font-normal text-slate-400">o'rin</span>
                         </p>
                     </div>
                 </div>
@@ -299,7 +299,6 @@
                 </div>
             </div>
         </section>
-
     </main>
 
     <!-- 2-BO'LIM: FANLAR / DARSLAR TAB -->
@@ -855,17 +854,17 @@
             }
         }
 
-        // BO'LIMLARNI ALMASHTIRISH (TO'G'RILANGAN ASOSIY MANTIQ)
+        // BO'LIMLARNI ALMASHTIRISH
         function switchTab(tab) {
             currentTab = tab;
 
-            // 1. HAR BIR BO'LIMNI BIRING-KETIN YASHIRISH (MUTLAQO SHART)
+            // 1. HAR BIR BO'LIMNI YASHIRISH
             ['home', 'lessons', 'rating', 'tests', 'books', 'profile'].forEach(t => {
                 const el = document.getElementById(`tab-${t}`);
                 if (el) el.classList.add('hidden');
             });
 
-            // 2. PASTKI NAVIGATSIYA TUGMALARINI ZAMONAVIY CHIZISH
+            // 2. PASTKI NAVIGATSIYA TUGMALARINI MOSLASH
             ['home', 'lessons', 'rating', 'tests', 'books'].forEach(t => {
                 const btn = document.getElementById(`nav-btn-${t}`);
                 if (!btn) return;
