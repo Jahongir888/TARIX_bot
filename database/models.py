@@ -2,6 +2,7 @@ from datetime import datetime, date
 from sqlalchemy import (Column, Integer, BigInteger, String, Boolean, Float, Text, ForeignKey, DateTime, Date)
 from sqlalchemy.orm import declarative_base, relationship
 
+
 Base = declarative_base()
 
 
@@ -19,13 +20,14 @@ class User(Base):
     region = Column(String, nullable=True)  # Viloyat
     district = Column(String, nullable=True)  # Tuman
     avatar_url = Column(String, nullable=True)  # Profil rasmi / avatar
-    birth_date = Column(String, nullable=True)  # Tug'ilgan kun (YYYY-MM-DD)
+    birth_date = Column(String, nullable=True, default="Tanlanmagan")
 
     target = Column(String, nullable=True)  # Abituriyent, Attestatsiya, Noldan
     selected_subject = Column(String, default="tarix")  # Asosiy yo'nalish
     balance = Column(Integer, default=0)  # Balans (so'mda)
     coins = Column(Integer, default=0)  # Profil balansi (Coinlarda)
     is_paid = Column(Boolean, default=False)  # Obuna holati
+    is_subscribed = Column(Boolean, default=False)  # Faol pullik obunasi bormi (ism yonidagi belgi uchun)
 
     device_count = Column(Integer, default=1)  # Faol qurilmalar soni
     status_abc = Column(String, default="CCC")  # 3 ta harf: [Sertifikat, Jang, Kurs]
@@ -51,6 +53,13 @@ class User(Base):
     coin_transactions = relationship("CoinTransaction", back_populates="user", cascade="all, delete-orphan")
     daily_activities = relationship("UserDailyActivity", back_populates="user", cascade="all, delete-orphan")
     feedbacks = relationship("UserFeedback", back_populates="user", cascade="all, delete-orphan")
+    supervisors = relationship(
+        "UserSupervisor",
+        foreign_keys="UserSupervisor.student_tg_id",
+        primaryjoin="User.telegram_id == UserSupervisor.student_tg_id",
+        back_populates="student",
+        cascade="all, delete-orphan"
+    )
 
 
 # ==========================================================
@@ -458,3 +467,137 @@ class PlatformStats(Base):
     questions_count = Column(Integer, default=3500)     # Savollar banki hajmi
     books_count = Column(Integer, default=14)           # Kitob va to'plamlar
     updated_at = Column(DateTime, default=datetime.utcnow)
+
+
+class Product(Base):
+    __tablename__ = "products"
+
+    id = Column(Integer, primary_key=True, index=True)
+    title = Column(String, nullable=False)  # Kurs yoki kitob nomi
+    short_desc = Column(String, nullable=True)  # 1-2 ta reklama / tavsif jumlasi
+    subject = Column(String, nullable=False, index=True)  # 'tarix', 'huquq', 'psixologiya'
+    category = Column(String, nullable=False,
+                      index=True)  # 'ms', 'attestatsiya', 'bmba_asosiy', 'kitoblar', 'paketlar', va h.k.
+    item_type = Column(String, default="course")  # 'course', 'book', 'bundle'
+
+    # Narx va chegirmalar (Coin hisobida)
+    price_coin = Column(Integer, nullable=False)  # Amaldagi narxi (masalan: 120)
+    old_price_coin = Column(Integer, default=0)  # Avvalgi chizilgan narxi (masalan: 200)
+
+    # Ijtimoiy ko'rsatkichlar
+    rating = Column(Float, default=5.0)  # O'rtacha baho (masalan: 4.9)
+    buyers_count = Column(Integer, default=0)  # Sotib olganlar soni
+    image_url = Column(String, nullable=True)  # Muqova rasmi
+    is_active = Column(Boolean, default=True)
+
+
+class UserCourseAccess(Base):
+    __tablename__ = "user_course_access"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    product_id = Column(Integer, ForeignKey("products.id"), nullable=False)
+    purchased_at = Column(DateTime, default=datetime.utcnow)
+    expires_at = Column(DateTime, nullable=True)  # Obuna tugash sanasi
+    is_active = Column(Boolean, default=True)
+
+
+class TargetInstitution(Base):
+    __tablename__ = "target_institutions"
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String, nullable=False)  # "O'zbekiston Milliy Universiteti"
+    short_name = Column(String, nullable=False)  # "O'zMU"
+    inst_type = Column(String, nullable=False, index=True)  # 'otm', 'otm_harbiy', 'litsey', 'litsey_harbiy'
+    region = Column(String, nullable=False, index=True)  # "Toshkent", "Samarqand", "Farg'ona", va h.k.
+    logo_url = Column(String, nullable=True)  # Rasm / gerb havolasi
+    is_active = Column(Boolean, default=True)
+
+    directions = relationship("TargetDirection", back_populates="institution", cascade="all, delete-orphan")
+
+
+class TargetDirection(Base):
+    __tablename__ = "target_directions"
+
+    id = Column(Integer, primary_key=True, index=True)
+    institution_id = Column(Integer, ForeignKey("target_institutions.id"), nullable=False)
+    title = Column(String, nullable=False, index=True)  # "Tarix (yo'nalishlar bo'yicha)"
+    subject_main = Column(String, nullable=False, index=True)  # Asosiy fan: "Tarix", "Huquqshunoslik", "Matematika"
+    subject_secondary = Column(String, nullable=True)  # 2-fan: "Geografiya", "Chet tili"
+    education_lang = Column(String, default="O'zbek")  # Ta'lim tili
+
+    # Imtihon ballari va kvota statistikasi
+    grant_score = Column(Float, default=0.0)  # Davlat granti o'tish bali
+    contract_score = Column(Float, default=0.0)  # Kontrakt o'tish bali
+    quota = Column(Integer, default=50)  # Qabul kvotasi
+
+    # Namunaviy imtihon topshirish uchun test havolasi / ID
+    mock_quiz_id = Column(Integer, default=1)  # Testlar modulidagi bog'langan test ID si
+
+    institution = relationship("TargetInstitution", back_populates="directions")
+
+
+class UserCabinetItem(Base):
+    __tablename__ = 'user_cabinet_items'
+
+    id = Column(Integer, primary_key=True)
+    telegram_id = Column(BigInteger, nullable=False, index=True)
+    product_id = Column(Integer, nullable=False)  # Product jadvali ID si
+    item_type = Column(String, default="course")  # course, book
+    title = Column(String, nullable=False)
+    image_url = Column(String, nullable=True)
+
+    # 4 ta holat filtri uchun: 'active', 'inactive', 'cart', 'archive'
+    status = Column(String, default="active", index=True)
+
+    # Status darajasi: "Shogird", "Bilimdon", "Ustoz"
+    user_rank = Column(String, default="Shogird")
+
+    # Obuna muddati
+    expires_at = Column(DateTime, nullable=True)  # Tugash sanasi
+
+    # 3 rangli progress ko'rsatkichlari (0-100%)
+    actual_progress = Column(Integer, default=0)  # O'qilgan qism (Yashil)
+    expected_progress = Column(Integer, default=0)  # Reja bo'yicha bo'lishi kerak bo'lgan (Qizil chegara)
+
+    # Reyting ko'rsatkichi
+    course_rank = Column(Integer, default=1)  # Kursdagi o'rni (masalan: 12-o'rin)
+
+    # Davom etish manzili (dars yoki sahifa ID)
+    last_lesson_id = Column(String, default="1")
+
+    updated_at = Column(DateTime, default=datetime.utcnow)
+
+# ==========================================================
+# NAZORATCHI TIZIMI (SUPERVISOR / OTA-ONA NAZORATI)
+# ==========================================================
+class UserSupervisor(Base):
+    __tablename__ = 'user_supervisors'
+
+    id = Column(Integer, primary_key=True, index=True)
+    student_tg_id = Column(BigInteger, ForeignKey('users.telegram_id'), nullable=False, index=True)
+    supervisor_tg_id = Column(BigInteger, nullable=True, index=True)
+    supervisor_name = Column(String, nullable=True)
+    invite_token = Column(String, unique=True, index=True, nullable=False)
+    terms_accepted = Column(Boolean, default=False)
+    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    student = relationship(
+        "User",
+        primaryjoin="User.telegram_id == UserSupervisor.student_tg_id",
+        foreign_keys=[student_tg_id],
+        back_populates="supervisors"
+    )
+
+
+class SupervisorInvoice(Base):
+    __tablename__ = 'supervisor_invoices'
+
+    id = Column(Integer, primary_key=True, index=True)
+    supervisor_tg_id = Column(BigInteger, nullable=False, index=True)
+    amount = Column(Integer, nullable=False)
+    check_image = Column(String, nullable=True)
+    target_student_id = Column(BigInteger, ForeignKey('users.telegram_id'), nullable=True, index=True)
+    status = Column(String, default="pending", index=True)
+    created_at = Column(DateTime, default=datetime.utcnow)

@@ -3,86 +3,212 @@
 // ==========================================================
 
 const REGION_DISTRICTS = {
-    "Toshkent": ["Yunusobod", "Chilonzor", "Mirzo Ulug'bek", "Yashnobod", "Yakkasaroy", "Shayxontohur", "Mirobod"],
-    "Xorazm": ["Urganch sh.", "Xiva sh.", "Shovot", "Gurlan", "Bog'ot", "Hazorasp", "Xonqa", "Yangiariq"],
-    "Samarqand": ["Samarqand sh.", "Pastdarg'om", "Urgut", "Bulung'ur", "Kattaqo'rg'on", "Toyloq"],
-    "Farg'ona": ["Farg'ona sh.", "Marg'ilon", "Qo'qon", "Oltiariq", "Rishton", "Quva"],
-    "Andijon": ["Andijon sh.", "Asaka", "Shahrixon", "Xo'jaobod", "Baliqchi"],
-    "Namangan": ["Namangan sh.", "Chust", "Pop", "Uychi", "Yangiqo'rg'on"],
-    "Buxoro": ["Buxoro sh.", "G'ijduvon", "Kogon", "Jondor", "Vobkent"],
-    "Qashqadaryo": ["Qarshi sh.", "Shahrisabz", "Kitob", "G'uzor", "Koson"],
-    "Surxondaryo": ["Termiz sh.", "Denov", "Sherobod", "Boysun", "Sho'rchi"],
-    "Jizzax": ["Jizzax sh.", "Zomin", "G'allaorol", "Do'stlik"],
-    "Sirdaryo": ["Guliston sh.", "Boyovut", "Sayxunobod", "Sardoba"],
-    "Navoiy": ["Navoiy sh.", "Zarafshon", "Karmana", "Qiziltepa"],
-    "Qoraqalpog'iston": ["Nukus sh.", "Xo'jayli", "Beruniy", "To'rtko'l", "Qo'ng'irot"]
+    "Toshkent shahri": [
+        "Bektemir tumani", "Chilonzor tumani", "Mirobod tumani", "Mirzo Ulug‘bek tumani",
+        "Olmazor tumani", "Sergeli tumani", "Shayxontohur tumani", "Uchtepa tumani",
+        "Yakkasaroy tumani", "Yashnobod tumani", "Yangihayot tumani", "Yunusobod tumani"
+    ],
+    "Qoraqalpog‘iston Respublikasi": [
+        "Nukus shahri", "Amudaryo tumani", "Beruniy tumani", "Bo‘zatov tumani",
+        "Chimboy tumani", "Ellikqala tumani", "Kegeyli tumani", "Mo‘ynoq tumani",
+        "Nukus tumani", "Qanliko‘l tumani", "Qorao‘zak tumani", "Qo‘ng‘irot tumani",
+        "Shumanay tumani", "Taxtako‘pir tumani", "To‘rtko‘l tumani", "Xo‘jayli tumani", "Taxiatosh tumani"
+    ],
+    "Andijon viloyati": [
+        "Andijon shahri", "Xonobod shahri", "Andijon tumani", "Asaka tumani",
+        "Baliqchi tumani", "Bo‘ston tumani", "Buloqboshi tumani", "Izboskan tumani",
+        "Jalaquduq tumani", "Marhamat tumani", "Oltinko‘l tumani", "Paxtaobod tumani",
+        "Qo‘rg‘ontepa tumani", "Shahrixon tumani", "Ulug‘nor tumani", "Xo‘jaobod tumani"
+    ],
+    "Buxoro viloyati": [
+        "Buxoro shahri", "Kogon shahri", "Buxoro tumani", "G‘ijduvon tumani",
+        "Jondor tumani", "Kogon tumani", "Olot tumani", "Peshku tumani",
+        "Qorako‘l tumani", "Qorovulbozor tumani", "Romitan tumani", "Shofirkon tumani", "Vobkent tumani"
+    ],
+    "Farg‘ona viloyati": [
+        "Farg‘ona shahri", "Marg‘ilon shahri", "Qo‘qon shahri", "Quvasoy shahri",
+        "Bag‘dod tumani", "Beshariq tumani", "Buvayda tumani", "Dang‘ara tumani",
+        "Farg‘ona tumani", "Furqat tumani", "Oltiariq tumani", "Qo‘shtepa tumani",
+        "Quva tumani", "Rishton tumani", "So‘x tumani", "Toshloq tumani",
+        "Uchko‘prik tumani", "O‘zbekiston tumani", "Yozyovon tumani"
+    ],
+    "Jizzax viloyati": [
+        "Jizzax shahri", "Arnasoy tumani", "Baxmal tumani", "Do‘stlik tumani",
+        "Forish tumani", "G‘allaorol tumani", "Sharof Rashidov tumani", "Mirzacho‘l tumani",
+        "Paxtakor tumani", "Yangiobod tumani", "Zomin tumani", "Zafarobod tumani", "Zarbdor tumani"
+    ],
+    "Xorazm viloyati": [
+        "Urganch shahri", "Xiva shahri", "Pitnak shahri", "Bog‘ot tumani",
+        "Gurlan tumani", "Hazorasp tumani", "Tuproqqal’a tumani", "Shovot tumani",
+        "Urganch tumani", "Xiva tumani", "Xonqa tumani", "Yangiariq tumani",
+        "Yangibozor tumani", "Qo‘shko‘pir tumani"
+    ],
+    "Namangan viloyati": [
+        "Namangan shahri", "Chortoq tumani", "Chust tumani", "Kosonsoy tumani",
+        "Mingbuloq tumani", "Namangan tumani", "Norin tumani", "Pop tumani",
+        "To‘raqo‘rg‘on tumani", "Uchqo‘rg‘on tumani", "Uychi tumani", "Yangiqo‘rg‘on tumani",
+        "Davlatobod tumani", "Yangi Namangan tumani"
+    ],
+    "Navoiy viloyati": [
+        "Navoiy shahri", "Zarafshon shahri", "Karmana tumani", "Konimex tumani",
+        "Qiziltepa tumani", "Xatirchi tumani", "Navbahor tumani", "Nurota tumani",
+        "Tomdi tumani", "Uchquduq tumani"
+    ],
+    "Qashqadaryo viloyati": [
+        "Qarshi shahri", "Shahrisabz shahri", "Chiroqchi tumani", "Dehqonobod tumani",
+        "G‘uzor tumani", "Kasbi tumani", "Kitob tumani", "Koson tumani",
+        "Ko‘kdala tumani", "Mirishkor tumani", "Muborak tumani", "Nishon tumani",
+        "Qamashi tumani", "Qarshi tumani", "Shahrisabz tumani", "Yakkabog‘ tumani"
+    ],
+    "Samarqand viloyati": [
+        "Samarqand shahri", "Kattaqo‘rg‘on shahri", "Bulung‘ur tumani", "Ishtixon tumani",
+        "Jomboy tumani", "Kattaqo‘rg‘on tumani", "Narpay tumani", "Nurobod tumani",
+        "Oqdaryo tumani", "Pastdarg‘om tumani", "Paxtachi tumani", "Payariq tumani",
+        "Qo‘shrabot tumani", "Samarqand tumani", "Toyloq tumani", "Urgut tumani"
+    ],
+    "Sirdaryo viloyati": [
+        "Guliston shahri", "Shirin shahri", "Yangiyer shahri", "Boyovut tumani",
+        "Guliston tumani", "Xovos tumani", "Mirzaobod tumani", "Oqoltin tumani",
+        "Sardoba tumani", "Sayxunobod tumani", "Sirdaryo tumani"
+    ],
+    "Surxondaryo viloyati": [
+        "Termiz shahri", "Angor tumani", "Bandixon tumani", "Boysun tumani",
+        "Denov tumani", "Jarqo‘rg‘on tumani", "Qiziriq tumani", "Qumqo‘rg‘on tumani",
+        "Muzrabot tumani", "Oltinsoy tumani", "Sariosiyo tumani", "Sherobod tumani",
+        "Sho‘rchi tumani", "Termiz tumani", "Uzun tumani"
+    ],
+    "Toshkent viloyati": [
+        "Nurafshon shahri", "Olmaliq shahri", "Angren shahri", "Bekobod shahri",
+        "Chirchiq shahri", "Ohangaron shahri", "Yangiyo‘l shahri", "Bekobod tumani",
+        "Bo‘stonliq tumani", "Bo‘ka tumani", "Chinoz tumani", "Qibray tumani",
+        "Parkent tumani", "Piskent tumani", "Quyi Chirchiq tumani", "O‘rta Chirchiq tumani",
+        "Yangiyo‘l tumani", "Yuqori Chirchiq tumani", "Zangiota tumani", "Toshkent tumani", "Ohangaron tumani"
+    ]
 };
+
+let currentSupervisorLink = "";
 
 function getCurrentTelegramId() {
     const tgUser = window.Telegram?.WebApp?.initDataUnsafe?.user;
     return (tgUser && tgUser.id) ? tgUser.id : 84920194;
 }
 
-// Profil ma'lumotlarini Backenddan tortib kelish
+function setElText(id, value, fallback) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.innerText = (value === 0 || value) ? String(value) : (fallback ?? "");
+}
+
+function isSubscribedFlag(value) {
+    return value === true || value === 1 || value === "1" || value === "true";
+}
+
+function populateRegionSelect() {
+    const regSelect = document.getElementById("select-region");
+    if (!regSelect) return;
+    const current = regSelect.value;
+    const keys = Object.keys(REGION_DISTRICTS);
+    regSelect.innerHTML = '<option value="">Viloyatni tanlang</option>';
+    keys.forEach((name) => {
+        const opt = document.createElement("option");
+        opt.value = name;
+        opt.innerText = name;
+        if (name === current) opt.selected = true;
+        regSelect.appendChild(opt);
+    });
+}
+
+// 1. Profil ma'lumotlarini Backenddan tortib kelish
 async function fetchUserProfile() {
     const tgId = getCurrentTelegramId();
     const tgUser = window.Telegram?.WebApp?.initDataUnsafe?.user || {};
-    const firstName = encodeURIComponent(tgUser.first_name || "Jahongir");
-    const username = encodeURIComponent(tgUser.username || "Jahongir_Qadamov");
+    const firstName = encodeURIComponent(tgUser.first_name || "O'quvchi");
+    const username = encodeURIComponent(tgUser.username || "");
 
     try {
         const res = await fetch(`/api/profile?telegram_id=${tgId}&first_name=${firstName}&username=${username}`);
         if (!res.ok) throw new Error("Profilni yuklab bo'lmadi");
         const data = await res.json();
+        if (!data || typeof data !== "object" || Array.isArray(data)) return;
         renderUserProfile(data);
+        updateHeaderProfileWidgets(data);
     } catch (e) {
         console.error("Profil yuklashda xatolik:", e);
     }
 }
 
-// Ma'lumotlarni HTML birkalariga yozish
+// 2. Ma'lumotlarni HTML birkalariga yozish
 function renderUserProfile(u) {
-    // Sarlavha qismi
-    const nameTop = document.getElementById('profile-fullname-top');
-    if (nameTop) nameTop.innerText = u.full_name;
+    if (!u || typeof u !== "object") return;
 
-    const tgIdEl = document.getElementById('profile-tg-id');
-    if (tgIdEl) tgIdEl.innerText = u.telegram_id;
+    const displayName = u.full_name || "O'quvchi";
+    setElText("profile-fullname-top", displayName, "O'quvchi");
+    setElText("profile-tg-id", u.telegram_id, "---");
 
-    const avatarEl = document.getElementById('profile-avatar-icon');
-    if (avatarEl) avatarEl.innerText = u.avatar_url || "👤";
+    const subBadge = document.getElementById("profile-sub-badge");
+    if (subBadge) {
+        if (isSubscribedFlag(u.is_subscribed)) {
+            subBadge.classList.remove("hidden");
+        } else {
+            subBadge.classList.add("hidden");
+        }
+    }
 
-    // 1-bo'lim: Ma'lumotlarim
-    const infoName = document.getElementById('info-fullname');
-    if (infoName) infoName.innerText = u.full_name;
+    setElText("profile-knowledge-level", u.knowledge_level, "Mehmon");
 
-    const infoDist = document.getElementById('info-district');
-    if (infoDist) infoDist.innerText = u.district || "Tanlanmagan";
+    // Avatar (Rasm yoki Emoji)
+    const avatarContainer = document.getElementById("profile-avatar-container");
+    const avatarUrl = typeof u.avatar_url === "string" ? u.avatar_url : "";
+    if (avatarContainer && avatarUrl) {
+        if (avatarUrl.startsWith("http") || avatarUrl.startsWith("data:image")) {
+            avatarContainer.innerHTML = `<img src="${avatarUrl}" class="w-full h-full object-cover">`;
+        } else {
+            avatarContainer.innerHTML = `<span id="profile-avatar-icon" class="text-3xl select-none">${avatarUrl}</span>`;
+        }
+    }
+
+    // Shaxsiy ma'lumotlar bloki
+    const infoName = document.getElementById("info-fullname");
+    if (infoName) infoName.innerText = displayName;
+
+    const inputFn = document.getElementById("input-fullname");
+    if (inputFn) inputFn.value = u.full_name || "";
 
     const infoPhone = document.getElementById('info-phone');
     if (infoPhone) infoPhone.innerText = u.phone_number || "Kiritilmagan";
 
+    const infoSecPhone = document.getElementById('info-secondary-phone');
+    if (infoSecPhone) infoSecPhone.innerText = u.secondary_phone || "Kiritilmagan";
+
+    const inputSecPhone = document.getElementById('input-secondary-phone');
+    if (inputSecPhone) inputSecPhone.value = (u.secondary_phone && u.secondary_phone !== "Kiritilmagan") ? u.secondary_phone : '';
+
+    const infoDist = document.getElementById('info-district');
+    if (infoDist) infoDist.innerText = u.district || "Tanlanmagan";
+
     const infoBday = document.getElementById('info-birthday');
     if (infoBday) infoBday.innerText = u.birth_date || "Tanlanmagan";
 
-    // 2-bo'lim: Hisobim
-    const coinBal = document.getElementById('coin-balance');
-    if (coinBal) coinBal.innerText = u.coins || 0;
+    // Ulangan qurilmalar
+    renderDevices(u.devices || []);
 
-    const refCount = document.getElementById('referral-count');
-    if (refCount) refCount.innerText = u.invited_friends || 0;
+    // Nazoratchi bloki
+    renderSupervisor(u.supervisor);
 
-    // Faollik diagrammasi
+    // Hamyon va faollik
+    setElText("coin-balance", u.coins || 0, "0");
+    setElText("referral-count", u.invited_friends || 0, "0");
+
+    const refLink = document.getElementById("referral-link-text");
+    if (refLink && u.telegram_id) {
+        refLink.innerText = `https://t.me/pharos_talim_bot?start=ref${u.telegram_id}`;
+    }
+
     const chartName = document.getElementById('chart-user-name');
-    if (chartName) chartName.innerText = u.full_name;
+    if (chartName) chartName.innerText = u.full_name || "O'quvchi";
 
     const chartXp = document.getElementById('chart-xp-label');
     if (chartXp) chartXp.innerText = Math.round((u.total_hours || 0) * 10);
-
-    // Referal havola
-    const refLink = `https://t.me/pharos_talim_bot?start=ref${u.telegram_id}`;
-    const refText = document.getElementById('referral-link-text');
-    if (refText) refText.innerText = refLink;
 
     // Oferta holati
     const ofertaTag = document.getElementById('oferta-bonus-tag');
@@ -91,50 +217,269 @@ function renderUserProfile(u) {
         ofertaTag.className = "text-slate-400 font-semibold";
     }
 
-    // Kurslar dropdownini shakllantirish
-    renderCoursesDropdown(u.courses || []);
-
-    // Tranzaksiyalar ro'yxatini shakllantirish
+    // Tranzaksiyalar
     renderTransactions(u.transactions || []);
 }
 
-// Kurslar dropdowni
-function renderCoursesDropdown(courses) {
-    const container = document.getElementById('course-dropdown-items');
-    if (!container) return;
-    container.innerHTML = '';
+// 3. Galereyadan rasm tanlash va saqlash
+function handleAvatarUpload(event) {
+    const input = event?.target || document.getElementById("avatar-file-input");
+    const file = input?.files?.[0];
+    if (!file) return;
 
-    courses.forEach((c) => {
+    if (file.size > 5 * 1024 * 1024) {
+        alert("Rasm hajmi 5MB dan oshmasligi kerak!");
+        return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = async function(e) {
+        const base64Data = e.target.result;
+
+        const avatarContainer = document.getElementById('profile-avatar-container');
+        if (avatarContainer) {
+            avatarContainer.innerHTML = `<img src="${base64Data}" class="w-full h-full object-cover">`;
+        }
+
+        const tgId = getCurrentTelegramId();
+        try {
+            await fetch(`/api/user/profile/${tgId}`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ avatar_url: base64Data })
+            });
+            fetchUserProfile();
+        } catch (err) {
+            console.error("Avatar saqlashda xatolik:", err);
+        }
+    };
+    reader.readAsDataURL(file);
+}
+
+// 4. Qo'shimcha telefon raqamini saqlash
+async function saveSecondaryPhone() {
+    const inputEl = document.getElementById('input-secondary-phone');
+    const val = inputEl ? inputEl.value.trim() : '';
+
+    if (!val) {
+        alert("Iltimos, telefon raqamingizni kiriting!");
+        return;
+    }
+
+    const tgId = getCurrentTelegramId();
+    try {
+        const res = await fetch(`/api/user/profile/${tgId}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ secondary_phone: val })
+        });
+
+        if (res.ok) {
+            closeModal('edit-phone-modal');
+            fetchUserProfile();
+        } else {
+            alert("Xatolik: Raqam saqlanmadi.");
+        }
+    } catch (e) {
+        alert("Server bilan aloqa uzildi.");
+    }
+}
+
+// 5. Ulangan qurilmalar
+function renderDevices(devices) {
+    const container = document.getElementById("devices-container");
+    if (!container) return;
+    container.innerHTML = "";
+
+    (Array.isArray(devices) ? devices : []).forEach(d => {
         const item = document.createElement('div');
-        item.className = "px-3 py-2 hover:bg-[#161F30] cursor-pointer flex justify-between items-center text-xs";
+        item.className = "bg-[#161F30] p-2 rounded-xl flex justify-between items-center text-[11px] border border-slate-800/40";
         item.innerHTML = `
-            <span class="text-slate-200">${c.name}</span>
-            <span class="text-amber-400 font-bold">${c.level}</span>
+            <div>
+                <p class="text-white font-medium">${d.device_name || "Mobil qurilma"}</p>
+                <p class="text-slate-400 text-[9px]">${d.device_ip || "IP"} • ${d.last_login || "Faol"}</p>
+            </div>
+            <span class="text-[10px] text-emerald-400 font-semibold">Ushbu sessiya</span>
         `;
-        item.onclick = () => {
-            document.getElementById('selected-course-title').innerText = c.name;
-            document.getElementById('selected-course-level').innerText = c.level;
-            toggleCourseDropdown();
-        };
         container.appendChild(item);
     });
 }
 
-function toggleCourseDropdown() {
-    document.getElementById('course-dropdown')?.classList.toggle('hidden');
+function disconnectAllOtherDevices() {
+    alert("Boshqa barcha faol sessiyalar muvaffaqiyatli uzildi!");
+}
+
+// 6. Nazoratchi boshqaruvi
+function renderSupervisor(sup) {
+    const emptyState = document.getElementById('supervisor-empty-state');
+    const activeState = document.getElementById('supervisor-active-state');
+    const nameEl = document.getElementById('supervisor-display-name');
+    const badgeEl = document.getElementById('supervisor-status-badge');
+
+    if (sup && sup.is_connected) {
+        emptyState?.classList.add('hidden');
+        activeState?.classList.remove('hidden');
+        if (nameEl) nameEl.innerText = sup.name;
+        if (badgeEl) {
+            badgeEl.innerText = sup.terms_accepted ? "Ulangan (Faol)" : "Kutilmoqda";
+        }
+    } else {
+        emptyState?.classList.remove('hidden');
+        activeState?.classList.add('hidden');
+    }
+}
+
+async function generateSupervisorInviteLink() {
+    const nameInput = document.getElementById('input-supervisor-name');
+    const supName = nameInput ? nameInput.value.trim() : '';
+
+    if (!supName) {
+        alert("Iltimos, nazoratchi kim bo'lishini yozing (Masalan: Dadam, Onam)");
+        return;
+    }
+
+    const tgId = getCurrentTelegramId();
+    try {
+        const res = await fetch('/api/supervisor/invite-link', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ student_tg_id: tgId, supervisor_name: supName })
+        });
+        let data = {};
+        try {
+            data = await res.json();
+        } catch (parseErr) {
+            data = {};
+        }
+
+        if (res.ok && data.status === "ok" && data.invite_link) {
+            currentSupervisorLink = data.invite_link;
+            document.getElementById('supervisor-input-group')?.classList.add('hidden');
+            const linkGroup = document.getElementById('supervisor-link-group');
+            if (linkGroup) linkGroup.classList.remove('hidden');
+
+            const linkText = document.getElementById('supervisor-generated-link');
+            if (linkText) linkText.innerText = data.invite_link;
+        } else {
+            alert("Havola yaratishda xatolik yuz berdi.");
+        }
+    } catch (e) {
+        alert("Server bilan aloqa yo'q.");
+    }
+}
+
+function copySupervisorLink() {
+    if (!currentSupervisorLink) return;
+    navigator.clipboard.writeText(currentSupervisorLink);
+    alert("Nazoratchi taklif havolasi nusxalandi!");
+}
+
+function shareSupervisorLink() {
+    if (!currentSupervisorLink) return;
+    const text = encodeURIComponent("Assalomu alaykum! PHAROS platformasidagi ta'lim natijalarimni kuzatib borish uchun ushbu havolani tasdiqlang:");
+    window.open(`https://t.me/share/url?url=${encodeURIComponent(currentSupervisorLink)}&text=${text}`, '_blank');
+}
+
+// 7. Ism-familiyani tahrirlash (kamida 2 ta so'z)
+async function saveFullNameSelection() {
+    const inputEl = document.getElementById('input-fullname');
+    const errorEl = document.getElementById('fullname-error');
+    const val = inputEl ? inputEl.value.trim() : '';
+
+    const words = val.split(/\s+/).filter(w => w.length > 0);
+    if (words.length < 2) {
+        if (errorEl) errorEl.classList.remove('hidden');
+        return;
+    }
+    if (errorEl) errorEl.classList.add('hidden');
+
+    const tgId = getCurrentTelegramId();
+    try {
+        const res = await fetch(`/api/user/profile/${tgId}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ full_name: val })
+        });
+
+        if (res.ok) {
+            closeModal('edit-fullname-modal');
+            fetchUserProfile();
+        } else {
+            alert("Xatolik: Ma'lumot saqlanmadi.");
+        }
+    } catch (e) {
+        alert("Server bilan bog'lanishda xatolik yuz berdi.");
+    }
+}
+
+// Manzil (Viloyat va tuman) tanlash mantiqi
+function onRegionChange() {
+    const regSelect = document.getElementById("select-region");
+    const distSelect = document.getElementById("select-district");
+    if (!distSelect) return;
+    const reg = regSelect ? regSelect.value.trim() : "";
+
+    distSelect.innerHTML = '<option value="">Tumanni tanlang</option>';
+    if (!reg) return;
+
+    let districts = REGION_DISTRICTS[reg];
+    if (!districts) {
+        const matchedKey = Object.keys(REGION_DISTRICTS).find(k => k.startsWith(reg) || reg.startsWith(k.split(' ')[0]));
+        if (matchedKey) districts = REGION_DISTRICTS[matchedKey];
+    }
+
+    if (districts && districts.length > 0) {
+        districts.forEach(d => {
+            const opt = document.createElement('option');
+            opt.value = d;
+            opt.innerText = d;
+            distSelect.appendChild(opt);
+        });
+    }
+}
+
+async function saveRegionSelection() {
+    const reg = document.getElementById("select-region")?.value;
+    const dist = document.getElementById("select-district")?.value;
+    if (!reg || !dist) return alert("Viloyat va tumanni tanlang!");
+
+    const tgId = getCurrentTelegramId();
+    await fetch(`/api/user/profile/${tgId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ region: reg, district: `${reg}, ${dist}` })
+    });
+    closeModal('edit-region-modal');
+    fetchUserProfile();
+}
+
+// Tug'ilgan kunni saqlash
+async function saveBirthdaySelection() {
+    const bday = document.getElementById("input-birthday")?.value;
+    if (!bday) return alert("Sanani tanlang!");
+
+    const tgId = getCurrentTelegramId();
+    await fetch(`/api/user/profile/${tgId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ birth_date: bday })
+    });
+    closeModal('edit-birthday-modal');
+    fetchUserProfile();
 }
 
 // Tranzaksiyalar tarixi
 function renderTransactions(txs) {
-    const container = document.getElementById('transactions-list');
+    const container = document.getElementById("transactions-list");
     if (!container) return;
+    const list = Array.isArray(txs) ? txs : [];
 
-    if (txs.length === 0) {
+    if (list.length === 0) {
         container.innerHTML = '<p class="text-slate-500 text-center py-4">Hozircha tranzaksiyalar mavjud emas.</p>';
         return;
     }
 
-    container.innerHTML = txs.map(t => {
+    container.innerHTML = list.map(t => {
         const isPlus = t.amount > 0;
         return `
             <div class="bg-[#161F30] border border-[#283548] p-2.5 rounded-xl flex items-center justify-between">
@@ -150,83 +495,11 @@ function renderTransactions(txs) {
     }).join('');
 }
 
-// Ichki modallarni ochish va yopish
+// Modallar
 function openModal(id) { document.getElementById(id)?.classList.remove('hidden'); }
 function closeModal(id) { document.getElementById(id)?.classList.add('hidden'); }
 
-// Ismni tahrirlash
-async function editFieldPrompt(field) {
-    const newVal = prompt("Ism-familiyangizni kiriting:");
-    if (!newVal || !newVal.trim()) return;
-
-    const tgId = getCurrentTelegramId();
-    await fetch(`/api/user/profile/${tgId}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ full_name: newVal.trim() })
-    });
-    fetchUserProfile();
-}
-
-// Manzil (Viloyat va tuman) tanlash mantiqi
-function onRegionChange() {
-    const reg = document.getElementById('select-region').value;
-    const distSelect = document.getElementById('select-district');
-    distSelect.innerHTML = '<option value="">Tumanni tanlang</option>';
-
-    const districts = REGION_DISTRICTS[reg] || ["Markaziy tuman", "Shahar"];
-    districts.forEach(d => {
-        const opt = document.createElement('option');
-        opt.value = d;
-        opt.innerText = d;
-        distSelect.appendChild(opt);
-    });
-}
-
-async function saveRegionSelection() {
-    const reg = document.getElementById('select-region').value;
-    const dist = document.getElementById('select-district').value;
-    if (!reg || !dist) return alert("Viloyat va tumanni tanlang!");
-
-    const tgId = getCurrentTelegramId();
-    await fetch(`/api/user/profile/${tgId}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ district: `${reg}, ${dist}` })
-    });
-    closeModal('edit-region-modal');
-    fetchUserProfile();
-}
-
-// Tug'ilgan kunni saqlash
-async function saveBirthdaySelection() {
-    const bday = document.getElementById('input-birthday').value;
-    if (!bday) return alert("Sanani tanlang!");
-
-    const tgId = getCurrentTelegramId();
-    await fetch(`/api/user/profile/${tgId}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ birth_date: bday })
-    });
-    closeModal('edit-birthday-modal');
-    fetchUserProfile();
-}
-
-// Referal havolasini nusxalash va ulashish
-function copyReferralLink() {
-    const link = document.getElementById('referral-link-text').innerText;
-    navigator.clipboard.writeText(link);
-    alert("Havola nusxalandi! Do'stlaringizga yuboring.");
-}
-
-function shareReferralLink() {
-    const link = document.getElementById('referral-link-text').innerText;
-    const shareText = encodeURIComponent(`PHAROS ta'lim platformasida birga tayyorlanamiz! Havola: ${link}`);
-    window.open(`https://t.me/share/url?url=${encodeURIComponent(link)}&text=${shareText}`, '_blank');
-}
-
-// Oferta bonusini olish (+20 Coin)
+// Oferta bonusi
 async function claimOfertaBonus() {
     const tgId = getCurrentTelegramId();
     try {
@@ -241,31 +514,52 @@ async function claimOfertaBonus() {
     }
 }
 
-// Murojaat yo'llash
-function submitFeedback() {
-    const type = document.getElementById('feedback-type').value;
-    const text = document.getElementById('feedback-text').value;
-    if (!text.trim()) return alert("Iltimos, xabar matnini yozing.");
-
-    alert(`Rahmat! ${type.toUpperCase()} turidagi murojaatingiz adminga yuborildi.`);
-    closeModal('feedback-modal');
-    document.getElementById('feedback-text').value = '';
-}
-
-// "Biz" bo'limi axborot darchalari
+// Axborot oynalari
 function openAboutModal() {
-    alert("PHAROS — Tarix va boshqa fanlardan milliy sertifikat hamda attestatsiyaga tayyorlovchi zamonaviy LMS platforma.\n\n(Ushbu matn admin paneldan boshqariladi)");
+    alert("PHAROS — Tarix va boshqa fanlardan milliy sertifikat hamda attestatsiyaga tayyorlovchi zamonaviy LMS platforma.");
 }
 
 function openManualModal() {
-    alert("Foydalanish qo'llanmasi:\n1. Bosh sahifada imtihon sanalarini kuzating.\n2. Do'kondan kerakli kursni xarid qiling.\n3. Testlar bo'limida bilimingizni sinang.\n\n(Admin tomonidan yangilanadi)");
+    alert("Foydalanish qo'llanmasi:\n1. Bosh sahifada imtihon sanalarini kuzating.\n2. Do'kondan kerakli kursni xarid qiling.\n3. Testlar bo'limida bilimingizni sinang.");
 }
 
 function openSocialsModal() {
     alert("Rasmiy sahifalarimiz:\nTelegram: @pharos_talim\nInstagram: @pharos_edu");
 }
 
-// Ilovada o'tkazilgan vaqtni har 30 soniyada backendga yuborish
+// Header ma'lumotlarini yangilash
+function updateHeaderProfileWidgets(data) {
+    if (!data) return;
+
+    const nameEl = document.getElementById('hdr-name');
+    if (nameEl) {
+        const rawName = data.full_name || "O'quvchi";
+        nameEl.innerText = rawName.split(' ')[0];
+    }
+
+    const statusEl = document.getElementById('hdr-status');
+    if (statusEl) {
+        statusEl.innerText = data.knowledge_level || data.target || "Mehmon";
+    }
+
+    const coinsEl = document.getElementById('hdr-coins');
+    if (coinsEl) {
+        coinsEl.innerText = data.coins || 0;
+    }
+
+    const avatarBox = document.getElementById("hdr-avatar-box");
+    const avatarEl = document.getElementById("hdr-avatar");
+    const hdrAvatar = typeof data.avatar_url === "string" ? data.avatar_url : "";
+    if (avatarBox && hdrAvatar) {
+        if (hdrAvatar.startsWith("http") || hdrAvatar.startsWith("data:image")) {
+            avatarBox.innerHTML = `<img src="${hdrAvatar}" class="w-full h-full object-cover">`;
+        } else if (avatarEl) {
+            avatarEl.innerText = hdrAvatar;
+        }
+    }
+}
+
+// Har 30 soniyada faollik hisoblash
 setInterval(async () => {
     const tgId = getCurrentTelegramId();
     try {
@@ -277,46 +571,55 @@ setInterval(async () => {
     } catch (e) {}
 }, 30000);
 
-// ==========================================================
-// HEADER PROFIL KO'RSATKICHLARINI YANGILASH FUNKSIYASI
-// ==========================================================
-function updateHeaderProfileWidgets(data) {
-    if (!data) return;
+function copyReferralLink() {
+    const el = document.getElementById("referral-link-text");
+    const link = el ? el.innerText.trim() : "";
+    if (!link) return;
+    navigator.clipboard.writeText(link);
+    alert("Taklif havolasi nusxalandi!");
+}
 
-    // 1. Ism (faqat birinchi so'zi, masalan: "Jahongir")
-    const nameEl = document.getElementById('hdr-name');
-    if (nameEl) {
-        const rawName = data.full_name || "O'quvchi";
-        nameEl.innerText = rawName.split(' ')[0];
+function shareReferralLink() {
+    const el = document.getElementById("referral-link-text");
+    const link = el ? el.innerText.trim() : "";
+    if (!link) return;
+    const text = encodeURIComponent("PHAROS platformasiga qo'shiling:");
+    window.open(`https://t.me/share/url?url=${encodeURIComponent(link)}&text=${text}`, "_blank");
+}
+
+async function submitFeedback() {
+    const typeEl = document.getElementById("feedback-type");
+    const textEl = document.getElementById("feedback-text");
+    const message = textEl ? textEl.value.trim() : "";
+    if (!message) {
+        alert("Iltimos, xabaringizni yozing!");
+        return;
     }
-
-    // 2. Status (Target yoki ABC darajasi)
-    const statusEl = document.getElementById('hdr-status');
-    if (statusEl) {
-        statusEl.innerText = data.target || "Bilimdon";
-    }
-
-    // 3. Balans (Coins)
-    const coinsEl = document.getElementById('hdr-coins');
-    if (coinsEl) {
-        coinsEl.innerText = data.coins || 0;
-    }
-
-    // 4. Aylana shakldagi Avatar (Rasm yoki Emoji)
-    const avatarBox = document.getElementById('hdr-avatar-box');
-    const avatarEl = document.getElementById('hdr-avatar');
-    if (avatarBox && data.avatar_url) {
-        if (data.avatar_url.startsWith('http')) {
-            avatarBox.innerHTML = `<img src="${data.avatar_url}" class="w-full h-full object-cover">`;
-        } else if (avatarEl) {
-            avatarEl.innerText = data.avatar_url;
+    const tgId = getCurrentTelegramId();
+    try {
+        const res = await fetch("/api/user/feedback", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                telegram_id: tgId,
+                category: typeEl ? typeEl.value : "taklif",
+                message
+            })
+        });
+        if (res.ok) {
+            closeModal("feedback-modal");
+            if (textEl) textEl.value = "";
+            alert("Murojaatingiz yuborildi. Rahmat!");
+        } else {
+            alert("Murojaat yuborilmadi. Qayta urinib ko'ring.");
         }
+    } catch (e) {
+        alert("Server bilan aloqa uzildi.");
     }
 }
 
-// Mini App yuklanganda Header profil ma'lumotlarini darhol chaqirish
-window.addEventListener('DOMContentLoaded', () => {
-    if (typeof fetchUserProfile === 'function') {
-        fetchUserProfile();
-    }
+// Sahifa yuklanganda ishga tushirish
+window.addEventListener("DOMContentLoaded", () => {
+    populateRegionSelect();
+    fetchUserProfile();
 });
