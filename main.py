@@ -5,6 +5,7 @@ from aiogram.types import BotCommand
 from database.db import init_db
 from handlers import payment
 from handlers.admin_news import admin_news_router
+from handlers.admin_quiz_import import admin_quiz_router
 
 # Sozlamalar va routerlar importi
 from data.config import BOT_TOKEN, ADMINS
@@ -43,6 +44,7 @@ async def main():
     # Routerlarni ro'yxatdan o'tkazamiz
     dp.include_router(start.router)
     dp.include_router(payment.router)
+    dp.include_router(admin_quiz_router)
     dp.include_router(admin_news_router)
     # Boshlang'ich amallar
     await set_default_commands(bot)

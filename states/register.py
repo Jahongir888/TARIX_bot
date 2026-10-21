@@ -5,6 +5,7 @@ class RegisterState(StatesGroup):
     full_name = State()   # 1. Ism-familiya kutish
     contact = State()     # 2. Telefon raqami (kontakt tugmasi) kutish
     region = State()      # 3. Viloyatni tugmadan tanlash
+    district = State()  # 4. Tuman / Shahar
     target = State()      # 4. O'qish maqsadini tugmadan tanlash
 
 

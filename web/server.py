@@ -1,6 +1,15 @@
 import os
+import sys
+import math
+import random
 from datetime import datetime, date, timedelta
 from typing import Optional
+
+# Tizim Pythonida uvicorn yo'q: avtomatik loyiha .venv ga o'tamiz
+_VENV_PY = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".venv", "Scripts", "python.exe"))
+_IN_VENV = hasattr(sys, "base_prefix") and sys.prefix != sys.base_prefix
+if not _IN_VENV and os.path.isfile(_VENV_PY):
+    os.execv(_VENV_PY, [_VENV_PY, "-m", "web.server", *sys.argv[1:]])
 
 import uvicorn
 from fastapi import FastAPI, Response, Query, HTTPException
@@ -10,14 +19,23 @@ from pydantic import BaseModel
 from sqlalchemy import select, or_, update, func
 
 # Loyihaning ma'lumotlar bazasi va Aiogram bot importlari
-from database.db import async_session
+from database.db import async_session, init_db
 from database.models import (
     User, UserDevice, UserProgress, News, NewsComment, NewsReaction,
     CoinTransaction, UserDailyActivity, UserFeedback, ExamEvent,
     Notification, UserCoursePace, UserOctagonProfile, Promotion,
     PlatformStats, UserCabinetItem, UserFeedback,
-    UserSupervisor, SupervisorInvoice
+    TargetInstitution, TargetDirection,
+    UserSupervisor, SupervisorInvoice,
+    OctagonBattle, OctagonBattleAnalysis, OctagonBattleReaction,
+    SubjectCatalog, SubjectModule, SubjectWiki, SubjectSchedule,
+    SubjectMistakeBank, SubjectCommunityPost, SubjectDiagnosticReport,
+    SubjectBook, SubjectQuizLink, UserSubjectEnrollment,
+    ExamQuiz, ExamQuestion, ExamRating, ExamSubmission,
+    ReferralEarning, UserCourseAccess,
 )
+import json
+from database.regions_data import REGIONS_DATA
 
 import uuid
 import secrets
@@ -131,9 +149,105 @@ class PurchaseRequest(BaseModel):
     product_id: int
 
 
+class OctagonInviteSchema(BaseModel):
+    telegram_id: int
+    subject: str = "tarix"
+    level: str = "orta"
+    topic: Optional[str] = None
+    opponent_id: Optional[int] = None  # Revansh / tanlangan raqib
+
+
+class OctagonCancelSchema(BaseModel):
+    telegram_id: int
+
+
+class OctagonBotBattleSchema(BaseModel):
+    telegram_id: int
+    subject: str = "tarix"
+    level: str = "orta"
+    topic: Optional[str] = None
+
+
+class OctagonFindOpponentSchema(BaseModel):
+    telegram_id: int
+    subject: str = "tarix"
+    level: str = "orta"
+    topic: Optional[str] = None
+
+
+class OctagonAcceptSchema(BaseModel):
+    telegram_id: int
+    room_code: str
+
+
+class OctagonPresenceSchema(BaseModel):
+    telegram_id: int
+    subject: Optional[str] = None
+
+
+class OctagonReactionSchema(BaseModel):
+    telegram_id: int
+    battle_id: int
+    emoji: str
+
+
+class OctagonRematchSchema(BaseModel):
+    telegram_id: int
+    battle_id: int
+
+
+class SubjectAskSchema(BaseModel):
+    telegram_id: int
+    subject_id: int
+    content: str
+    hashtags: Optional[str] = "#savol"
+    user_name: Optional[str] = None
+
+
+class SubjectResolveMistakeSchema(BaseModel):
+    telegram_id: int
+    mistake_id: int
+    is_correct: bool = True
+
+
+class SubjectBattleChallengeSchema(BaseModel):
+    telegram_id: int
+    subject_id: int
+    module_id: Optional[int] = None
+    level: str = "orta"
+    topic: Optional[str] = None
+
+
 # ==========================================================
 # ASOSIY YO'NALISHLAR (ENDPOINTS)
 # ==========================================================
+
+OCTAGON_INVITE_TTL_SECONDS = 60
+OCTAGON_ONLINE_WINDOW_SECONDS = 120
+OCTAGON_BASIC_STICKERS = ["🔥", "😤", "😮", "💪"]
+OCTAGON_PRO_STICKERS = ["🏆", "⚡"]
+OCTAGON_PREMIUM_STICKERS = ["👑", "💎"]
+
+OCTAGON_TOPIC_COURSE_MAP = {
+    "Amir Temur": {"title": "7-sinf: Amir Temur davlati", "link": "lessons", "course_id": 701},
+    "Temuriylar": {"title": "7-sinf: Temuriylar saltanati", "link": "lessons", "course_id": 702},
+    "Qadimgi dunyo": {"title": "6-sinf: Qadimgi tosh davri", "link": "lessons", "course_id": 601},
+    "Milliy uyg'onish": {"title": "9-sinf: Milliy uyg'onish", "link": "lessons", "course_id": 901},
+    "Umumiy": {"title": "Tarix: Milliy Sertifikat Ensiklopediyasi", "link": "books", "course_id": 1},
+}
+
+def _coerce_telegram_id(telegram_id: Optional[str]) -> Optional[int]:
+    """Bo'sh yoki noto'g'ri telegram_id ni 422 o'rniga None ga aylantiradi."""
+    if telegram_id is None:
+        return None
+    value = str(telegram_id).strip()
+    if not value:
+        return None
+    try:
+        return int(value)
+    except ValueError:
+        return None
+
 
 # 5. Asosiy sahifa (index.html)
 @app.get("/", response_class=HTMLResponse)
@@ -143,6 +257,11 @@ async def read_root(response: Response):
         with open(TEMPLATE_PATH, "r", encoding="utf-8") as f:
             return f.read()
     return f"<h3>Shablon fayli topilmadi: {TEMPLATE_PATH}</h3>"
+
+
+@app.get("/favicon.ico", include_in_schema=False)
+async def favicon():
+    return Response(status_code=204)
 
 
 # 6. SHAXSIY KABINET / PROFIL MA'LUMOTLARINI OLISH (XATOLIKLARSIZ)
@@ -700,49 +819,89 @@ async def get_exam_deadlines():
 # ==========================================================
 # BILDIRISHNOMALAR (NOTIFICATIONS) API
 # ==========================================================
+def _sample_notifications():
+    return {
+        "unread_count": 3,
+        "items": [
+            {
+                "id": 1,
+                "source": "oktagon",
+                "title": "Jang chaqirig'i!",
+                "message": "Foydalanuvchi sizni Tarix fanidan tezkor jangga chaqirdi.",
+                "target_tab": "home",
+                "is_read": False,
+                "created_at": "10 daqiqa oldin"
+            },
+            {
+                "id": 2,
+                "source": "testlar",
+                "title": "Namunaviy test yuklandi",
+                "message": "Attestatsiya-2026 uchun yangi 30 talik diagnostik test qo'shildi.",
+                "target_tab": "tests",
+                "is_read": False,
+                "created_at": "Bugun, 14:20"
+            },
+            {
+                "id": 3,
+                "source": "tolov",
+                "title": "Hisob to'ldirildi",
+                "message": "Hisobingizga muvaffaqiyatli +20 Coin qo'shildi.",
+                "target_tab": "profile",
+                "is_read": False,
+                "created_at": "Kecha"
+            }
+        ]
+    }
+
+
+def _sample_course_pace():
+    return {
+        "items": [
+            {
+                "id": 1,
+                "title": "7-sinf O'zbekiston tarixi",
+                "target_tab": "lessons",
+                "actual": 35,
+                "expected": 60,
+                "status": "Shogird"
+            },
+            {
+                "id": 2,
+                "title": "Tarix: Milliy Sertifikat Ensiklopediyasi",
+                "target_tab": "books",
+                "actual": 80,
+                "expected": 70,
+                "status": "Bilimdon"
+            }
+        ]
+    }
+
+
+def _sample_octagon_rank():
+    return {
+        "course_title": "7-sinf O'zbekiston tarixi",
+        "rank": 14,
+        "rating": 1250,
+        "battles": 8
+    }
+
+
 @app.get("/api/notifications")
-async def get_notifications(telegram_id: int = None):
+async def get_notifications(telegram_id: Optional[str] = None):
+    tg_id = _coerce_telegram_id(telegram_id)
+    if tg_id is None:
+        return _sample_notifications()
+
     async with async_session() as session:
         query = select(Notification).where(
-            or_(Notification.user_id == telegram_id, Notification.user_id == None)
+            or_(Notification.user_id == tg_id, Notification.user_id == None)
         ).order_by(Notification.created_at.desc())
 
         res = await session.execute(query)
         notifs = res.scalars().all()
 
         if not notifs:
-            return {
-                "unread_count": 3,
-                "items": [
-                    {
-                        "id": 1,
-                        "source": "oktagon",
-                        "title": "Jang chaqirig'i!",
-                        "message": "Foydalanuvchi sizni Tarix fanidan tezkor jangga chaqirdi.",
-                        "target_tab": "home",
-                        "is_read": False,
-                        "created_at": "10 daqiqa oldin"
-                    },
-                    {
-                        "id": 2,
-                        "source": "testlar",
-                        "title": "Namunaviy test yuklandi",
-                        "message": "Attestatsiya-2026 uchun yangi 30 talik diagnostik test qo'shildi.",
-                        "target_tab": "tests",
-                        "is_read": False,
-                        "created_at": "Bugun, 14:20"
-                    },
-                    {
-                        "id": 3,
-                        "source": "tolov",
-                        "title": "Hisob to'ldirildi",
-                        "message": "Hisobingizga muvaffaqiyatli +20 Coin qo'shildi.",
-                        "target_tab": "profile",
-                        "is_read": False,
-                        "created_at": "Kecha"
-                    }
-                ]
-            }
+            return _sample_notifications()
 
         unread = sum(1 for n in notifs if not n.is_read)
         return {
@@ -772,38 +931,22 @@ async def mark_notification_read(notif_id: int):
 
 
 @app.get("/api/user/course-pace")
-async def get_user_course_pace(telegram_id: int = None):
+async def get_user_course_pace(telegram_id: Optional[str] = None):
+    tg_id = _coerce_telegram_id(telegram_id)
+    if tg_id is None:
+        return _sample_course_pace()
+
     async with async_session() as session:
         query = select(UserCoursePace).where(
-            UserCoursePace.is_active == True
+            UserCoursePace.is_active == True,
+            UserCoursePace.user_id == tg_id
         )
-        if telegram_id:
-            query = query.where(UserCoursePace.user_id == telegram_id)
 
         res = await session.execute(query)
         paces = res.scalars().all()
 
         if not paces:
-            return {
-                "items": [
-                    {
-                        "id": 1,
-                        "title": "7-sinf O'zbekiston tarixi",
-                        "target_tab": "lessons",
-                        "actual": 35,
-                        "expected": 60,
-                        "status": "Shogird"
-                    },
-                    {
-                        "id": 2,
-                        "title": "Tarix: Milliy Sertifikat Ensiklopediyasi",
-                        "target_tab": "books",
-                        "actual": 80,
-                        "expected": 70,
-                        "status": "Bilimdon"
-                    }
-                ]
-            }
+            return _sample_course_pace()
 
         return {
             "items": [
@@ -820,22 +963,19 @@ async def get_user_course_pace(telegram_id: int = None):
 
 
 @app.get("/api/octagon/user-rank")
-async def get_octagon_user_rank(telegram_id: int = None):
+async def get_octagon_user_rank(telegram_id: Optional[str] = None):
+    tg_id = _coerce_telegram_id(telegram_id)
+    if tg_id is None:
+        return _sample_octagon_rank()
+
     async with async_session() as session:
-        stat = None
-        if telegram_id:
-            res = await session.execute(
-                select(UserOctagonProfile).where(UserOctagonProfile.user_id == telegram_id)
-            )
-            stat = res.scalar_one_or_none()
+        res = await session.execute(
+            select(UserOctagonProfile).where(UserOctagonProfile.user_id == tg_id)
+        )
+        stat = res.scalar_one_or_none()
 
         if not stat:
-            return {
-                "course_title": "7-sinf O'zbekiston tarixi",
-                "rank": 14,
-                "rating": 1250,
-                "battles": 8
-            }
+            return _sample_octagon_rank()
 
         return {
             "course_title": stat.current_course,
@@ -1015,42 +1155,419 @@ async def buy_catalog_product(req: PurchaseRequest):
 # ==========================================================
 # MAQSAD BO'LIMI API
 # ==========================================================
-@app.get("/api/targets/filter-data")
-async def get_target_filter_metadata():
+_TARGET_TYPES = {"otm", "otm_harbiy", "litsey", "litsey_harbiy"}
+_ALL_DIRECTION = "Barcha yo'nalishlar"
+_ALL_BLOCK = "Barcha fanlar majmuasi"
+_ALL_REGION = "Barcha viloyatlar"
+_TARGET_BADGES = {
+    "otm": "🏛 Fuqarolik OTM",
+    "otm_harbiy": "🎖 Harbiy OTM",
+    "litsey": "🏫 Fuqarolik Litsey",
+    "litsey_harbiy": "🛡 Harbiy Litsey",
+}
+
+# Namunaviy savollar: (matn, variantlar, to'g'ri indeks)
+_MOCK_BANKS = {
+    "tarix": [
+        ("Amir Temur qaysi yilda tavallud topgan?", ["1336-yil", "1342-yil", "1370-yil", "1405-yil"], 0),
+        ("Temuriylar davlatining asosiy poytaxti qaysi shahar bo'lgan?", ["Buxoro", "Samarqand", "Hirot", "Xiva"], 1),
+        ("Alisher Navoiyning mashhur xamsasi qaysi tilda yozilgan?", ["Arab", "Fors", "Eski o'zbek (turkiy)", "Urdu"], 2),
+        ("Jadidchilik harakati namoyandalaridan biri kim?", ["Amir Temur", "Mahmudxo'ja Behbudiy", "Jaloliddin Manguberdi", "Spitamen"], 1),
+        ("Buyuk Ipak yo'li asosan nima uchun xizmat qilgan?", ["Harbiy yurish", "Xalqaro savdo va madaniyat", "Diniy marosim", "Suv ta'minoti"], 1),
+        ("Amir Temur davlatining dastlabki markazi qaysi shahar?", ["Kesh (Shahrisabz)", "Parij", "Dehli", "Istanbul"], 0),
+    ],
+    "uzb_tarix": [
+        ("O'zbekiston davlat mustaqilligi qachon e'lon qilingan?", ["31-avgust 1991", "1-sentabr 1991", "8-dekabr 1992", "1-iyul 1994"], 1),
+        ("O'zbekiston Respublikasining Birinchi Prezidenti kim?", ["Sharof Rashidov", "Islom Karimov", "Abdulla Qodiriy", "Fitrat"], 1),
+        ("Davlat tili haqidagi qonun qaysi yilda qabul qilingan?", ["1989", "1991", "1992", "1995"], 0),
+        ("Amaldagi Konstitutsiya qachon qabul qilingan?", ["1-sentabr 1991", "8-dekabr 1992", "21-oktabr 1989", "1-yanvar 2000"], 1),
+        ("Milliy valyuta — so'm muomalaga qaysi yilda kiritilgan?", ["1991", "1992", "1994", "1998"], 2),
+        ("O'zbekiston poytaxti qaysi shahar?", ["Samarqand", "Buxoro", "Toshkent", "Nukus"], 2),
+    ],
+    "geografiya": [
+        ("O'zbekiston poytaxti qaysi shahar?", ["Samarqand", "Toshkent", "Buxoro", "Andijon"], 1),
+        ("Qoraqalpog'iston Respublikasi markazi qaysi shahar?", ["Nukus", "Urganch", "Termiz", "Guliston"], 0),
+        ("O'zbekiston iqlimi qanday tavsiflanadi?", ["Dengiz iqlimi", "Ekvatorial", "Keskin kontinental", "Musson"], 2),
+        ("Mamlakatdagi eng baland nuqta qaysi cho'qqi?", ["Hazrati Sulton", "Chimyon", "Bobotog'", "Nurota"], 0),
+        ("Orol dengizi qaysi havzada joylashgan?", ["Kaspiy", "Amudaryo va Sirdaryo", "Zarafshon", "Qashqadaryo"], 1),
+        ("Farg'ona vodiysi qaysi davlatlar bilan chegaradosh?", ["Qozog'iston va Turkmaniston", "Qirg'iziston va Tojikiston", "Eron va Afg'oniston", "Rossiya va Xitoy"], 1),
+    ],
+    "matematika": [
+        ("2 + 2 × 2 ifodasining qiymati nechaga teng?", ["6", "8", "4", "10"], 0),
+        ("200 sonining 15 foizi nechaga teng?", ["20", "30", "15", "45"], 1),
+        ("√144 ning qiymati nechaga teng?", ["11", "12", "14", "16"], 1),
+        ("Uchburchak ichki burchaklari yig'indisi necha gradus?", ["90", "120", "180", "360"], 2),
+        ("7 ning kvadrati nechaga teng?", ["42", "47", "49", "56"], 2),
+        ("2x + 4 = 10 tenglamaning yechimi qaysi?", ["x = 2", "x = 3", "x = 4", "x = 7"], 1),
+    ],
+    "ona_tili": [
+        ("Ot so'z turkumi nimani bildiradi?", ["Harakat", "Narsa va shaxs", "Belgi", "Miqdor"], 1),
+        ("O'zbek tilida nechta kelishik bor?", ["4", "5", "6", "8"], 2),
+        ("«Kitob» so'zi qaysi so'z turkumi?", ["Ot", "Fe'l", "Sifat", "Ravish"], 0),
+        ("Gap boshidagi harf qanday yoziladi?", ["Kichik", "Bosh harf", "Faqat lotin", "Faqat kirill"], 1),
+        ("«va» so'zi qanday vazifa bajaradi?", ["Kelishik", "Bog'lovchi", "Yuklama", "Modal so'z"], 1),
+        ("Quyidagilardan qaysi biri unli harf?", ["b", "a", "t", "s"], 1),
+    ],
+    "huquq": [
+        ("Davlatning oliy normativ-huquqiy hujjati nima?", ["Farmon", "Konstitutsiya", "Nizom", "Yo'riqnoma"], 1),
+        ("O'zbekistonda voyaga yetish yoshi necha?", ["16", "18", "21", "25"], 1),
+        ("Sud hokimiyati qanday bo'lishi kerak?", ["Ijro organiga bo'ysunadi", "Mustaqil", "Faqat mahalliy", "Harbiy"], 1),
+        ("Davlat tili qaysi?", ["Rus tili", "O'zbek tili", "Ingliz tili", "Fors tili"], 1),
+        ("Huquqiy davlatning asosiy belgisi nima?", ["Qonun ustuvorligi", "Faqat kuch", "Yopiq sud", "Tsenzura"], 0),
+        ("Fuqaroning asosiy burchaklaridan biri nima?", ["Konstitutsiyaga rioya qilish", "Soliq to'lamaslik", "Sudni rad etish", "Qonunni e'tiborsiz qoldirish"], 0),
+    ],
+    "chet_tili": [
+        ("«Book» so'zining o'zbekcha tarjimasi qaysi?", ["Daftar", "Kitob", "Qalam", "Parta"], 1),
+        ("I ___ a student. Bo'sh joyga qaysi so'z tushadi?", ["is", "are", "am", "be"], 2),
+        ("«Child» so'zining ko'pligi qanday?", ["childs", "childes", "children", "childrens"], 2),
+        ("«Hello» so'zi nima degani?", ["Xayr", "Salom", "Rahmat", "Kechirasiz"], 1),
+        ("She ___ English every day.", ["speak", "speaks", "speaking", "spoke"], 1),
+        ("Yesterday uchun qaysi zamon ishlatiladi?", ["Present Simple", "Past Simple", "Future Simple", "Present Continuous"], 1),
+    ],
+    "biologiya": [
+        ("Fotosintez qaysi organizmlarga xos?", ["Zamburug'", "O'simlik", "Virus", "Bakteriya spora"], 1),
+        ("Irsiy axborot qayerda saqlanadi?", ["DNK", "Suv", "Glyukoza", "Yog'"], 0),
+        ("Odam somatik hujayrasida nechta xromosoma bor?", ["23", "44", "46", "48"], 2),
+        ("Yurak qaysi tizimga kiradi?", ["Hazm", "Qon aylanish", "Nafas", "Tayanch"], 1),
+        ("Mitoxondriya vazifasi nima?", ["Energiya hosil qilish", "Fotosintez", "Hujayra devori", "Rang berish"], 0),
+        ("Qizil qon tanachalari nima deb ataladi?", ["Leykotsit", "Trombotsit", "Eritrotsit", "Plazma"], 2),
+    ],
+    "kimyo": [
+        ("Suvning kimyoviy formulasi qaysi?", ["CO2", "H2O", "NaCl", "O2"], 1),
+        ("Oltinning kimyoviy belgisi qaysi?", ["Ag", "Fe", "Au", "Cu"], 2),
+        ("pH = 7 qanday muhitni bildiradi?", ["Kislotali", "Neytral", "Ishqoriy", "Tuz"], 1),
+        ("Kislorodning kimyoviy belgisi qaysi?", ["K", "O", "N", "C"], 1),
+        ("NaCl qanday modda?", ["Suv", "Osh tuzi", "Shakar", "Sirka"], 1),
+        ("Atom raqami nimani bildiradi?", ["Protonlar soni", "Neytron massasi", "Hajm", "Harorat"], 0),
+    ],
+    "fizika": [
+        ("Tezlik qanday topiladi?", ["massa / vaqt", "masofa / vaqt", "kuch × vaqt", "tok × qarshilik"], 1),
+        ("Nyutonning ikkinchi qonuni qaysi?", ["F = ma", "U = IR", "E = mc²", "PV = nRT"], 0),
+        ("Elektr toki kuchi birligi nima?", ["Volt", "Om", "Amper", "Joul"], 2),
+        ("Om qonuni qaysi ifoda?", ["F = ma", "U = IR", "s = vt", "p = mv"], 1),
+        ("Og'irlik kuchi qaysi o'zaro ta'sir?", ["Ishqalanish", "Gravitatsiya", "Magnit", "Yorug'lik"], 1),
+        ("Yorug'lik tezligi taxminan qancha?", ["300 km/s", "3 000 km/s", "300 000 km/s", "30 km/s"], 2),
+    ],
+    "kasbiy": [
+        ("Kasbiy (ijodiy) imtihon nimani baholaydi?", ["Faqat yoshni", "Ijodiy qobiliyat va ko'nikmani", "Faqat bo'yni", "Til sertifikatini"], 1),
+        ("Portfolio nima?", ["Ishlar to'plami", "Pasport", "Diplom ilovasi", "Tibbiy ma'lumotnoma"], 0),
+        ("Eskiz nima?", ["Yakuniy hisobot", "Dastlabki chizma", "Moliyaviy reja", "Imtihon varaqasi"], 1),
+        ("Kompozitsiya nimani anglatadi?", ["Elementlarning joylashuvi", "Faqat rang", "Faqat matn", "Hisob-kitob"], 0),
+        ("Dizayn loyihasining birinchi bosqichi odatda nima?", ["Chop etish", "G'oya va eskiz", "Sotish", "Arxivlash"], 1),
+        ("Ijodiy ishda rang nimaga xizmat qiladi?", ["Kayfiyat va urg'u", "Faqat qog'oz og'irligi", "Imzo", "Shifr"], 0),
+    ],
+    "generic": [
+        ("Ushbu fan bo'yicha testning asosiy maqsadi nima?", ["Yodlash tezligi", "Bilim va ko'nikmani baholash", "Imlo tekshiruvi", "Jismoniy tayyorgarlik"], 1),
+        ("To'g'ri javobni tanlashda nimalarga tayaniladi?", ["Taxmin", "Mavzu bo'yicha bilim", "Variant tartibi", "Vaqt"], 1),
+        ("Nazorat testida birinchi navbatda nima o'qiladi?", ["Savol sharti", "Oxirgi variant", "Sarlavha osti", "Imzo"], 0),
+        ("Agar ikkita variant o'xshash bo'lsa, nima qilish kerak?", ["Birinchisini belgilash", "Shartni qayta o'qib farqni topish", "Bo'sh qoldirish", "Tasodifiy tanlash"], 1),
+        ("Test yakunida ball qanday hisoblanadi?", ["Faqat vaqt bo'yicha", "To'g'ri javoblar va koeffitsient bo'yicha", "Sahifa soni bo'yicha", "Tasodifiy"], 1),
+        ("Namunaviy sinov nima uchun kerak?", ["Tayyorgarlikni sinash", "Hujjat topshirish", "To'lov qilish", "Kontrakt imzolash"], 0),
+    ],
+}
+
+
+def _clean_target_filter(value: Optional[str], sentinel: str) -> Optional[str]:
+    if value is None:
+        return None
+    text = value.strip()
+    if not text or text == sentinel:
+        return None
+    return text
+
+
+def _safe_inst_type(inst_type: Optional[str]) -> str:
+    value = (inst_type or "otm").strip()
+    return value if value in _TARGET_TYPES else "otm"
+
+
+def _canon_subject(name: Optional[str]) -> str:
+    raw = (name or "").lower().replace("ʻ", "'").replace("’", "'").replace("`", "'")
+    raw = raw.replace("o‘", "o'").replace("g‘", "g'")
+    if "huquq" in raw:
+        return "huquq"
+    if "geograf" in raw:
+        return "geografiya"
+    if "biolog" in raw:
+        return "biologiya"
+    if "kimyo" in raw:
+        return "kimyo"
+    if "fizika" in raw:
+        return "fizika"
+    if "matemat" in raw:
+        return "matematika"
+    if "chet til" in raw:
+        return "chet_tili"
+    if "kasbiy" in raw or "ijodiy" in raw:
+        return "kasbiy"
+    if "zbekiston tarix" in raw:
+        return "uzb_tarix"
+    if "ona tili" in raw or "zbek tili" in raw or "adabiyot" in raw:
+        return "ona_tili"
+    if "tarix" in raw:
+        return "tarix"
+    return "generic"
+
+
+def _split_subject_block(block: str):
+    parts = [p.strip() for p in (block or "").split(" - ") if p.strip()]
+    if parts and parts[-1].upper() == "MB":
+        parts = parts[:-1]
+    main = parts[0] if parts else "Asosiy fan"
+    second = parts[1] if len(parts) > 1 else "2-fan"
+    return main, second
+
+
+def _expand_questions(subject: str, count: int, start_id: int):
+    bank = _MOCK_BANKS.get(_canon_subject(subject)) or _MOCK_BANKS["generic"]
+    questions = []
+    for i in range(count):
+        text, options, correct = bank[i % len(bank)]
+        cycle = i // len(bank)
+        qtext = text if cycle == 0 else f"{text} (variant {cycle + 1})"
+        questions.append({
+            "id": start_id + i,
+            "text": qtext,
+            "options": list(options),
+            "correct": correct,
+        })
+    return questions
+
+
+def _build_mock_payload(ctx: dict):
+    main = ctx["subject_main"]
+    second = ctx["subject_second"] or "2-fan"
+    specs = [
+        {"key": "main", "title": main, "kind": "1-asosiy fan", "count": 30, "coeff": 3.1},
+        {"key": "second", "title": second, "kind": "2-asosiy fan", "count": 30, "coeff": 2.1},
+        {"key": "ona_tili", "title": "Ona tili", "kind": "Majburiy fan", "count": 10, "coeff": 1.1},
+        {"key": "matematika", "title": "Matematika", "kind": "Majburiy fan", "count": 10, "coeff": 1.1},
+        {"key": "uzb_tarix", "title": "O'zbekiston tarixi", "kind": "Majburiy fan", "count": 10, "coeff": 1.1},
+    ]
+    blocks = []
+    next_id = 1
+    total = 0
+    max_score = 0.0
+    for spec in specs:
+        questions = _expand_questions(spec["title"], spec["count"], next_id)
+        next_id += len(questions)
+        total += spec["count"]
+        max_score += spec["count"] * spec["coeff"]
+        blocks.append({
+            "key": spec["key"],
+            "title": spec["title"],
+            "kind": spec["kind"],
+            "coeff": spec["coeff"],
+            "count": spec["count"],
+            "questions": questions,
+        })
     return {
-        "directions": [
-            "Barcha yo'nalishlar",
-            "Tarix (yo'nalishlar bo'yicha)",
-            "Yurisprudensiya (Davlat-huquqiy faoliyat)",
-            "Xalqaro munosabatlar va Diplomatiya",
-            "Harbiy xizmat va qo'mondonlik",
-            "Ijtimoiy-gumanitar fanlar"
-        ],
-        "subjects": [
-            "Barcha fanlar",
-            "Tarix",
-            "Huquqshunoslik",
-            "Matematika",
-            "Psixologiya",
-            "Ona tili va adabiyot"
-        ],
-        "regions": [
-            "Barcha viloyatlar",
-            "Toshkent shahri",
-            "Toshkent viloyati",
-            "Samarqand",
-            "Farg'ona",
-            "Andijon",
-            "Namangan",
-            "Buxoro",
-            "Xorazm",
-            "Qashqadaryo",
-            "Surxondaryo",
-            "Navoiy",
-            "Jizzax",
-            "Sirdaryo",
-            "Qoraqalpog'iston"
-        ]
+        "direction_id": ctx.get("direction_id"),
+        "title": ctx.get("title") or ctx.get("subject_block"),
+        "inst_name": ctx.get("inst_name"),
+        "cipher": ctx.get("cipher"),
+        "subject_block": ctx.get("subject_block"),
+        "subject_main": main,
+        "subject_second": second,
+        "duration_minutes": 180,
+        "question_count": total,
+        "max_score": round(max_score, 1),
+        "blocks": blocks,
+    }
+
+
+def _direction_card(direction: TargetDirection, inst: TargetInstitution) -> dict:
+    grant = direction.grant_ball if direction.grant_ball is not None else direction.grant_score
+    contract = direction.contract_ball if direction.contract_ball is not None else direction.contract_score
+    second = direction.subject_second or direction.subject_secondary or ""
+    edu_lang = direction.edu_lang or direction.education_lang or ""
+    return {
+        "id": direction.id,
+        "inst_name": inst.name,
+        "short_name": inst.short_name,
+        "inst_type": inst.inst_type,
+        "region": inst.region,
+        "direction_title": direction.title,
+        "cipher": direction.cipher or "",
+        "edu_form": direction.edu_form or "",
+        "edu_lang": edu_lang,
+        "subject_main": direction.subject_main,
+        "subject_second": second,
+        "subject_secondary": second,
+        "mandatory_subjects": direction.mandatory_subjects or "Ona tili, Matematika, O'zbekiston tarixi",
+        "subject_block": direction.subject_block or "",
+        "grant_score": grant or 0,
+        "contract_score": contract or 0,
+        "grant_ball": grant or 0,
+        "contract_ball": contract or 0,
+        "badge": _TARGET_BADGES.get(inst.inst_type, "🏛 OTM"),
+    }
+
+
+def _direction_query(inst_type: str, direction: Optional[str], subject_block: Optional[str], region: Optional[str]):
+    stmt = (
+        select(TargetDirection, TargetInstitution)
+        .join(TargetInstitution, TargetDirection.institution_id == TargetInstitution.id)
+        .where(
+            TargetInstitution.inst_type == inst_type,
+            TargetInstitution.is_active.is_(True),
+        )
+    )
+    direction = _clean_target_filter(direction, _ALL_DIRECTION)
+    subject_block = _clean_target_filter(subject_block, _ALL_BLOCK)
+    region = _clean_target_filter(region, _ALL_REGION)
+    if direction:
+        stmt = stmt.where(TargetDirection.title == direction)
+    if subject_block:
+        stmt = stmt.where(TargetDirection.subject_block == subject_block)
+    if region:
+        stmt = stmt.where(TargetInstitution.region == region)
+    return stmt
+
+
+@app.get("/api/target/filter-options")
+async def get_target_filter_options(inst_type: str = Query("otm")):
+    inst_type = _safe_inst_type(inst_type)
+    async with async_session() as session:
+        directions = (await session.execute(
+            select(TargetDirection.title)
+            .join(TargetInstitution, TargetDirection.institution_id == TargetInstitution.id)
+            .where(TargetInstitution.inst_type == inst_type, TargetInstitution.is_active.is_(True))
+            .distinct()
+            .order_by(TargetDirection.title)
+        )).scalars().all()
+        blocks = (await session.execute(
+            select(TargetDirection.subject_block)
+            .join(TargetInstitution, TargetDirection.institution_id == TargetInstitution.id)
+            .where(
+                TargetInstitution.inst_type == inst_type,
+                TargetInstitution.is_active.is_(True),
+                TargetDirection.subject_block.isnot(None),
+                TargetDirection.subject_block != "",
+            )
+            .distinct()
+            .order_by(TargetDirection.subject_block)
+        )).scalars().all()
+        regions = (await session.execute(
+            select(TargetInstitution.region)
+            .where(TargetInstitution.inst_type == inst_type, TargetInstitution.is_active.is_(True))
+            .distinct()
+            .order_by(TargetInstitution.region)
+        )).scalars().all()
+    return {
+        "inst_type": inst_type,
+        "directions": [d for d in directions if d],
+        "subject_blocks": [b for b in blocks if b],
+        "regions": [r for r in regions if r],
+    }
+
+
+@app.get("/api/target/directions")
+async def get_target_directions(
+    inst_type: str = Query("otm"),
+    direction: Optional[str] = None,
+    subject_block: Optional[str] = None,
+    region: Optional[str] = None,
+    limit: int = Query(24, ge=1, le=100),
+    offset: int = Query(0, ge=0),
+):
+    inst_type = _safe_inst_type(inst_type)
+    stmt = _direction_query(inst_type, direction, subject_block, region)
+    async with async_session() as session:
+        total = (await session.execute(select(func.count()).select_from(stmt.subquery()))).scalar() or 0
+        rows = (await session.execute(
+            stmt.order_by(TargetInstitution.name, TargetDirection.title, TargetDirection.cipher)
+            .offset(offset)
+            .limit(limit)
+        )).all()
+    items = [_direction_card(d, inst) for d, inst in rows]
+    return {
+        "items": items,
+        "total": total,
+        "limit": limit,
+        "offset": offset,
+        "has_more": offset + len(items) < total,
+    }
+
+
+@app.get("/api/target/start-mock")
+async def start_target_mock(
+    inst_type: str = Query("otm"),
+    direction_id: Optional[int] = None,
+    direction: Optional[str] = None,
+    subject_block: Optional[str] = None,
+):
+    inst_type = _safe_inst_type(inst_type)
+    block = _clean_target_filter(subject_block, _ALL_BLOCK)
+    title = _clean_target_filter(direction, _ALL_DIRECTION)
+    async with async_session() as session:
+        if direction_id:
+            row = (await session.execute(
+                select(TargetDirection, TargetInstitution)
+                .join(TargetInstitution, TargetDirection.institution_id == TargetInstitution.id)
+                .where(TargetDirection.id == direction_id)
+            )).first()
+            if not row:
+                raise HTTPException(status_code=404, detail="Yo'nalish topilmadi.")
+            d, inst = row
+            ctx = {
+                "direction_id": d.id,
+                "title": d.title,
+                "inst_name": inst.name,
+                "cipher": d.cipher,
+                "subject_block": d.subject_block,
+                "subject_main": d.subject_main,
+                "subject_second": d.subject_second or d.subject_secondary,
+            }
+            return _build_mock_payload(ctx)
+
+        if block:
+            main, second = _split_subject_block(block)
+            pretty = title or block
+            return _build_mock_payload({
+                "direction_id": None,
+                "title": pretty,
+                "inst_name": None,
+                "cipher": None,
+                "subject_block": block,
+                "subject_main": main,
+                "subject_second": second,
+            })
+
+        if title:
+            found = (await session.execute(
+                select(TargetDirection.subject_block, TargetDirection.subject_main, TargetDirection.subject_second)
+                .join(TargetInstitution, TargetDirection.institution_id == TargetInstitution.id)
+                .where(TargetInstitution.inst_type == inst_type, TargetDirection.title == title)
+                .distinct()
+            )).all()
+            unique_blocks = []
+            for item in found:
+                if item[0] and item[0] not in unique_blocks:
+                    unique_blocks.append(item[0])
+            if len(unique_blocks) == 1:
+                main, second = _split_subject_block(unique_blocks[0])
+                return _build_mock_payload({
+                    "direction_id": None,
+                    "title": title,
+                    "inst_name": None,
+                    "cipher": None,
+                    "subject_block": unique_blocks[0],
+                    "subject_main": found[0][1] or main,
+                    "subject_second": found[0][2] or second,
+                })
+
+    raise HTTPException(status_code=400, detail="Iltimos, avval Fanlar majmuasini tanlang!")
+
+
+@app.get("/api/targets/filter-data")
+async def get_target_filter_metadata(inst_type: str = Query("otm")):
+    data = await get_target_filter_options(inst_type)
+    return {
+        "directions": [_ALL_DIRECTION, *data["directions"]],
+        "subjects": [_ALL_BLOCK, *data["subject_blocks"]],
+        "subject_blocks": [_ALL_BLOCK, *data["subject_blocks"]],
+        "regions": [_ALL_REGION, *data["regions"]],
     }
 
 
@@ -1059,98 +1576,19 @@ async def get_target_cards(
     inst_type: str = Query("otm"),
     direction: Optional[str] = None,
     subject: Optional[str] = None,
-    region: Optional[str] = None
+    subject_block: Optional[str] = None,
+    region: Optional[str] = None,
+    limit: int = Query(24, ge=1, le=100),
+    offset: int = Query(0, ge=0),
 ):
-    sample_data = [
-        {
-            "id": 1,
-            "inst_name": "O'zbekiston Milliy Universiteti (O'zMU)",
-            "short_name": "O'zMU",
-            "inst_type": "otm",
-            "region": "Toshkent shahri",
-            "direction_title": "Tarix (yo'nalishlar bo'yicha)",
-            "subject_main": "Tarix",
-            "subject_secondary": "Geografiya",
-            "grant_score": 172.5,
-            "contract_score": 134.2,
-            "quota": 65,
-            "mock_quiz_id": 1,
-            "badge": "🏛 Fuqarolik OTM"
-        },
-        {
-            "id": 2,
-            "inst_name": "Toshkent Davlat Yuridik Universiteti (TDYU)",
-            "short_name": "TDYU",
-            "inst_type": "otm",
-            "region": "Toshkent shahri",
-            "direction_title": "Yurisprudensiya (Davlat-huquqiy faoliyat)",
-            "subject_main": "Huquqshunoslik",
-            "subject_secondary": "Tarix",
-            "grant_score": 184.8,
-            "contract_score": 156.3,
-            "quota": 250,
-            "mock_quiz_id": 2,
-            "badge": "🏛 Fuqarolik OTM"
-        },
-        {
-            "id": 3,
-            "inst_name": "Qurolli Kuchlar Akademiyasi",
-            "short_name": "QKA",
-            "inst_type": "otm_harbiy",
-            "region": "Toshkent shahri",
-            "direction_title": "Harbiy xizmat va qo'mondonlik",
-            "subject_main": "Tarix",
-            "subject_secondary": "Matematika",
-            "grant_score": 165.0,
-            "contract_score": 0.0,
-            "quota": 120,
-            "mock_quiz_id": 3,
-            "badge": "🎖 Harbiy OTM"
-        },
-        {
-            "id": 4,
-            "inst_name": "Temurbeklar Maktabi Harbiy Akademik Litseyi",
-            "short_name": "TM Litsey",
-            "inst_type": "litsey_harbiy",
-            "region": "Farg'ona",
-            "direction_title": "Ijtimoiy-gumanitar fanlar",
-            "subject_main": "Tarix",
-            "subject_secondary": "Psixologiya",
-            "grant_score": 162.0,
-            "contract_score": 0.0,
-            "quota": 100,
-            "mock_quiz_id": 4,
-            "badge": "🎖 Harbiy Litsey"
-        },
-        {
-            "id": 5,
-            "inst_name": "SamDU huzuridagi Akademik Litsey",
-            "short_name": "SamDU Litsey",
-            "inst_type": "litsey",
-            "region": "Samarqand",
-            "direction_title": "Ijtimoiy-gumanitar fanlar",
-            "subject_main": "Tarix",
-            "subject_secondary": "Ona tili va adabiyot",
-            "grant_score": 145.5,
-            "contract_score": 110.0,
-            "quota": 80,
-            "mock_quiz_id": 5,
-            "badge": "🏫 Fuqarolik Litsey"
-        }
-    ]
-
-    filtered = [item for item in sample_data if item["inst_type"] == inst_type]
-
-    if direction and direction != "Barcha yo'nalishlar":
-        filtered = [item for item in filtered if item["direction_title"] == direction]
-
-    if subject and subject != "Barcha fanlar":
-        filtered = [item for item in filtered if item["subject_main"] == subject or item["subject_secondary"] == subject]
-
-    if region and region != "Barcha viloyatlar":
-        filtered = [item for item in filtered if item["region"] == region]
-
-    return filtered
+    return await get_target_directions(
+        inst_type=inst_type,
+        direction=direction,
+        subject_block=subject_block or subject,
+        region=region,
+        limit=limit,
+        offset=offset,
+    )
 
 
 # ==========================================================
@@ -1203,6 +1641,3072 @@ async def get_cabinet_items(telegram_id: int = 12345678, filter_type: str = "act
             })
 
         return {"items": output}
+
+
+# ==========================================================
+# OKTAGON (PVP JANG ZALI) — YORDAMCHI FUNKSIYALAR
+# ==========================================================
+def _normalize_level(level: Optional[str]) -> str:
+    raw = (level or "orta").strip().lower()
+    mapping = {
+        "oson": "oson",
+        "easy": "oson",
+        "orta": "orta",
+        "o'rta": "orta",
+        "oʻrta": "orta",
+        "medium": "orta",
+        "qiyin": "qiyin",
+        "hard": "qiyin",
+    }
+    return mapping.get(raw, "orta")
+
+
+def _normalize_subject(subject: Optional[str]) -> str:
+    return (subject or "tarix").strip().lower() or "tarix"
+
+
+def _strip_oct_prefix(room_code: str) -> str:
+    code = (room_code or "").strip().upper()
+    if code.startswith("OCT_"):
+        return code[4:]
+    return code
+
+
+def _generate_room_code() -> str:
+    return secrets.token_hex(3).upper()
+
+
+async def _resolve_bot_username() -> str:
+    bot_username = "pharos_talim_bot"
+    try:
+        me = await tg_bot.get_me()
+        if me and me.username:
+            bot_username = me.username
+    except Exception:
+        pass
+    return bot_username
+
+
+def _is_user_online(profile: Optional[UserOctagonProfile], now: Optional[datetime] = None) -> bool:
+    if not profile or not profile.last_seen_at:
+        return False
+    now = now or datetime.utcnow()
+    return (now - profile.last_seen_at).total_seconds() <= OCTAGON_ONLINE_WINDOW_SECONDS
+
+
+async def _get_or_create_octagon_profile(session, user: User) -> UserOctagonProfile:
+    res = await session.execute(
+        select(UserOctagonProfile).where(UserOctagonProfile.user_id == user.telegram_id)
+    )
+    profile = res.scalar_one_or_none()
+    if profile:
+        if not profile.region and user.region:
+            profile.region = user.region
+        if user.is_subscribed or user.is_paid:
+            if profile.subscription_tier == "free":
+                profile.subscription_tier = "pro"
+        return profile
+
+    tier = "free"
+    if user.is_subscribed and user.is_paid:
+        tier = "premium"
+    elif user.is_subscribed or user.is_paid:
+        tier = "pro"
+
+    profile = UserOctagonProfile(
+        user_id=user.telegram_id,
+        current_course=f"{user.selected_subject or 'tarix'} kursi",
+        subject_focus=_normalize_subject(user.selected_subject),
+        region=user.region,
+        rank_position=99,
+        total_battles=0,
+        victories=0,
+        rating_points=1000,
+        subscription_tier=tier,
+        last_seen_at=datetime.utcnow(),
+    )
+    session.add(profile)
+    await session.flush()
+    return profile
+
+
+async def _expire_stale_invites(session, now: Optional[datetime] = None):
+    now = now or datetime.utcnow()
+    res = await session.execute(
+        select(OctagonBattle).where(
+            OctagonBattle.status == "waiting",
+            OctagonBattle.expires_at < now,
+        )
+    )
+    for battle in res.scalars().all():
+        battle.status = "expired"
+
+
+async def _cancel_waiting_invites(session, creator_id: int) -> int:
+    res = await session.execute(
+        select(OctagonBattle).where(
+            OctagonBattle.creator_id == creator_id,
+            OctagonBattle.status == "waiting",
+        )
+    )
+    count = 0
+    for battle in res.scalars().all():
+        battle.status = "cancelled"
+        count += 1
+    return count
+
+
+def _stickers_for_tier(tier: str) -> dict:
+    basic = list(OCTAGON_BASIC_STICKERS)
+    pro = list(OCTAGON_PRO_STICKERS)
+    premium = list(OCTAGON_PREMIUM_STICKERS)
+    unlocked = list(basic)
+    if tier in ("pro", "premium"):
+        unlocked.extend(pro)
+    if tier == "premium":
+        unlocked.extend(premium)
+    return {
+        "tier": tier or "free",
+        "basic": basic,
+        "pro": pro,
+        "premium": premium,
+        "unlocked": unlocked,
+    }
+
+
+def _topic_course_meta(topic_name: str) -> dict:
+    meta = OCTAGON_TOPIC_COURSE_MAP.get(topic_name) or OCTAGON_TOPIC_COURSE_MAP["Umumiy"]
+    return {
+        "recommended_course_id": meta["course_id"],
+        "recommended_course_title": meta["title"],
+        "recommended_course_link": meta["link"],
+    }
+
+
+async def _build_battle_analyses(session, battle: OctagonBattle, user_id: int, wrong_topics: list):
+    for item in wrong_topics:
+        topic_name = item["topic"]
+        mistakes = int(item.get("mistakes", 1))
+        total = max(int(item.get("total", mistakes + 1)), mistakes)
+        mastery = round(max(0.0, 100.0 * (total - mistakes) / total), 1)
+        course = _topic_course_meta(topic_name)
+        session.add(OctagonBattleAnalysis(
+            battle_id=battle.id,
+            user_id=user_id,
+            topic_name=topic_name,
+            questions_total=total,
+            mistakes_count=mistakes,
+            mastery_percent=mastery,
+            recommended_course_id=course["recommended_course_id"],
+            recommended_course_title=course["recommended_course_title"],
+            recommended_course_link=course["recommended_course_link"],
+        ))
+
+
+async def _simulate_and_finish_battle(
+    session,
+    battle: OctagonBattle,
+    creator_profile: UserOctagonProfile,
+    opponent_profile: Optional[UserOctagonProfile] = None,
+):
+    """Demo jang natijasini hisoblab, diagnostika yozuvlarini yaratadi."""
+    level_bias = {"oson": 2, "orta": 0, "qiyin": -2}.get(battle.level, 0)
+    creator_correct = max(3, min(10, random.randint(5, 9) + level_bias))
+    opponent_correct = max(2, min(10, random.randint(4, 9) + (0 if battle.is_bot else level_bias)))
+    creator_wrong = 10 - creator_correct
+    opponent_wrong = 10 - opponent_correct
+
+    battle.creator_correct = creator_correct
+    battle.creator_wrong = creator_wrong
+    battle.opponent_correct = opponent_correct
+    battle.opponent_wrong = opponent_wrong
+    battle.creator_score = creator_correct * 10
+    battle.opponent_score = opponent_correct * 10
+    battle.status = "finished"
+    battle.started_at = battle.started_at or datetime.utcnow()
+    battle.finished_at = datetime.utcnow()
+
+    if battle.creator_score > battle.opponent_score:
+        battle.winner_id = battle.creator_id
+    elif battle.opponent_score > battle.creator_score:
+        battle.winner_id = 0 if battle.is_bot else battle.opponent_id
+    else:
+        battle.winner_id = None
+
+    topic_seed = (battle.topic or "Umumiy").strip() or "Umumiy"
+    creator_gaps = [
+        {"topic": topic_seed, "mistakes": max(1, creator_wrong // 2 or 1), "total": 4},
+        {"topic": "Temuriylar", "mistakes": max(1, creator_wrong // 3 or 1), "total": 3},
+    ]
+    await _build_battle_analyses(session, battle, battle.creator_id, creator_gaps)
+
+    if battle.opponent_id and not battle.is_bot:
+        opp_gaps = [
+            {"topic": topic_seed, "mistakes": max(1, opponent_wrong // 2 or 1), "total": 4},
+            {"topic": "Qadimgi dunyo", "mistakes": max(1, opponent_wrong // 3 or 1), "total": 3},
+        ]
+        await _build_battle_analyses(session, battle, battle.opponent_id, opp_gaps)
+
+    creator_profile.total_battles = (creator_profile.total_battles or 0) + 1
+    if battle.winner_id == battle.creator_id:
+        creator_profile.victories = (creator_profile.victories or 0) + 1
+        creator_profile.rating_points = (creator_profile.rating_points or 1000) + 25
+    elif battle.winner_id is not None:
+        creator_profile.rating_points = max(0, (creator_profile.rating_points or 1000) - 15)
+
+    if opponent_profile and battle.opponent_id:
+        opponent_profile.total_battles = (opponent_profile.total_battles or 0) + 1
+        if battle.winner_id == battle.opponent_id:
+            opponent_profile.victories = (opponent_profile.victories or 0) + 1
+            opponent_profile.rating_points = (opponent_profile.rating_points or 1000) + 25
+        elif battle.winner_id == battle.creator_id:
+            opponent_profile.rating_points = max(0, (opponent_profile.rating_points or 1000) - 15)
+
+    creator_profile.updated_at = datetime.utcnow()
+    if opponent_profile:
+        opponent_profile.updated_at = datetime.utcnow()
+
+
+async def _user_brief(session, telegram_id: Optional[int], now: Optional[datetime] = None) -> dict:
+    if not telegram_id:
+        return {
+            "telegram_id": None,
+            "full_name": "PHAROS Bot",
+            "region": "—",
+            "rating": 1200,
+            "is_online": True,
+            "is_member": False,
+            "is_bot": True,
+        }
+
+    now = now or datetime.utcnow()
+    user = (
+        await session.execute(select(User).where(User.telegram_id == telegram_id))
+    ).scalar_one_or_none()
+    profile = (
+        await session.execute(
+            select(UserOctagonProfile).where(UserOctagonProfile.user_id == telegram_id)
+        )
+    ).scalar_one_or_none()
+
+    return {
+        "telegram_id": telegram_id,
+        "full_name": (user.full_name if user else None) or f"O'quvchi {telegram_id}",
+        "region": (user.region if user else None) or (profile.region if profile else None) or "Noma'lum",
+        "rating": (profile.rating_points if profile else 1000) or 1000,
+        "is_online": _is_user_online(profile, now),
+        "is_member": user is not None,
+        "is_bot": False,
+        "subscription_tier": (profile.subscription_tier if profile else "free") or "free",
+    }
+
+
+# ==========================================================
+# OKTAGON API ENDPOINTLARI
+# ==========================================================
+@app.on_event("startup")
+async def _octagon_startup():
+    try:
+        await init_db()
+    except Exception as e:
+        print(f"Octagon schema init ogohlantirish: {e}")
+
+
+@app.post("/api/octagon/presence")
+async def octagon_presence(payload: OctagonPresenceSchema):
+    """Mini App ochiq bo'lganda onlayn heartbeat."""
+    async with async_session() as session:
+        user = (
+            await session.execute(select(User).where(User.telegram_id == payload.telegram_id))
+        ).scalar_one_or_none()
+        if not user:
+            raise HTTPException(status_code=404, detail="Foydalanuvchi topilmadi")
+
+        profile = await _get_or_create_octagon_profile(session, user)
+        profile.last_seen_at = datetime.utcnow()
+        if payload.subject:
+            profile.subject_focus = _normalize_subject(payload.subject)
+        profile.updated_at = datetime.utcnow()
+        await session.commit()
+
+        stickers = _stickers_for_tier(profile.subscription_tier or "free")
+        return {"status": "ok", "is_online": True, "stickers": stickers}
+
+
+@app.post("/api/octagon/create-invite")
+async def octagon_create_invite(payload: OctagonInviteSchema):
+    """60 sekundlik duel taklifi va Telegram start havolasini yaratadi."""
+    subject = _normalize_subject(payload.subject)
+    level = _normalize_level(payload.level)
+    topic = (payload.topic or "").strip() or None
+    now = datetime.utcnow()
+
+    async with async_session() as session:
+        await _expire_stale_invites(session, now)
+
+        user = (
+            await session.execute(select(User).where(User.telegram_id == payload.telegram_id))
+        ).scalar_one_or_none()
+        if not user:
+            raise HTTPException(status_code=404, detail="Foydalanuvchi topilmadi")
+
+        profile = await _get_or_create_octagon_profile(session, user)
+        profile.subject_focus = subject
+        profile.last_seen_at = now
+
+        # Yangi taklifdan oldin eski waiting havolalarni bekor qilmaymiz —
+        # faqat muddati o'tganlarni expire qilamiz. Bot/jonli jangda cancel-invites chaqiriladi.
+        room_code = _generate_room_code()
+        while True:
+            exists = (
+                await session.execute(
+                    select(OctagonBattle.id).where(OctagonBattle.room_code == room_code)
+                )
+            ).scalar_one_or_none()
+            if not exists:
+                break
+            room_code = _generate_room_code()
+
+        battle = OctagonBattle(
+            room_code=room_code,
+            creator_id=payload.telegram_id,
+            opponent_id=payload.opponent_id,
+            is_bot=False,
+            subject=subject,
+            level=level,
+            topic=topic,
+            status="waiting",
+            expires_at=now + timedelta(seconds=OCTAGON_INVITE_TTL_SECONDS),
+        )
+        session.add(battle)
+        await session.commit()
+        await session.refresh(battle)
+
+        opponent_info = None
+        if payload.opponent_id:
+            opponent_info = await _user_brief(session, payload.opponent_id, now)
+
+    bot_username = await _resolve_bot_username()
+    invite_link = f"https://t.me/{bot_username}?start=oct_{room_code}"
+
+    return {
+        "status": "ok",
+        "battle_id": battle.id,
+        "room_code": room_code,
+        "invite_link": invite_link,
+        "expires_in": OCTAGON_INVITE_TTL_SECONDS,
+        "expires_at": battle.expires_at.isoformat() + "Z",
+        "subject": subject,
+        "level": level,
+        "topic": topic,
+        "opponent": opponent_info,
+    }
+
+
+@app.get("/api/octagon/check-invite/{room_code}")
+async def octagon_check_invite(room_code: str, telegram_id: Optional[str] = None):
+    """Havola faolligi, 60s muddat va bekor qilinmaganligini tekshiradi."""
+    code = _strip_oct_prefix(room_code)
+    now = datetime.utcnow()
+    viewer_id = _coerce_telegram_id(telegram_id)
+
+    async with async_session() as session:
+        await _expire_stale_invites(session, now)
+        await session.commit()
+
+        battle = (
+            await session.execute(
+                select(OctagonBattle).where(OctagonBattle.room_code == code)
+            )
+        ).scalar_one_or_none()
+
+        if not battle:
+            return {
+                "valid": False,
+                "status": "not_found",
+                "message": "Jang xonasi topilmadi",
+            }
+
+        if battle.status == "waiting" and battle.expires_at < now:
+            battle.status = "expired"
+            await session.commit()
+
+        seconds_left = max(0, int((battle.expires_at - now).total_seconds()))
+        is_active = battle.status == "waiting" and seconds_left > 0
+
+        creator = await _user_brief(session, battle.creator_id, now)
+        opponent = None
+        if battle.opponent_id:
+            opponent = await _user_brief(session, battle.opponent_id, now)
+
+        return {
+            "valid": is_active,
+            "status": battle.status if is_active or battle.status != "waiting" else "expired",
+            "battle_id": battle.id,
+            "room_code": battle.room_code,
+            "subject": battle.subject,
+            "level": battle.level,
+            "topic": battle.topic,
+            "expires_at": battle.expires_at.isoformat() + "Z",
+            "seconds_left": seconds_left if is_active else 0,
+            "creator": creator,
+            "opponent": opponent,
+            "viewer_is_creator": viewer_id == battle.creator_id if viewer_id else False,
+            "message": (
+                "Taklif faol" if is_active
+                else "Taklif muddati tugagan yoki bekor qilingan"
+            ),
+        }
+
+
+@app.post("/api/octagon/accept-invite")
+async def octagon_accept_invite(payload: OctagonAcceptSchema):
+    """Telegram havolasi orqali jangni qabul qilish."""
+    code = _strip_oct_prefix(payload.room_code)
+    now = datetime.utcnow()
+
+    async with async_session() as session:
+        await _expire_stale_invites(session, now)
+
+        user = (
+            await session.execute(select(User).where(User.telegram_id == payload.telegram_id))
+        ).scalar_one_or_none()
+        if not user:
+            raise HTTPException(status_code=404, detail="Avval platformaga ro'yxatdan o'ting")
+
+        battle = (
+            await session.execute(
+                select(OctagonBattle).where(OctagonBattle.room_code == code)
+            )
+        ).scalar_one_or_none()
+        if not battle:
+            raise HTTPException(status_code=404, detail="Jang xonasi topilmadi")
+
+        if battle.creator_id == payload.telegram_id:
+            raise HTTPException(status_code=400, detail="O'zingizning taklifingizni qabul qila olmaysiz")
+
+        if battle.status != "waiting" or battle.expires_at < now:
+            battle.status = "expired" if battle.status == "waiting" else battle.status
+            await session.commit()
+            raise HTTPException(status_code=410, detail="Taklif muddati tugagan yoki bekor qilingan")
+
+        profile = await _get_or_create_octagon_profile(session, user)
+        creator_user = (
+            await session.execute(select(User).where(User.telegram_id == battle.creator_id))
+        ).scalar_one_or_none()
+        creator_profile = None
+        if creator_user:
+            creator_profile = await _get_or_create_octagon_profile(session, creator_user)
+
+        battle.opponent_id = payload.telegram_id
+        battle.status = "active"
+        battle.started_at = now
+        profile.last_seen_at = now
+
+        await _simulate_and_finish_battle(session, battle, creator_profile or profile, profile)
+        await session.commit()
+
+        try:
+            await tg_bot.send_message(
+                battle.creator_id,
+                f"⚔️ <b>Oktagon:</b> {user.full_name or 'Raqib'} jang chaqirig'ingizni qabul qildi!\n"
+                f"Fan: <b>{battle.subject}</b> · Daraja: <b>{battle.level}</b>",
+                parse_mode="HTML",
+            )
+        except Exception:
+            pass
+
+        return {
+            "status": "ok",
+            "battle_id": battle.id,
+            "result_ready": True,
+        }
+
+
+@app.post("/api/octagon/cancel-invites")
+async def octagon_cancel_invites(payload: OctagonCancelSchema):
+    """Bot yoki boshqa raqib bilan jang boshlanganda kutishdagi barcha havolalarni bekor qiladi."""
+    async with async_session() as session:
+        await _expire_stale_invites(session)
+        cancelled = await _cancel_waiting_invites(session, payload.telegram_id)
+        await session.commit()
+    return {"status": "ok", "cancelled_count": cancelled}
+
+
+@app.get("/api/octagon/history")
+async def octagon_history(
+    telegram_id: Optional[str] = None,
+    subject: Optional[str] = None,
+    level: Optional[str] = None,
+    region: Optional[str] = None,
+):
+    """Foydalanuvchi janglar tarixi — fan, daraja va viloyat filtrlari bilan."""
+    tg_id = _coerce_telegram_id(telegram_id)
+    if tg_id is None:
+        return {"items": [], "filters": {"subjects": [], "levels": [], "regions": list(REGIONS_DATA.keys())}}
+
+    now = datetime.utcnow()
+    async with async_session() as session:
+        await _expire_stale_invites(session, now)
+        await session.commit()
+
+        query = select(OctagonBattle).where(
+            OctagonBattle.status == "finished",
+            or_(
+                OctagonBattle.creator_id == tg_id,
+                OctagonBattle.opponent_id == tg_id,
+            ),
+        ).order_by(OctagonBattle.finished_at.desc(), OctagonBattle.id.desc())
+
+        if subject:
+            query = query.where(OctagonBattle.subject == _normalize_subject(subject))
+        if level:
+            query = query.where(OctagonBattle.level == _normalize_level(level))
+
+        battles = (await session.execute(query)).scalars().all()
+        items = []
+
+        for b in battles:
+            i_am_creator = b.creator_id == tg_id
+            my_score = b.creator_score if i_am_creator else b.opponent_score
+            opp_score = b.opponent_score if i_am_creator else b.creator_score
+            opp_id = b.opponent_id if i_am_creator else b.creator_id
+
+            if b.is_bot and i_am_creator:
+                opponent = {
+                    "telegram_id": None,
+                    "full_name": "PHAROS Bot",
+                    "region": "Tizim",
+                    "rating": 1200,
+                    "is_online": True,
+                    "is_member": False,
+                    "is_bot": True,
+                }
+            else:
+                opponent = await _user_brief(session, opp_id, now)
+
+            if region and region != "all":
+                opp_region = (opponent.get("region") or "").lower()
+                if region.lower() not in opp_region and opp_region not in region.lower():
+                    continue
+
+            if b.winner_id is None:
+                outcome = "draw"
+            elif b.winner_id == tg_id:
+                outcome = "win"
+            else:
+                outcome = "loss"
+
+            items.append({
+                "battle_id": b.id,
+                "subject": b.subject,
+                "level": b.level,
+                "topic": b.topic,
+                "outcome": outcome,
+                "my_score": my_score,
+                "opponent_score": opp_score,
+                "my_correct": b.creator_correct if i_am_creator else b.opponent_correct,
+                "my_wrong": b.creator_wrong if i_am_creator else b.opponent_wrong,
+                "opponent": opponent,
+                "is_bot": b.is_bot,
+                "finished_at": b.finished_at.strftime("%d.%m.%Y %H:%M") if b.finished_at else "",
+                "can_rematch": not b.is_bot and bool(opp_id),
+            })
+
+        return {
+            "items": items,
+            "filters": {
+                "subjects": ["tarix", "huquq", "psixologiya", "ona tili"],
+                "levels": ["oson", "orta", "qiyin"],
+                "regions": ["all"] + list(REGIONS_DATA.keys()),
+            },
+        }
+
+
+@app.get("/api/octagon/leaderboard")
+async def octagon_leaderboard(
+    subject: Optional[str] = None,
+    level: Optional[str] = None,
+    region: Optional[str] = None,
+    limit: int = Query(20, ge=1, le=100),
+):
+    """Viloyat / fan / umumiy reyting peshqadamlari."""
+    async with async_session() as session:
+        query = select(UserOctagonProfile).order_by(
+            UserOctagonProfile.rating_points.desc(),
+            UserOctagonProfile.victories.desc(),
+        )
+
+        if subject:
+            query = query.where(UserOctagonProfile.subject_focus == _normalize_subject(subject))
+        if region and region != "all":
+            query = query.where(UserOctagonProfile.region == region)
+
+        profiles = (await session.execute(query.limit(limit))).scalars().all()
+        leaders = []
+
+        if not profiles:
+            # Demo peshqadamlar (bo'sh bazada UI sinovi uchun)
+            sample = [
+                {"full_name": "Sardor Karimov", "region": "Toshkent shahri", "rating": 1480, "victories": 24, "subject": "tarix"},
+                {"full_name": "Dilnoza Rahimova", "region": "Samarqand viloyati", "rating": 1410, "victories": 19, "subject": "tarix"},
+                {"full_name": "Javohir Aliyev", "region": "Farg'ona viloyati", "rating": 1365, "victories": 17, "subject": "huquq"},
+                {"full_name": "Madina Yusupova", "region": "Buxoro viloyati", "rating": 1320, "victories": 15, "subject": "tarix"},
+                {"full_name": "Bekzod Toshpulatov", "region": "Andijon viloyati", "rating": 1288, "victories": 14, "subject": "psixologiya"},
+            ]
+            for idx, row in enumerate(sample, start=1):
+                if subject and row["subject"] != _normalize_subject(subject):
+                    continue
+                if region and region != "all" and row["region"] != region:
+                    continue
+                leaders.append({
+                    "rank": idx,
+                    "full_name": row["full_name"],
+                    "region": row["region"],
+                    "rating": row["rating"],
+                    "victories": row["victories"],
+                    "subject": row["subject"],
+                    "is_online": idx <= 2,
+                })
+            return {"items": leaders[:limit], "mode": "sample"}
+
+        for idx, p in enumerate(profiles, start=1):
+            user = (
+                await session.execute(select(User).where(User.telegram_id == p.user_id))
+            ).scalar_one_or_none()
+            leaders.append({
+                "rank": idx,
+                "telegram_id": p.user_id,
+                "full_name": (user.full_name if user else None) or f"O'quvchi {p.user_id}",
+                "region": p.region or (user.region if user else None) or "Noma'lum",
+                "rating": p.rating_points or 1000,
+                "victories": p.victories or 0,
+                "subject": p.subject_focus or "tarix",
+                "is_online": _is_user_online(p),
+            })
+
+        return {"items": leaders, "mode": "live"}
+
+
+@app.post("/api/octagon/start-bot")
+async def octagon_start_bot(payload: OctagonBotBattleSchema):
+    """Bot bilan bellashuv — avvalgi takliflarni bekor qiladi va jangni yakunlaydi."""
+    subject = _normalize_subject(payload.subject)
+    level = _normalize_level(payload.level)
+    topic = (payload.topic or "").strip() or "Umumiy mashq"
+    now = datetime.utcnow()
+
+    async with async_session() as session:
+        user = (
+            await session.execute(select(User).where(User.telegram_id == payload.telegram_id))
+        ).scalar_one_or_none()
+        if not user:
+            raise HTTPException(status_code=404, detail="Foydalanuvchi topilmadi")
+
+        profile = await _get_or_create_octagon_profile(session, user)
+        cancelled = await _cancel_waiting_invites(session, payload.telegram_id)
+
+        battle = OctagonBattle(
+            room_code=_generate_room_code(),
+            creator_id=payload.telegram_id,
+            opponent_id=None,
+            is_bot=True,
+            subject=subject,
+            level=level,
+            topic=topic,
+            status="active",
+            expires_at=now,
+            started_at=now,
+        )
+        session.add(battle)
+        await session.flush()
+
+        await _simulate_and_finish_battle(session, battle, profile, None)
+        profile.last_seen_at = now
+        profile.subject_focus = subject
+        await session.commit()
+
+        return {
+            "status": "ok",
+            "battle_id": battle.id,
+            "cancelled_invites": cancelled,
+            "result_ready": True,
+        }
+
+
+@app.post("/api/octagon/find-opponent")
+async def octagon_find_opponent(payload: OctagonFindOpponentSchema):
+    """Jonli PvP: shu fanni o'rganayotgan onlayn o'quvchini topadi."""
+    subject = _normalize_subject(payload.subject)
+    level = _normalize_level(payload.level)
+    topic = (payload.topic or "").strip() or None
+    now = datetime.utcnow()
+    online_since = now - timedelta(seconds=OCTAGON_ONLINE_WINDOW_SECONDS)
+
+    async with async_session() as session:
+        user = (
+            await session.execute(select(User).where(User.telegram_id == payload.telegram_id))
+        ).scalar_one_or_none()
+        if not user:
+            raise HTTPException(status_code=404, detail="Foydalanuvchi topilmadi")
+
+        my_profile = await _get_or_create_octagon_profile(session, user)
+        my_profile.last_seen_at = now
+        my_profile.subject_focus = subject
+
+        cancelled = await _cancel_waiting_invites(session, payload.telegram_id)
+
+        candidates = (
+            await session.execute(
+                select(UserOctagonProfile).where(
+                    UserOctagonProfile.user_id != payload.telegram_id,
+                    UserOctagonProfile.subject_focus == subject,
+                    UserOctagonProfile.last_seen_at >= online_since,
+                ).order_by(UserOctagonProfile.rating_points.desc()).limit(20)
+            )
+        ).scalars().all()
+
+        if not candidates:
+            await session.commit()
+            return {
+                "status": "not_found",
+                "message": "Hozircha onlayn raqib topilmadi. Bot bilan o'ynang yoki do'stga havola yuboring.",
+                "cancelled_invites": cancelled,
+            }
+
+        # Reytingga eng yaqin raqib
+        candidates = sorted(
+            candidates,
+            key=lambda p: abs((p.rating_points or 1000) - (my_profile.rating_points or 1000)),
+        )
+        opp_profile = candidates[0]
+        opp_user = (
+            await session.execute(select(User).where(User.telegram_id == opp_profile.user_id))
+        ).scalar_one_or_none()
+
+        battle = OctagonBattle(
+            room_code=_generate_room_code(),
+            creator_id=payload.telegram_id,
+            opponent_id=opp_profile.user_id,
+            is_bot=False,
+            subject=subject,
+            level=level,
+            topic=topic,
+            status="active",
+            expires_at=now,
+            started_at=now,
+        )
+        session.add(battle)
+        await session.flush()
+
+        await _simulate_and_finish_battle(session, battle, my_profile, opp_profile)
+        await session.commit()
+
+        # Raqibga bot xabarnomasi
+        try:
+            await tg_bot.send_message(
+                opp_profile.user_id,
+                f"⚔️ <b>Oktagon chaqiruvi!</b>\n"
+                f"{user.full_name or 'Raqib'} siz bilan jonli jang boshladi.\n"
+                f"Fan: <b>{subject}</b> · Daraja: <b>{level}</b>"
+                + (f"\nMavzu: <b>{topic}</b>" if topic else ""),
+                parse_mode="HTML",
+            )
+        except Exception:
+            pass
+
+        session.add(Notification(
+            user_id=opp_profile.user_id,
+            source="oktagon",
+            title="Oktagon: Jonli jang!",
+            message=f"{user.full_name or 'Raqib'} sizni jangga chaqirdi ({subject}, {level}).",
+            target_tab="octagon",
+            is_read=False,
+        ))
+        await session.commit()
+
+        return {
+            "status": "ok",
+            "battle_id": battle.id,
+            "cancelled_invites": cancelled,
+            "opponent": await _user_brief(session, opp_profile.user_id, now),
+            "result_ready": True,
+        }
+
+
+@app.get("/api/octagon/battle-result/{battle_id}")
+async def octagon_battle_result(battle_id: int, telegram_id: Optional[str] = None):
+    """G'olib/mag'lub, ochkolar va kamchiliklar diagnostikasi + kurs havolalari."""
+    tg_id = _coerce_telegram_id(telegram_id)
+    now = datetime.utcnow()
+
+    async with async_session() as session:
+        battle = await session.get(OctagonBattle, battle_id)
+        if not battle:
+            raise HTTPException(status_code=404, detail="Jang topilmadi")
+
+        analyses_q = select(OctagonBattleAnalysis).where(OctagonBattleAnalysis.battle_id == battle_id)
+        if tg_id:
+            analyses_q = analyses_q.where(OctagonBattleAnalysis.user_id == tg_id)
+        analyses = (await session.execute(analyses_q)).scalars().all()
+
+        i_am_creator = tg_id == battle.creator_id if tg_id else True
+        my_score = battle.creator_score if i_am_creator else battle.opponent_score
+        opp_score = battle.opponent_score if i_am_creator else battle.creator_score
+        my_correct = battle.creator_correct if i_am_creator else battle.opponent_correct
+        my_wrong = battle.creator_wrong if i_am_creator else battle.opponent_wrong
+
+        if battle.winner_id is None:
+            outcome = "draw"
+            winner_label = "Durang"
+        elif tg_id and battle.winner_id == tg_id:
+            outcome = "win"
+            winner_label = "Siz g'alaba qozondingiz!"
+        elif battle.is_bot and battle.winner_id == 0:
+            outcome = "loss"
+            winner_label = "PHAROS Bot g'olib"
+        elif tg_id and battle.winner_id != tg_id:
+            outcome = "loss"
+            winner_label = "Raqib g'olib"
+        else:
+            outcome = "finished"
+            winner_label = "Jang yakunlandi"
+
+        if battle.is_bot:
+            opponent = {
+                "full_name": "PHAROS Bot",
+                "region": "Tizim",
+                "rating": 1200,
+                "is_bot": True,
+                "is_online": True,
+            }
+        else:
+            opp_id = battle.opponent_id if i_am_creator else battle.creator_id
+            opponent = await _user_brief(session, opp_id, now)
+
+        gaps = [
+            {
+                "topic": a.topic_name,
+                "questions_total": a.questions_total,
+                "mistakes_count": a.mistakes_count,
+                "mastery_percent": a.mastery_percent,
+                "course_id": a.recommended_course_id,
+                "course_title": a.recommended_course_title,
+                "course_link": a.recommended_course_link or "lessons",
+            }
+            for a in analyses
+        ]
+
+        return {
+            "battle_id": battle.id,
+            "subject": battle.subject,
+            "level": battle.level,
+            "topic": battle.topic,
+            "outcome": outcome,
+            "winner_label": winner_label,
+            "my_score": my_score,
+            "opponent_score": opp_score,
+            "my_correct": my_correct,
+            "my_wrong": my_wrong,
+            "opponent": opponent,
+            "gaps": gaps,
+            "finished_at": battle.finished_at.strftime("%d.%m.%Y %H:%M") if battle.finished_at else "",
+        }
+
+
+@app.post("/api/octagon/send-reaction")
+async def octagon_send_reaction(payload: OctagonReactionSchema):
+    """Jang ichidagi stiker/reaksiya — tarifga qarab cheklanadi."""
+    emoji = (payload.emoji or "").strip()
+    if not emoji:
+        raise HTTPException(status_code=400, detail="Stiker tanlanmagan")
+
+    async with async_session() as session:
+        battle = await session.get(OctagonBattle, payload.battle_id)
+        if not battle:
+            raise HTTPException(status_code=404, detail="Jang topilmadi")
+
+        if payload.telegram_id not in (battle.creator_id, battle.opponent_id or -1):
+            raise HTTPException(status_code=403, detail="Bu jangga tegishli emassiz")
+
+        user = (
+            await session.execute(select(User).where(User.telegram_id == payload.telegram_id))
+        ).scalar_one_or_none()
+        if not user:
+            raise HTTPException(status_code=404, detail="Foydalanuvchi topilmadi")
+
+        profile = await _get_or_create_octagon_profile(session, user)
+        stickers = _stickers_for_tier(profile.subscription_tier or "free")
+
+        if emoji not in stickers["unlocked"]:
+            raise HTTPException(
+                status_code=403,
+                detail="Bu stiker faqat Pro/Premium obunachilar uchun",
+            )
+
+        is_premium = emoji in (OCTAGON_PRO_STICKERS + OCTAGON_PREMIUM_STICKERS)
+        session.add(OctagonBattleReaction(
+            battle_id=battle.id,
+            user_id=payload.telegram_id,
+            emoji=emoji,
+            is_premium=is_premium,
+        ))
+        await session.commit()
+
+        # Raqibga real-time xabar (agar odam bo'lsa)
+        target_id = battle.opponent_id if payload.telegram_id == battle.creator_id else battle.creator_id
+        if target_id and not battle.is_bot:
+            try:
+                await tg_bot.send_message(
+                    target_id,
+                    f"Oktagon reaksiya: {emoji}",
+                )
+            except Exception:
+                pass
+
+        return {"status": "ok", "emoji": emoji, "is_premium": is_premium}
+
+
+@app.post("/api/octagon/rematch")
+async def octagon_rematch(payload: OctagonRematchSchema):
+    """Yutqazilgan jang uchun revansh: onlayn bo'lsa xabar, aks holda ulashish havolasi."""
+    now = datetime.utcnow()
+
+    async with async_session() as session:
+        battle = await session.get(OctagonBattle, payload.battle_id)
+        if not battle or battle.status != "finished":
+            raise HTTPException(status_code=404, detail="Jang topilmadi")
+
+        if payload.telegram_id not in (battle.creator_id, battle.opponent_id or -1):
+            raise HTTPException(status_code=403, detail="Bu jangga tegishli emassiz")
+
+        if battle.is_bot:
+            raise HTTPException(status_code=400, detail="Bot bilan revansh uchun yangi bot jangini boshlang")
+
+        opp_id = battle.opponent_id if payload.telegram_id == battle.creator_id else battle.creator_id
+        if not opp_id:
+            raise HTTPException(status_code=400, detail="Raqib topilmadi")
+
+        user = (
+            await session.execute(select(User).where(User.telegram_id == payload.telegram_id))
+        ).scalar_one_or_none()
+        if not user:
+            raise HTTPException(status_code=404, detail="Foydalanuvchi topilmadi")
+
+        await _get_or_create_octagon_profile(session, user)
+        opp_brief = await _user_brief(session, opp_id, now)
+
+        room_code = _generate_room_code()
+        invite = OctagonBattle(
+            room_code=room_code,
+            creator_id=payload.telegram_id,
+            opponent_id=opp_id,
+            is_bot=False,
+            subject=battle.subject,
+            level=battle.level,
+            topic=battle.topic,
+            status="waiting",
+            expires_at=now + timedelta(seconds=OCTAGON_INVITE_TTL_SECONDS),
+        )
+        session.add(invite)
+        await session.commit()
+        await session.refresh(invite)
+
+        bot_username = await _resolve_bot_username()
+        invite_link = f"https://t.me/{bot_username}?start=oct_{room_code}"
+        notified = False
+
+        if opp_brief.get("is_online") and opp_brief.get("is_member"):
+            try:
+                await tg_bot.send_message(
+                    opp_id,
+                    f"🔁 <b>Revansh chaqiruvi!</b>\n"
+                    f"{user.full_name or 'Raqib'} qayta bellashuvga chaqiryapti.\n"
+                    f"Fan: <b>{battle.subject}</b> · Daraja: <b>{battle.level}</b>\n"
+                    f"Havola (60 soniya): {invite_link}",
+                    parse_mode="HTML",
+                )
+                notified = True
+            except Exception:
+                notified = False
+
+            session.add(Notification(
+                user_id=opp_id,
+                source="oktagon",
+                title="Oktagon: Revansh!",
+                message=f"{user.full_name or 'Raqib'} sizni qayta jangga chaqirdi.",
+                target_tab="octagon",
+                is_read=False,
+            ))
+            await session.commit()
+
+        return {
+            "status": "ok",
+            "battle_id": invite.id,
+            "room_code": room_code,
+            "invite_link": invite_link,
+            "expires_in": OCTAGON_INVITE_TTL_SECONDS,
+            "opponent_online": bool(opp_brief.get("is_online")),
+            "notified": notified,
+            "opponent": opp_brief,
+        }
+
+
+# ==========================================================
+# FAN TIZIMI VA O'QUV PANELI (SUBJECT DASHBOARD)
+# ==========================================================
+SUBJECT_RANK_THRESHOLDS = (
+    (90, "Grossmeyster"),
+    (70, "Ustoz"),
+    (40, "Bilimdon"),
+    (0, "Shogird"),
+)
+
+
+def _subject_rank_from_progress(actual: int) -> str:
+    for threshold, label in SUBJECT_RANK_THRESHOLDS:
+        if actual >= threshold:
+            return label
+    return "Shogird"
+
+
+def _pace_status(actual: int, expected: int) -> str:
+    """ahead | on_track | slightly_behind | behind"""
+    diff = actual - expected
+    if diff >= 5:
+        return "ahead"
+    if diff >= -5:
+        return "on_track"
+    if diff >= -15:
+        return "slightly_behind"
+    return "behind"
+
+
+def _pace_color(status: str) -> str:
+    return {
+        "ahead": "#10B981",
+        "on_track": "#10B981",
+        "slightly_behind": "#F59E0B",
+        "behind": "#EF4444",
+    }.get(status, "#10B981")
+
+
+async def _ensure_subject_seed(session) -> SubjectCatalog:
+    """Demo fan + bog'liq ma'lumotlarni bir marta seed qiladi."""
+    existing = (
+        await session.execute(select(SubjectCatalog).where(SubjectCatalog.code == "tarix"))
+    ).scalar_one_or_none()
+    if existing:
+        return existing
+
+    subject = SubjectCatalog(
+        code="tarix",
+        title="O'zbekiston tarixi",
+        description="Tematik-taqvimiy dastur, wiki, battle va diagnostika bilan to'liq fan paneli.",
+        image_url="https://images.unsplash.com/photo-1461360370896-922624d12aa1?w=600",
+        is_active=True,
+    )
+    session.add(subject)
+    await session.flush()
+
+    modules = [
+        SubjectModule(
+            subject_id=subject.id, title="6-sinf O'zbekiston tarixi",
+            description="Qadimgi davrdan ilk o'rta asrlargacha", grade_level="6-sinf",
+            order_num=1, price_coin=80, old_price_coin=120, is_standalone=True,
+            image_url="https://images.unsplash.com/photo-1507842217343-583bb7270b66?w=400",
+        ),
+        SubjectModule(
+            subject_id=subject.id, title="7-sinf O'zbekiston tarixi",
+            description="Amir Temur va Temuriylar davri", grade_level="7-sinf",
+            order_num=2, price_coin=90, old_price_coin=140, is_standalone=True,
+            image_url="https://images.unsplash.com/photo-1481627834876-b7833e8f5570?w=400",
+        ),
+        SubjectModule(
+            subject_id=subject.id, title="Milliy sertifikat: Tarix",
+            description="MS uchun to'liq modul", grade_level="MS",
+            order_num=3, price_coin=150, old_price_coin=220, is_standalone=True,
+            image_url="https://images.unsplash.com/photo-1456513080080-7e9c7c9f6e0a?w=400",
+        ),
+    ]
+    session.add_all(modules)
+    await session.flush()
+
+    wiki_rows = [
+        SubjectWiki(
+            subject_id=subject.id, term="Amir Temur", concept_type="shaxs",
+            definition="Sohibqiron Amir Temur (1336–1405) — Movarounnahr hukmdori, Temuriylar saltanati asoschisi.",
+            source_book="7-sinf O'zbekiston tarixi", grade_level="7-sinf",
+            topic_title="Amir Temur davlati",
+        ),
+        SubjectWiki(
+            subject_id=subject.id, term="1370-yil", concept_type="sana",
+            definition="Amir Temur Movarounnahrning yagona hukmdori deb e'lon qilingan yil.",
+            source_book="7-sinf O'zbekiston tarixi", grade_level="7-sinf",
+            topic_title="Davlatning shakllanishi",
+        ),
+        SubjectWiki(
+            subject_id=subject.id, term="Tuzukot", concept_type="qoida",
+            definition="Amir Temur davlat boshqaruvi qoidalari to'plami — Tuzukot (Temur tuzuklari).",
+            source_book="Ma'lumotnoma: Temuriylar", grade_level="7-sinf",
+            topic_title="Davlat boshqaruvi",
+        ),
+        SubjectWiki(
+            subject_id=subject.id, term="Movarounnahr", concept_type="atama",
+            definition="Amudaryo va Sirdaryo oralig'idagi tarixiy geografik mintaqa.",
+            source_book="6-sinf O'zbekiston tarixi", grade_level="6-sinf",
+            topic_title="Geografik tushunchalar",
+        ),
+        SubjectWiki(
+            subject_id=subject.id, term="Markazlashgan davlat", concept_type="nazariya",
+            definition="Yagona hukmronlik ostida birlashtirilgan, markaziy boshqaruvga ega davlat shakli.",
+            source_book="Tarix nazariyasi qo'llanmasi", grade_level="MS",
+            topic_title="Davlatshunoslik",
+        ),
+    ]
+    session.add_all(wiki_rows)
+
+    schedule_rows = [
+        SubjectSchedule(
+            subject_id=subject.id, module_id=modules[1].id, order_num=1,
+            topic_title="Amir Temurning kelib chiqishi",
+            planned_date=date.today() - timedelta(days=21),
+            video_url="https://www.w3schools.com/html/mov_bbb.mp4", test_score_avg=78.0,
+        ),
+        SubjectSchedule(
+            subject_id=subject.id, module_id=modules[1].id, order_num=2,
+            topic_title="1370-yil: yagona hukmdorlik",
+            planned_date=date.today() - timedelta(days=14),
+            video_url="https://www.w3schools.com/html/mov_bbb.mp4", test_score_avg=65.0,
+        ),
+        SubjectSchedule(
+            subject_id=subject.id, module_id=modules[1].id, order_num=3,
+            topic_title="Loy jangi (1365)",
+            planned_date=date.today() - timedelta(days=7),
+            video_url="https://www.w3schools.com/html/mov_bbb.mp4", test_score_avg=None,
+        ),
+        SubjectSchedule(
+            subject_id=subject.id, module_id=modules[1].id, order_num=4,
+            topic_title="Temur tuzuklari",
+            planned_date=date.today() + timedelta(days=3),
+            video_url="https://www.w3schools.com/html/mov_bbb.mp4", test_score_avg=None,
+        ),
+        SubjectSchedule(
+            subject_id=subject.id, module_id=modules[1].id, order_num=5,
+            topic_title="Temuriylar me'morchiligi",
+            planned_date=date.today() + timedelta(days=10),
+            video_url="https://www.w3schools.com/html/mov_bbb.mp4", test_score_avg=None,
+        ),
+    ]
+    session.add_all(schedule_rows)
+
+    session.add_all([
+        SubjectBook(
+            subject_id=subject.id, module_id=modules[1].id,
+            title="7-sinf O'zbekiston tarixi (elektron)",
+            book_type="darslik",
+            cover_url="https://images.unsplash.com/photo-1544947950-fa07a98d237f?w=300",
+            viewer_url="https://www.w3schools.com/html/mov_bbb.mp4",
+            is_downloadable=False,
+        ),
+        SubjectBook(
+            subject_id=subject.id, module_id=modules[1].id,
+            title="Temuriylar ma'lumotnomasi",
+            book_type="malumotnoma",
+            cover_url="https://images.unsplash.com/photo-1512820790803-83ca734da794?w=300",
+            viewer_url="https://www.w3schools.com/html/mov_bbb.mp4",
+            is_downloadable=False,
+        ),
+        SubjectBook(
+            subject_id=subject.id,
+            title="Tarix savolnomasi (MS)",
+            book_type="savolnoma",
+            cover_url="https://images.unsplash.com/photo-1497633762265-9d179a990aa6?w=300",
+            viewer_url="https://www.w3schools.com/html/mov_bbb.mp4",
+            is_downloadable=False,
+        ),
+    ])
+
+    session.add_all([
+        SubjectQuizLink(
+            subject_id=subject.id, module_id=modules[1].id,
+            title="Bob 1: Amir Temur davlati", scope="bob", quiz_id=1,
+            is_paid=False, price_coin=0,
+        ),
+        SubjectQuizLink(
+            subject_id=subject.id, module_id=modules[1].id,
+            title="7-sinf yakuniy test", scope="modul", quiz_id=2,
+            is_paid=True, price_coin=25,
+        ),
+        SubjectQuizLink(
+            subject_id=subject.id, title="Fan bo'yicha umumiy test",
+            scope="fan", quiz_id=3, is_paid=True, price_coin=40,
+        ),
+    ])
+
+    session.add(SubjectDiagnosticReport(
+        user_id=12345678, subject_id=subject.id, quiz_id=1,
+        quiz_title="Bob 1: Amir Temur davlati",
+        video_review_url="https://www.w3schools.com/html/mov_bbb.mp4",
+        analysis_text="Umumiy natija o'rtacha. Asosiy tushunchalar o'zlashtirilgan, ammo sanalar va janglar xronologiyasida bo'shliqlar bor.",
+        strengths_text="• Amir Temur shaxsiyati va davlat tuzumi yaxshi bilingan.\n• Tuzukot tushunchasi aniq javoblangan.",
+        weaknesses_text="• 1365-yil Loy jangi sanasi chalkashtirilgan.\n• Poytaxt shaharlari ketma-ketligi zaif.",
+        sources_json=json.dumps([
+            {"title": "7-sinf O'zbekiston tarixi, Bob 2", "url": "https://edu.uz"},
+            {"title": "Temur tuzuklari (tarjima)", "url": "https://ziyouz.com"},
+        ], ensure_ascii=False),
+    ))
+
+    await session.commit()
+    return subject
+
+
+async def _get_or_create_enrollment(session, telegram_id: int, subject: SubjectCatalog) -> UserSubjectEnrollment:
+    row = (
+        await session.execute(
+            select(UserSubjectEnrollment).where(
+                UserSubjectEnrollment.user_id == telegram_id,
+                UserSubjectEnrollment.subject_id == subject.id,
+            )
+        )
+    ).scalar_one_or_none()
+    if row:
+        return row
+
+    enrollment = UserSubjectEnrollment(
+        user_id=telegram_id,
+        subject_id=subject.id,
+        status="active",
+        rank_label="Bilimdon",
+        actual_progress=45,
+        expected_progress=65,
+        current_schedule_id=None,
+    )
+    session.add(enrollment)
+    await session.flush()
+    return enrollment
+
+
+@app.get("/api/subject-dashboard/my-subjects")
+async def subject_dashboard_my_subjects(telegram_id: int = 12345678):
+    """O'quvchining faol/yakunlangan fanlari, status va reja liniyasi."""
+    async with async_session() as session:
+        subject = await _ensure_subject_seed(session)
+        enrollment = await _get_or_create_enrollment(session, telegram_id, subject)
+
+        # Kabinetdan qo'shimcha kurslarni ham fan sifatida ko'rsatish
+        cab_items = (
+            await session.execute(
+                select(UserCabinetItem).where(
+                    UserCabinetItem.telegram_id == telegram_id,
+                    UserCabinetItem.status.in_(["active", "archive"]),
+                )
+            )
+        ).scalars().all()
+
+        subjects_out = []
+        pace = _pace_status(enrollment.actual_progress, enrollment.expected_progress)
+        subjects_out.append({
+            "subject_id": subject.id,
+            "code": subject.code,
+            "title": subject.title,
+            "image_url": subject.image_url,
+            "enrollment_status": enrollment.status,
+            "rank_label": enrollment.rank_label or _subject_rank_from_progress(enrollment.actual_progress),
+            "actual_progress": enrollment.actual_progress,
+            "expected_progress": enrollment.expected_progress,
+            "pace_status": pace,
+            "pace_color": _pace_color(pace),
+            "is_primary": True,
+        })
+
+        for item in cab_items:
+            # Takrorlanmasligi uchun faqat boshqa nomlarni qo'shamiz
+            if item.title and subject.title.lower() in (item.title or "").lower():
+                continue
+            item_pace = _pace_status(item.actual_progress or 0, item.expected_progress or 0)
+            subjects_out.append({
+                "subject_id": subject.id,
+                "cabinet_item_id": item.id,
+                "code": subject.code,
+                "title": item.title,
+                "image_url": item.image_url or subject.image_url,
+                "enrollment_status": "completed" if item.status == "archive" else "active",
+                "rank_label": item.user_rank or "Shogird",
+                "actual_progress": item.actual_progress or 0,
+                "expected_progress": item.expected_progress or 0,
+                "pace_status": item_pace,
+                "pace_color": _pace_color(item_pace),
+                "is_primary": False,
+            })
+
+        await session.commit()
+        return {"subjects": subjects_out, "count": len(subjects_out)}
+
+
+@app.get("/api/subject-dashboard/overview")
+async def subject_dashboard_overview(subject_id: int, telegram_id: int = 12345678):
+    """Tanlangan fan uchun sarlavha, status, progress va navigatsiya meta."""
+    async with async_session() as session:
+        await _ensure_subject_seed(session)
+        subject = (
+            await session.execute(select(SubjectCatalog).where(SubjectCatalog.id == subject_id))
+        ).scalar_one_or_none()
+        if not subject:
+            raise HTTPException(status_code=404, detail="Fan topilmadi")
+
+        enrollment = await _get_or_create_enrollment(session, telegram_id, subject)
+        pace = _pace_status(enrollment.actual_progress, enrollment.expected_progress)
+        modules_count = (
+            await session.execute(
+                select(func.count()).select_from(SubjectModule).where(
+                    SubjectModule.subject_id == subject_id, SubjectModule.is_active == True
+                )
+            )
+        ).scalar() or 0
+
+        await session.commit()
+        return {
+            "subject_id": subject.id,
+            "code": subject.code,
+            "title": subject.title,
+            "description": subject.description,
+            "image_url": subject.image_url,
+            "rank_label": enrollment.rank_label or _subject_rank_from_progress(enrollment.actual_progress),
+            "actual_progress": enrollment.actual_progress,
+            "expected_progress": enrollment.expected_progress,
+            "pace_status": pace,
+            "pace_color": _pace_color(pace),
+            "enrollment_status": enrollment.status,
+            "modules_count": modules_count,
+            "current_schedule_id": enrollment.current_schedule_id,
+        }
+
+
+@app.get("/api/subject-dashboard/wiki")
+async def subject_dashboard_wiki(
+    subject_id: int,
+    q: Optional[str] = None,
+    concept_type: Optional[str] = None,
+):
+    """Tushuncha qidiruvi va concept_type filtri."""
+    async with async_session() as session:
+        await _ensure_subject_seed(session)
+        query = select(SubjectWiki).where(SubjectWiki.subject_id == subject_id)
+        if concept_type and concept_type.strip() and concept_type != "all":
+            query = query.where(SubjectWiki.concept_type == concept_type.strip().lower())
+        if q and q.strip():
+            like = f"%{q.strip()}%"
+            query = query.where(
+                or_(
+                    SubjectWiki.term.ilike(like),
+                    SubjectWiki.definition.ilike(like),
+                    SubjectWiki.topic_title.ilike(like),
+                    SubjectWiki.source_book.ilike(like),
+                )
+            )
+        query = query.order_by(SubjectWiki.term.asc())
+        rows = (await session.execute(query)).scalars().all()
+        return {
+            "items": [
+                {
+                    "id": r.id,
+                    "term": r.term,
+                    "definition": r.definition,
+                    "source_book": r.source_book,
+                    "grade_level": r.grade_level,
+                    "topic_title": r.topic_title,
+                    "concept_type": r.concept_type,
+                }
+                for r in rows
+            ],
+            "concept_types": ["atama", "shaxs", "sana", "qoida", "nazariya"],
+        }
+
+
+@app.get("/api/subject-dashboard/schedule")
+async def subject_dashboard_schedule(subject_id: int, telegram_id: int = 12345678):
+    """Dars jadvali va o'quvchining joriy nuqtasi."""
+    async with async_session() as session:
+        await _ensure_subject_seed(session)
+        subject = (
+            await session.execute(select(SubjectCatalog).where(SubjectCatalog.id == subject_id))
+        ).scalar_one_or_none()
+        if not subject:
+            raise HTTPException(status_code=404, detail="Fan topilmadi")
+        enrollment = await _get_or_create_enrollment(session, telegram_id, subject)
+
+        rows = (
+            await session.execute(
+                select(SubjectSchedule)
+                .where(SubjectSchedule.subject_id == subject_id)
+                .order_by(SubjectSchedule.order_num.asc())
+            )
+        ).scalars().all()
+
+        total = len(rows) or 1
+        current_idx = max(0, min(total - 1, int(round(enrollment.actual_progress / 100 * (total - 1)))))
+        if enrollment.current_schedule_id is None and rows:
+            enrollment.current_schedule_id = rows[current_idx].id
+            await session.commit()
+
+        items = []
+        for i, r in enumerate(rows):
+            is_current = (enrollment.current_schedule_id == r.id) or (i == current_idx)
+            is_done = i < current_idx
+            items.append({
+                "id": r.id,
+                "module_id": r.module_id,
+                "order_num": r.order_num,
+                "topic_title": r.topic_title,
+                "planned_date": r.planned_date.isoformat() if r.planned_date else None,
+                "video_url": r.video_url,
+                "test_score_avg": r.test_score_avg,
+                "is_current": is_current,
+                "is_done": is_done,
+                "status": "current" if is_current else ("done" if is_done else "upcoming"),
+            })
+
+        return {
+            "items": items,
+            "current_schedule_id": enrollment.current_schedule_id,
+            "actual_progress": enrollment.actual_progress,
+            "expected_progress": enrollment.expected_progress,
+            "pace_status": _pace_status(enrollment.actual_progress, enrollment.expected_progress),
+        }
+
+
+@app.get("/api/subject-dashboard/mistakes")
+async def subject_dashboard_mistakes(subject_id: int, telegram_id: int = 12345678):
+    """Xatolar banki (faqat is_resolved=False)."""
+    async with async_session() as session:
+        await _ensure_subject_seed(session)
+        rows = (
+            await session.execute(
+                select(SubjectMistakeBank).where(
+                    SubjectMistakeBank.subject_id == subject_id,
+                    SubjectMistakeBank.user_id == telegram_id,
+                    SubjectMistakeBank.is_resolved == False,
+                ).order_by(SubjectMistakeBank.created_at.desc())
+            )
+        ).scalars().all()
+
+        # Demo seed — bo'sh bo'lsa
+        if not rows:
+            demo = [
+                SubjectMistakeBank(
+                    user_id=telegram_id, subject_id=subject_id, question_id=101,
+                    question_text="Amir Temur nechanchi yilda tavallud topgan?",
+                    options_json=json.dumps(["1336-yil", "1342-yil", "1350-yil", "1370-yil"]),
+                    correct_answer="1336-yil", user_wrong_answer="1342-yil",
+                    explanation="Amir Temur 1336-yilda Kesh (Shahrisabz) yaqinida tug'ilgan.",
+                    mistake_count=2,
+                ),
+                SubjectMistakeBank(
+                    user_id=telegram_id, subject_id=subject_id, question_id=102,
+                    question_text="Loy jangi qaysi yilda bo'lib o'tgan?",
+                    options_json=json.dumps(["1365-yil", "1368-yil", "1372-yil", "1390-yil"]),
+                    correct_answer="1365-yil", user_wrong_answer="1368-yil",
+                    explanation="Loy jangi 1365-yilda bo'lib o'tgan.",
+                    mistake_count=1,
+                ),
+                SubjectMistakeBank(
+                    user_id=telegram_id, subject_id=subject_id, question_id=103,
+                    question_text="Amir Temur davlatining dastlabki poytaxti?",
+                    options_json=json.dumps(["Buxoro", "Hirot", "Kesh (Shahrisabz)", "Samarqand"]),
+                    correct_answer="Kesh (Shahrisabz)", user_wrong_answer="Samarqand",
+                    explanation="Dastlabki poytaxt Kesh (Shahrisabz) bo'lgan.",
+                    mistake_count=3,
+                ),
+            ]
+            session.add_all(demo)
+            await session.commit()
+            rows = (
+                await session.execute(
+                    select(SubjectMistakeBank).where(
+                        SubjectMistakeBank.subject_id == subject_id,
+                        SubjectMistakeBank.user_id == telegram_id,
+                        SubjectMistakeBank.is_resolved == False,
+                    ).order_by(SubjectMistakeBank.created_at.desc())
+                )
+            ).scalars().all()
+
+        items = []
+        for r in rows:
+            opts = []
+            try:
+                opts = json.loads(r.options_json) if r.options_json else []
+            except Exception:
+                opts = []
+            items.append({
+                "id": r.id,
+                "question_id": r.question_id,
+                "question_text": r.question_text,
+                "options": opts,
+                "correct_answer": r.correct_answer,
+                "user_wrong_answer": r.user_wrong_answer,
+                "explanation": r.explanation,
+                "mistake_count": r.mistake_count,
+                "created_at": r.created_at.isoformat() if r.created_at else None,
+            })
+        return {"items": items, "count": len(items)}
+
+
+@app.post("/api/subject-dashboard/resolve-mistake")
+async def subject_dashboard_resolve_mistake(payload: SubjectResolveMistakeSchema):
+    """To'g'ri yechilgan savolni xatolar bankidan chiqarish (is_resolved=True)."""
+    async with async_session() as session:
+        row = (
+            await session.execute(
+                select(SubjectMistakeBank).where(
+                    SubjectMistakeBank.id == payload.mistake_id,
+                    SubjectMistakeBank.user_id == payload.telegram_id,
+                )
+            )
+        ).scalar_one_or_none()
+        if not row:
+            raise HTTPException(status_code=404, detail="Xato topilmadi")
+
+        if payload.is_correct:
+            row.is_resolved = True
+            await session.commit()
+            return {"status": "resolved", "mistake_id": row.id, "is_resolved": True}
+
+        row.mistake_count = (row.mistake_count or 0) + 1
+        await session.commit()
+        return {"status": "kept", "mistake_id": row.id, "mistake_count": row.mistake_count, "is_resolved": False}
+
+
+@app.get("/api/subject-dashboard/community")
+async def subject_dashboard_community(
+    subject_id: int,
+    hashtag: Optional[str] = None,
+    limit: int = 50,
+):
+    """Hashtaglar bo'yicha jamoa xabarlari."""
+    async with async_session() as session:
+        await _ensure_subject_seed(session)
+        query = select(SubjectCommunityPost).where(SubjectCommunityPost.subject_id == subject_id)
+        if hashtag and hashtag.strip() and hashtag != "all":
+            tag = hashtag.strip()
+            if not tag.startswith("#"):
+                tag = f"#{tag}"
+            query = query.where(SubjectCommunityPost.hashtags.ilike(f"%{tag}%"))
+        query = query.order_by(SubjectCommunityPost.created_at.desc()).limit(min(limit, 100))
+        rows = (await session.execute(query)).scalars().all()
+
+        if not rows and (not hashtag or hashtag in (None, "", "all")):
+            demo = [
+                SubjectCommunityPost(
+                    subject_id=subject_id, user_id=111, user_name="Dilshod",
+                    hashtags="#savol", content="Amir Temur va Chingizxon o'rtasidagi eng muhim farq nima? #savol",
+                ),
+                SubjectCommunityPost(
+                    subject_id=subject_id, user_id=222, user_name="Madina",
+                    hashtags="#manba", content="Temur tuzuklarining ishonchli tarjimasi qayerda? #manba",
+                ),
+                SubjectCommunityPost(
+                    subject_id=subject_id, user_id=333, user_name="Jasur",
+                    hashtags="#tushunmadim", content="Loy jangi sabablari chalkash — #tushunmadim",
+                ),
+            ]
+            session.add_all(demo)
+            await session.commit()
+            rows = demo
+
+        return {
+            "items": [
+                {
+                    "id": r.id,
+                    "user_id": r.user_id,
+                    "user_name": r.user_name or "O'quvchi",
+                    "hashtags": r.hashtags or "",
+                    "content": r.content,
+                    "created_at": r.created_at.isoformat() if r.created_at else None,
+                }
+                for r in rows
+            ],
+            "filters": ["#savol", "#manba", "#tushunmadim", "#javob"],
+        }
+
+
+@app.post("/api/subject-dashboard/ask-question")
+async def subject_dashboard_ask_question(payload: SubjectAskSchema):
+    """Hamjamiyatga yangi savol / post qoldirish."""
+    content = (payload.content or "").strip()
+    if not content:
+        raise HTTPException(status_code=400, detail="Xabar matni bo'sh")
+
+    hashtags = (payload.hashtags or "#savol").strip()
+    # Matndan hashtag ajratib olish
+    for token in content.split():
+        if token.startswith("#") and token.lower() not in hashtags.lower():
+            hashtags = f"{hashtags} {token}".strip()
+
+    async with async_session() as session:
+        await _ensure_subject_seed(session)
+        user = (
+            await session.execute(select(User).where(User.telegram_id == payload.telegram_id))
+        ).scalar_one_or_none()
+        name = payload.user_name or (user.full_name if user else None) or "O'quvchi"
+
+        post = SubjectCommunityPost(
+            subject_id=payload.subject_id,
+            user_id=payload.telegram_id,
+            user_name=name,
+            hashtags=hashtags,
+            content=content,
+        )
+        session.add(post)
+        await session.commit()
+        await session.refresh(post)
+        return {
+            "status": "ok",
+            "post": {
+                "id": post.id,
+                "user_id": post.user_id,
+                "user_name": post.user_name,
+                "hashtags": post.hashtags,
+                "content": post.content,
+                "created_at": post.created_at.isoformat() if post.created_at else None,
+            },
+        }
+
+
+@app.get("/api/subject-dashboard/diagnostics/{quiz_id}")
+async def subject_dashboard_diagnostics(quiz_id: int, subject_id: Optional[int] = None, telegram_id: int = 12345678):
+    """Test videosharhi, manbalar va matnli tahlil."""
+    async with async_session() as session:
+        await _ensure_subject_seed(session)
+        query = select(SubjectDiagnosticReport).where(
+            SubjectDiagnosticReport.quiz_id == quiz_id,
+        )
+        if subject_id:
+            query = query.where(SubjectDiagnosticReport.subject_id == subject_id)
+        # Avval foydalanuvchining o'z hisoboti, keyin umumiy seed
+        user_row = (
+            await session.execute(query.where(SubjectDiagnosticReport.user_id == telegram_id))
+        ).scalar_one_or_none()
+        row = user_row or (await session.execute(query)).scalars().first()
+
+        if not row:
+            return {
+                "quiz_id": quiz_id,
+                "quiz_title": f"Test #{quiz_id}",
+                "video_review_url": None,
+                "analysis_text": "Ushbu test uchun diagnostika hali tayyor emas.",
+                "strengths_text": "",
+                "weaknesses_text": "",
+                "sources": [],
+            }
+
+        sources = []
+        try:
+            sources = json.loads(row.sources_json) if row.sources_json else []
+        except Exception:
+            sources = []
+
+        return {
+            "id": row.id,
+            "quiz_id": row.quiz_id,
+            "quiz_title": row.quiz_title,
+            "subject_id": row.subject_id,
+            "video_review_url": row.video_review_url,
+            "analysis_text": row.analysis_text,
+            "strengths_text": row.strengths_text,
+            "weaknesses_text": row.weaknesses_text,
+            "sources": sources,
+            "created_at": row.created_at.isoformat() if row.created_at else None,
+        }
+
+
+@app.get("/api/subject-dashboard/modules")
+async def subject_dashboard_modules(subject_id: int, telegram_id: int = 12345678):
+    """Alohida sotib olinadigan modullar."""
+    async with async_session() as session:
+        await _ensure_subject_seed(session)
+        rows = (
+            await session.execute(
+                select(SubjectModule).where(
+                    SubjectModule.subject_id == subject_id,
+                    SubjectModule.is_active == True,
+                ).order_by(SubjectModule.order_num.asc())
+            )
+        ).scalars().all()
+
+        cab = (
+            await session.execute(
+                select(UserCabinetItem.product_id).where(
+                    UserCabinetItem.telegram_id == telegram_id,
+                    UserCabinetItem.status == "active",
+                )
+            )
+        ).scalars().all()
+        owned_product_ids = set(cab or [])
+
+        return {
+            "items": [
+                {
+                    "id": m.id,
+                    "title": m.title,
+                    "description": m.description,
+                    "grade_level": m.grade_level,
+                    "price_coin": m.price_coin,
+                    "old_price_coin": m.old_price_coin,
+                    "image_url": m.image_url,
+                    "is_standalone": m.is_standalone,
+                    "product_id": m.product_id,
+                    "owned": bool(m.product_id and m.product_id in owned_product_ids),
+                }
+                for m in rows
+            ]
+        }
+
+
+@app.get("/api/subject-dashboard/books")
+async def subject_dashboard_books(subject_id: int):
+    """In-app kitoblar (download bloklangan)."""
+    async with async_session() as session:
+        await _ensure_subject_seed(session)
+        rows = (
+            await session.execute(
+                select(SubjectBook).where(
+                    SubjectBook.subject_id == subject_id,
+                    SubjectBook.is_active == True,
+                )
+            )
+        ).scalars().all()
+        return {
+            "items": [
+                {
+                    "id": b.id,
+                    "title": b.title,
+                    "book_type": b.book_type,
+                    "cover_url": b.cover_url,
+                    "viewer_url": b.viewer_url,
+                    "is_downloadable": False,  # Har doim bloklangan
+                    "module_id": b.module_id,
+                }
+                for b in rows
+            ]
+        }
+
+
+@app.get("/api/subject-dashboard/quizzes")
+async def subject_dashboard_quizzes(subject_id: int, paid: Optional[str] = None):
+    """Bob/kitob/fan testlari — Testlar bo'limiga yo'naltiradi."""
+    async with async_session() as session:
+        await _ensure_subject_seed(session)
+        query = select(SubjectQuizLink).where(
+            SubjectQuizLink.subject_id == subject_id,
+            SubjectQuizLink.is_active == True,
+        )
+        if paid == "1" or paid == "true":
+            query = query.where(SubjectQuizLink.is_paid == True)
+        elif paid == "0" or paid == "false":
+            query = query.where(SubjectQuizLink.is_paid == False)
+        rows = (await session.execute(query)).scalars().all()
+        return {
+            "items": [
+                {
+                    "id": q.id,
+                    "title": q.title,
+                    "scope": q.scope,
+                    "quiz_id": q.quiz_id,
+                    "is_paid": q.is_paid,
+                    "price_coin": q.price_coin,
+                    "target_tab": "tests",
+                }
+                for q in rows
+            ]
+        }
+
+
+@app.get("/api/subject-dashboard/battle-modules")
+async def subject_dashboard_battle_modules(subject_id: int):
+    """Battle uchun fan ichidagi modul/mavzu doirasi."""
+    async with async_session() as session:
+        await _ensure_subject_seed(session)
+        modules = (
+            await session.execute(
+                select(SubjectModule).where(
+                    SubjectModule.subject_id == subject_id,
+                    SubjectModule.is_active == True,
+                ).order_by(SubjectModule.order_num.asc())
+            )
+        ).scalars().all()
+        return {
+            "subject_id": subject_id,
+            "modules": [
+                {"id": m.id, "title": m.title, "grade_level": m.grade_level}
+                for m in modules
+            ],
+            "game_types": [
+                {"id": "octagon", "title": "Oktagon duel", "available": True},
+                {"id": "quiz_race", "title": "Tezkor viktorina", "available": False},
+                {"id": "memory_match", "title": "Xotira o'yini", "available": False},
+            ],
+        }
+
+
+@app.post("/api/subject-dashboard/battle-challenge")
+async def subject_dashboard_battle_challenge(payload: SubjectBattleChallengeSchema):
+    """Chaqiriqni fan Community guruhiga (duel ssilkasi) yo'llash."""
+    subject_id = payload.subject_id
+    level = _normalize_level(payload.level)
+    topic = (payload.topic or "").strip() or None
+
+    async with async_session() as session:
+        subject = (
+            await session.execute(select(SubjectCatalog).where(SubjectCatalog.id == subject_id))
+        ).scalar_one_or_none()
+        if not subject:
+            subject = await _ensure_subject_seed(session)
+
+        if payload.module_id and not topic:
+            mod = (
+                await session.execute(
+                    select(SubjectModule).where(SubjectModule.id == payload.module_id)
+                )
+            ).scalar_one_or_none()
+            if mod:
+                topic = mod.title
+
+        user = (
+            await session.execute(select(User).where(User.telegram_id == payload.telegram_id))
+        ).scalar_one_or_none()
+        if not user:
+            # Dev fallback
+            pass
+
+        now = datetime.utcnow()
+        room_code = _generate_room_code()
+        battle = OctagonBattle(
+            room_code=room_code,
+            creator_id=payload.telegram_id,
+            subject=subject.code or "tarix",
+            level=level,
+            topic=topic,
+            status="waiting",
+            expires_at=now + timedelta(seconds=OCTAGON_INVITE_TTL_SECONDS),
+        )
+        session.add(battle)
+        await session.commit()
+
+        bot_username = await _resolve_bot_username()
+        invite_link = f"https://t.me/{bot_username}?start=oct_{room_code}"
+
+        community_sent = False
+        if subject.community_chat_id:
+            try:
+                text = (
+                    f"⚔️ <b>{subject.title}</b> Community chaqirig'i!\n"
+                    f"Mavzu: {topic or 'Umumiy'}\n"
+                    f"Daraja: {level}\n"
+                    f"Havola: {invite_link}"
+                )
+                await tg_bot.send_message(subject.community_chat_id, text, parse_mode="HTML")
+                community_sent = True
+            except Exception as e:
+                print(f"Community challenge yuborish xatosi: {e}")
+
+        return {
+            "status": "ok",
+            "room_code": room_code,
+            "invite_link": invite_link,
+            "subject": subject.title,
+            "topic": topic,
+            "level": level,
+            "community_sent": community_sent,
+            "expires_in": OCTAGON_INVITE_TTL_SECONDS,
+            "share_text": f"PHAROS {subject.title} duel: {invite_link}",
+        }
+
+
+# ==========================================================
+# TESTLAR BO'LIMI API
+# ==========================================================
+EXAM_SUBJECTS = {
+    "tarix": "Tarix",
+    "huquq": "Huquqshunoslik",
+    "psixologiya": "Psixologiya",
+    "ona_tili": "Ona tili",
+}
+EXAM_TYPES = {
+    "milliy_sertifikat": "Milliy sertifikat",
+    "namunaviy": "Namunaviy testlar",
+    "imtihon": "Imtihon",
+    "bmba_asosiy": "BMBA (Asosiy blok)",
+    "bmba_majburiy": "BMBA (Majburiy blok)",
+    "akademik_litsey": "Akademik litsey imtihoni",
+    "olimpiada": "Olimpiada",
+    "attestatsiya": "Attestatsiya",
+}
+EXAM_OPTION_KEYS = ("A", "B", "C", "D")
+EXAM_DIFFICULTY_LABELS = {"oson": "Oson", "orta": "O'rta", "qiyin": "Qiyin"}
+
+
+class ExamRateSchema(BaseModel):
+    quiz_id: int
+    telegram_id: int
+    stars: int
+
+
+class ExamSubmitSchema(BaseModel):
+    quiz_id: int
+    telegram_id: int
+    mode: str = "elektron"
+    answers: dict = {}
+    image_base64: Optional[str] = None
+
+
+def _exam_level(percent: float) -> str:
+    if percent >= 86:
+        return "Ustoz"
+    if percent >= 51:
+        return "Bilimdon"
+    return "Boshlang'ich"
+
+
+def _exam_links(raw) -> dict:
+    if not raw:
+        return {}
+    try:
+        data = json.loads(raw) if isinstance(raw, str) else raw
+    except Exception:
+        return {}
+    return data if isinstance(data, dict) else {}
+
+
+def _exam_now() -> datetime:
+    """Exceldagi e'lon va start vaqtlari serverning mahalliy soati bilan solishtiriladi."""
+    return datetime.now()
+
+
+def _quiz_window(quiz: ExamQuiz, now: Optional[datetime] = None) -> str:
+    now = now or _exam_now()
+    if quiz.visible_at and now < quiz.visible_at:
+        return "hidden"
+    if quiz.starts_at and now < quiz.starts_at:
+        return "scheduled"
+    return "open"
+
+
+def _starts_countdown(starts_at: Optional[datetime], now: datetime) -> tuple:
+    if not starts_at or now >= starts_at:
+        return 0, ""
+    seconds = max(0, int((starts_at - now).total_seconds()))
+    days, rem = divmod(seconds, 86400)
+    hours, rem = divmod(rem, 3600)
+    minutes, _secs = divmod(rem, 60)
+    if days > 0:
+        label = f"{days} kun {hours} soat"
+    elif hours > 0:
+        label = f"{hours} soat {minutes} daqiqa"
+    else:
+        label = f"{max(minutes, 1)} daqiqa"
+    return seconds, label
+
+
+def _ensure_quiz_open(quiz: ExamQuiz):
+    window = _quiz_window(quiz)
+    if window == "hidden":
+        raise HTTPException(status_code=404, detail="Test topilmadi")
+    if window == "scheduled":
+        _seconds, label = _starts_countdown(quiz.starts_at, _exam_now())
+        raise HTTPException(status_code=403, detail=f"Test hali ochilmagan. Boshlanishiga: {label} qoldi")
+
+
+def _quiz_base_amount(quiz: ExamQuiz) -> int:
+    base = int(quiz.base_price or 0)
+    if base > 0:
+        return base
+    return int(quiz.price or 0)
+
+
+def _course_tokens(raw: Optional[str]) -> set:
+    tokens = set()
+    for part in str(raw or "").replace(";", ",").split(","):
+        part = part.strip()
+        if part:
+            tokens.add(part)
+    return tokens
+
+
+def _price_for_user(quiz: ExamQuiz, owned: set, shared: bool) -> dict:
+    base = _quiz_base_amount(quiz)
+    if base <= 0:
+        return {"price": 0, "base_price": 0, "discount_percent": 0, "free_reason": None}
+    if _course_tokens(quiz.free_for_courses) & owned:
+        return {"price": 0, "base_price": base, "discount_percent": 100, "free_reason": "course"}
+    percent = max(0, min(100, int(quiz.share_discount_percent or 0)))
+    if shared and percent > 0:
+        price = int(round(base * (100 - percent) / 100.0))
+        return {
+            "price": max(0, price),
+            "base_price": base,
+            "discount_percent": percent,
+            "free_reason": "share",
+        }
+    return {"price": base, "base_price": base, "discount_percent": 0, "free_reason": None}
+
+
+async def _owned_course_ids(session, telegram_id: Optional[int]) -> set:
+    owned = set()
+    if not telegram_id:
+        return owned
+    cabinet_ids = (
+        await session.execute(
+            select(UserCabinetItem.product_id).where(
+                UserCabinetItem.telegram_id == telegram_id,
+                UserCabinetItem.status == "active",
+            )
+        )
+    ).scalars().all()
+    owned.update(str(int(item_id)) for item_id in cabinet_ids if item_id is not None)
+
+    subject_ids = (
+        await session.execute(
+            select(UserSubjectEnrollment.subject_id).where(
+                UserSubjectEnrollment.user_id == telegram_id,
+                UserSubjectEnrollment.status == "active",
+            )
+        )
+    ).scalars().all()
+    owned.update(str(int(item_id)) for item_id in subject_ids if item_id is not None)
+
+    user = (
+        await session.execute(select(User).where(User.telegram_id == telegram_id))
+    ).scalar_one_or_none()
+    if not user:
+        return owned
+    access_rows = (
+        await session.execute(
+            select(UserCourseAccess).where(
+                UserCourseAccess.user_id == user.id,
+                UserCourseAccess.is_active == True,
+            )
+        )
+    ).scalars().all()
+    now = _exam_now()
+    for row in access_rows:
+        if row.expires_at and row.expires_at < now:
+            continue
+        if row.product_id is not None:
+            owned.add(str(int(row.product_id)))
+    return owned
+
+
+async def _user_has_shared(session, telegram_id: Optional[int]) -> bool:
+    if not telegram_id:
+        return False
+    user = (
+        await session.execute(select(User).where(User.telegram_id == telegram_id))
+    ).scalar_one_or_none()
+    if user and (user.invited_friends_count or 0) > 0:
+        return True
+    invites = (
+        await session.execute(
+            select(func.count(ReferralEarning.id)).where(ReferralEarning.inviter_id == telegram_id)
+        )
+    ).scalar()
+    return int(invites or 0) > 0
+
+
+def _question_beta(question: ExamQuestion) -> float:
+    try:
+        beta = float(question.difficulty_beta) if question.difficulty_beta is not None else 2.0
+    except (TypeError, ValueError):
+        beta = 2.0
+    if beta <= 0:
+        return 2.0
+    return beta
+
+
+def _rasch_theta(pairs: list) -> float:
+    """Rasch MLE: P(to'g'ri) = 1 / (1 + exp(-(theta - beta)))."""
+    if not pairs:
+        return 2.0
+    scores = [int(score) for score, _beta in pairs]
+    betas = [float(beta) for _score, beta in pairs]
+    if all(score == 1 for score in scores):
+        return round(max(betas) + 0.8, 3)
+    if all(score == 0 for score in scores):
+        return round(min(betas) - 0.8, 3)
+    theta = sum(betas) / len(betas)
+    for _step in range(40):
+        gradient = 0.0
+        hessian = 0.0
+        for score, beta in zip(scores, betas):
+            gap = theta - beta
+            if gap > 20:
+                probability = 1.0 - 1e-9
+            elif gap < -20:
+                probability = 1e-9
+            else:
+                probability = 1.0 / (1.0 + math.exp(-gap))
+            probability = min(max(probability, 1e-9), 1.0 - 1e-9)
+            gradient += score - probability
+            hessian -= probability * (1.0 - probability)
+        if abs(hessian) < 1e-12:
+            break
+        nxt = theta - (gradient / hessian)
+        nxt = max(-1.0, min(5.5, nxt))
+        if abs(nxt - theta) < 1e-5:
+            theta = nxt
+            break
+        theta = nxt
+    return round(theta, 3)
+
+
+def _rasch_grade(theta: float) -> str:
+    if theta >= 2.7:
+        return "A"
+    if theta >= 2.2:
+        return "B+"
+    if theta >= 1.7:
+        return "B"
+    return "C"
+
+
+def _chosen_option(question: ExamQuestion, answers: dict):
+    chosen = answers.get(question.id)
+    if chosen is None:
+        chosen = answers.get(str(question.id))
+    try:
+        return int(chosen) if chosen is not None else None
+    except (TypeError, ValueError):
+        return None
+
+
+def _evaluate_exam(questions: list, answers: dict) -> tuple:
+    score, total, percent = _score_answers(questions, answers)
+    pairs = []
+    for question in questions:
+        chosen = _chosen_option(question, answers)
+        pairs.append((1 if chosen is not None and chosen == question.correct_option else 0, _question_beta(question)))
+    theta = _rasch_theta(pairs)
+    return score, total, percent, theta, _rasch_grade(theta)
+
+
+def _pdf_text(value: str) -> str:
+    text = value or ""
+    for ch in ("‘", "’", "ʻ", "ʼ", "`", "´", "ʹ", "“", "”"):
+        text = text.replace(ch, "'")
+    text = text.replace("\\", "\\\\").replace("(", "\\(").replace(")", "\\)")
+    return text.encode("latin-1", "replace").decode("latin-1")
+
+
+def _wrap_pdf_line(text: str, width: int = 88) -> list:
+    words = (text or "").split()
+    if not words:
+        return [""]
+    lines, current = [], ""
+    for word in words:
+        trial = word if not current else f"{current} {word}"
+        if len(trial) <= width:
+            current = trial
+        else:
+            if current:
+                lines.append(current)
+            current = word
+    if current:
+        lines.append(current)
+    return lines
+
+
+def _build_simple_pdf(title: str, body_lines: list, watermark: Optional[str] = None) -> bytes:
+    commands = ["BT", "/F1 14 Tf", "40 800 Td", f"({_pdf_text(title)}) Tj", "ET"]
+    y = 776
+    commands.append("BT")
+    commands.append("/F1 10 Tf")
+    for line in body_lines:
+        if y < 48:
+            break
+        commands.append(f"1 0 0 1 40 {y} Tm")
+        commands.append(f"({_pdf_text(line)}) Tj")
+        y -= 14
+    commands.append("ET")
+    if watermark:
+        commands.extend([
+            "0.75 0.84 0.78 rg",
+            "BT",
+            "/F1 22 Tf",
+            "0.92 0.28 -0.22 0.94 70 460 Tm",
+            f"({_pdf_text(watermark)}) Tj",
+            "ET",
+            "0 0 0 rg",
+        ])
+    stream = "\n".join(commands).encode("latin-1", "replace")
+    objects = [
+        b"<< /Type /Catalog /Pages 2 0 R >>",
+        b"<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+        b"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>",
+        f"<< /Length {len(stream)} >>\nstream\n".encode("latin-1") + stream + b"\nendstream",
+        b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
+    ]
+    header = b"%PDF-1.4\n"
+    chunks = [header]
+    offsets = []
+    cursor = len(header)
+    for index, obj in enumerate(objects, start=1):
+        offsets.append(cursor)
+        piece = f"{index} 0 obj\n".encode("latin-1") + obj + b"\nendobj\n"
+        chunks.append(piece)
+        cursor += len(piece)
+    xref_lines = [f"xref\n0 {len(objects) + 1}\n", "0000000000 65535 f \n"]
+    xref_lines.extend(f"{off:010d} 00000 n \n" for off in offsets)
+    trailer = (
+        f"trailer\n<< /Size {len(objects) + 1} /Root 1 0 R >>\n"
+        f"startxref\n{cursor}\n%%EOF"
+    )
+    return b"".join(chunks) + "".join(xref_lines).encode("latin-1") + trailer.encode("latin-1")
+
+
+def _quiz_pdf_lines(quiz: ExamQuiz, questions: list, kind: str) -> list:
+    lines = [
+        f"Fan: {EXAM_SUBJECTS.get(quiz.subject, quiz.subject)}",
+        f"Tur: {EXAM_TYPES.get(quiz.exam_type, quiz.exam_type)}",
+        f"Sana: {quiz.announced_at.strftime('%d.%m.%Y') if quiz.announced_at else ''}",
+        "",
+    ]
+    if kind == "answers":
+        lines.extend([
+            "JAVOBLAR VARAQASI (TITUL)",
+            "Familiya: ____________________",
+            "Ism: ____________________",
+            "ID: ____________________",
+            "",
+            "To'g'ri javobni bo'sh doira ichida belgilang.",
+            "",
+        ])
+        for question in questions:
+            lines.append(f"{question.order_num}.    ( A )   ( B )   ( C )   ( D )")
+        return lines
+
+    lines.append("Rasmiy DTM formatidagi test varaqasi")
+    lines.append("")
+    for question in questions:
+        lines.extend(_wrap_pdf_line(f"{question.order_num}. {question.question_text}"))
+        lines.append(f"    A) {question.option_a}")
+        lines.append(f"    B) {question.option_b}")
+        lines.append(f"    C) {question.option_c}")
+        lines.append(f"    D) {question.option_d}")
+        lines.append("")
+    return lines
+
+
+async def _ensure_named_user(session, telegram_id: int, full_name: str, region: str, district: str):
+    user = (
+        await session.execute(select(User).where(User.telegram_id == telegram_id))
+    ).scalar_one_or_none()
+    if user:
+        return user
+    user = User(
+        telegram_id=telegram_id,
+        full_name=full_name,
+        region=region,
+        district=district,
+        selected_subject="tarix",
+    )
+    session.add(user)
+    await session.flush()
+    return user
+
+
+def _answers_payload(questions: list, wrong_orders: set) -> dict:
+    payload = {}
+    for question in questions:
+        if question.order_num in wrong_orders:
+            payload[str(question.id)] = (question.correct_option + 1) % 4
+        else:
+            payload[str(question.id)] = question.correct_option
+    return payload
+
+
+def _score_answers(questions: list, answers: dict) -> tuple:
+    correct = 0
+    for question in questions:
+        chosen = answers.get(question.id)
+        if chosen is None:
+            chosen = answers.get(str(question.id))
+        try:
+            chosen = int(chosen) if chosen is not None else None
+        except (TypeError, ValueError):
+            chosen = None
+        if chosen is not None and chosen == question.correct_option:
+            correct += 1
+    total = len(questions)
+    percent = round((correct / total) * 100, 1) if total else 0.0
+    return correct, total, percent
+
+
+async def _ensure_exam_seed(session):
+    existing = (await session.execute(select(func.count(ExamQuiz.id)))).scalar() or 0
+    if existing:
+        return
+
+    def links(a, b, c, d):
+        return json.dumps({"A": a, "B": b, "C": c, "D": d}, ensure_ascii=False)
+
+    quiz_milliy = ExamQuiz(
+        title="Tarix: Milliy sertifikat — 2026 kuz, 1-variant",
+        subject="tarix",
+        exam_type="milliy_sertifikat",
+        price=35000,
+        link="https://pharos.uz/exams/tarix/milliy-sertifikat/2026-kuz-1-variant/rasmiy-dtm-format",
+        analysis_text="Umumiy tahlil: siyosiy tarix va Temuriylar madaniyati bo'yicha xatolar ko'proq 1370-yildan keyingi davlat tuzumi hamda poytaxt masalasida uchraydi. Har bir xato variant yonidagi darslik betini qayta o'qing.",
+        duration_minutes=20,
+        announced_at=datetime(2026, 10, 2, 9, 0, 0),
+        is_active=True,
+    )
+    quiz_bmba = ExamQuiz(
+        title="Tarix: BMBA asosiy blok — namunaviy to'plam",
+        subject="tarix",
+        exam_type="bmba_asosiy",
+        price=0,
+        link="https://pharos.uz/exams/tarix/bmba-asosiy-blok/2026-namuna/bepul-variant",
+        analysis_text="BMBA asosiy blok tahlili: madaniy meros va adabiy manbalar bo'yicha izohlar variantlar tagida berilgan.",
+        duration_minutes=15,
+        announced_at=datetime(2026, 9, 18, 8, 0, 0),
+        is_active=True,
+    )
+    quiz_huquq = ExamQuiz(
+        title="Huquqshunoslik: semestr imtihoni — 1-nazorat",
+        subject="huquq",
+        exam_type="imtihon",
+        price=15000,
+        link="https://pharos.uz/exams/huquqshunoslik/imtihon/2026-semestr-1-nazorat/tolik-havola",
+        analysis_text="Huquq bo'yicha umumiy izoh: Konstitutsiya moddalari va fuqarolik layoqati chegarasini adashtirmang.",
+        duration_minutes=15,
+        announced_at=datetime(2026, 10, 15, 10, 0, 0),
+        is_active=True,
+    )
+    session.add_all([quiz_milliy, quiz_bmba, quiz_huquq])
+    await session.flush()
+    for quiz in (quiz_milliy, quiz_bmba, quiz_huquq):
+        quiz.pdf_url = f"/api/exams/paper/{quiz.id}?kind=test"
+        quiz.answer_sheet_url = f"/api/exams/paper/{quiz.id}?kind=answers"
+
+    milliy_specs = [
+        dict(order_num=1, question_text="Amir Temur nechanchi yilda tavallud topgan?",
+             option_a="1336-yil", option_b="1342-yil", option_c="1350-yil", option_d="1370-yil",
+             correct_option=0, topic="Amir Temur davlati", direction="Siyosiy tarix", difficulty="oson",
+             book_links_json=links("7-sinf O'zbekiston tarixi, 86-bet", "7-sinf O'zbekiston tarixi, 88-bet", "Temuriylar davri, 12-bet", "Milliy ensiklopediya, 40-bet"),
+             analysis_text="Amir Temur 1336-yil 9-aprelda Kesh yaqinidagi Xo'ja Ilg'or qishlog'ida tug'ilgan."),
+        dict(order_num=2, question_text="Sohibqiron Amir Temurning otasi kim bo'lgan?",
+             option_a="Amir Qazag'on", option_b="Amir Tarag'ay", option_c="Hoji Barlos", option_d="Mirzo Ulug'bek",
+             correct_option=1, topic="Amir Temur davlati", direction="Siyosiy tarix", difficulty="oson",
+             book_links_json=links("7-sinf O'zbekiston tarixi, 87-bet", "7-sinf O'zbekiston tarixi, 86-bet", "Barlos qabilasi, 19-bet", "Temuriylar, 140-bet"),
+             analysis_text="Amir Tarag'ay barlos beklaridan bo'lib, Amir Temurning otasidir."),
+        dict(order_num=3, question_text="Amir Temur davlatining dastlabki poytaxti qaysi shahar bo'lgan?",
+             option_a="Buxoro", option_b="Hirot", option_c="Kesh (Shahrisabz)", option_d="Samarqand",
+             correct_option=2, topic="Davlat markazi", direction="Siyosiy tarix", difficulty="qiyin",
+             book_links_json=links("7-sinf O'zbekiston tarixi, 92-bet", "Xuroson yurishlari, 30-bet", "7-sinf O'zbekiston tarixi, 90-bet", "Samarqand obidalar, 8-bet"),
+             analysis_text="1370-yildan keyin dastlabki poytaxt Kesh bo'lgan, keyinroq Samarqand poytaxtga aylangan."),
+        dict(order_num=4, question_text="Amir Temur qachon Movarounnahrning yagona hukmdori deb e'lon qilindi?",
+             option_a="1360-yil", option_b="1370-yil", option_c="1380-yil", option_d="1395-yil",
+             correct_option=1, topic="Amir Temur davlati", direction="Siyosiy tarix", difficulty="orta",
+             book_links_json=links("7-sinf O'zbekiston tarixi, 84-bet", "7-sinf O'zbekiston tarixi, 91-bet", "Harbiy yurishlar, 22-bet", "Anqara jangi, 4-bet"),
+             analysis_text="1370-yilda Balx yaqinidagi qurultoyda u Movarounnahr hukmdori deb e'lon qilingan."),
+        dict(order_num=5, question_text="Loy jangi qaysi yilda bo'lib o'tgan?",
+             option_a="1365-yil", option_b="1368-yil", option_c="1372-yil", option_d="1390-yil",
+             correct_option=0, topic="Loy jangi", direction="Harbiy tarix", difficulty="orta",
+             book_links_json=links("7-sinf O'zbekiston tarixi, 89-bet", "Mo'g'ul yurishlari, 15-bet", "Temur tuzuklari, 44-bet", "Zafarnoma, 70-bet"),
+             analysis_text="1365-yil bahoridagi Loy jangida yomg'ir tufayli otliq qo'shinlar loyga botgan."),
+    ]
+    bmba_specs = [
+        dict(order_num=1, question_text="Registon ansambli qaysi shaharda joylashgan?",
+             option_a="Buxoro", option_b="Samarqand", option_c="Xiva", option_d="Qo'qon",
+             correct_option=1, topic="Temuriylar madaniyati", direction="Madaniy meros", difficulty="oson",
+             book_links_json=links("8-sinf Tarix, 40-bet", "8-sinf Tarix, 41-bet", "Xiva me'morchiligi, 9-bet", "Qo'qon xonligi, 12-bet"),
+             analysis_text="Ulug'bek, Sherdor va Tillakori madrasalari Samarqand Registonida turadi."),
+        dict(order_num=2, question_text="Mirzo Ulug'bek rasadxonasi qaysi asrda barpo etilgan?",
+             option_a="XII asr", option_b="XIII asr", option_c="XV asr", option_d="XVIII asr",
+             correct_option=2, topic="Ulug'bek akademiyasi", direction="Madaniy meros", difficulty="orta",
+             book_links_json=links("8-sinf Tarix, 20-bet", "8-sinf Tarix, 28-bet", "8-sinf Tarix, 48-bet", "Qo'qon, 3-bet"),
+             analysis_text="Rasadxona 1420-yillarda, ya'ni XV asrda Samarqandda qurilgan."),
+        dict(order_num=3, question_text="«Zafarnoma» asarining muallifi kim?",
+             option_a="Alisher Navoiy", option_b="Zahiriddin Muhammad Bobur", option_c="Sharafiddin Ali Yazdiy", option_d="Nizomiddin Shomiy",
+             correct_option=2, topic="Tarixiy manbalar", direction="Madaniy meros", difficulty="qiyin",
+             book_links_json=links("Adabiyot 10-sinf, 60-bet", "Boburnoma, 1-bet", "8-sinf Tarix, 52-bet", "Zafarnoma (Shomiy), 6-bet"),
+             analysis_text="Sharafiddin Ali Yazdiy «Zafarnoma»si Amir Temur yurishlarining keng manbasidir. Nizomiddin Shomiy ham shu nomdagi ilk asar muallifi, lekin maktab dasturidagi keng variant Yazdiynikidir."),
+        dict(order_num=4, question_text="Amir Temur «Temur tuzuklari»da davlatni nechta tabaqaga bo'lib boshqarishni tavsiya qiladi?",
+             option_a="12", option_b="4", option_c="7", option_d="3",
+             correct_option=0, topic="Davlat boshqaruvi", direction="Davlat tuzumi", difficulty="qiyin",
+             book_links_json=links("Temur tuzuklari, 18-bet", "7-sinf O'zbekiston tarixi, 96-bet", "8-sinf Tarix, 33-bet", "Huquq 10-sinf, 11-bet"),
+             analysis_text="Tuzuklarda saltanat 12 tabaqa asosida tartibga solinadi."),
+    ]
+    huquq_specs = [
+        dict(order_num=1, question_text="O'zbekiston Respublikasining amaldagi Konstitutsiyasi qachon qabul qilingan?",
+             option_a="1991-yil 1-sentabr", option_b="1992-yil 8-dekabr", option_c="1993-yil 2-iyul", option_d="2000-yil 27-yanvar",
+             correct_option=1, topic="Konstitutsiya", direction="Davlat huquqi", difficulty="oson",
+             book_links_json=links("Huquq 11-sinf, 14-bet", "Konstitutsiya, muqaddima", "Huquq 11-sinf, 20-bet", "Saylov kodeksi, 3-bet"),
+             analysis_text="Konstitutsiya 1992-yil 8-dekabrda qabul qilingan."),
+        dict(order_num=2, question_text="Oliy Majlisning quyi palatasi qanday nomlanadi?",
+             option_a="Senat", option_b="Vazirlar Mahkamasi", option_c="Qonunchilik palatasi", option_d="Oliy sud",
+             correct_option=2, topic="Davlat hokimiyati", direction="Davlat huquqi", difficulty="orta",
+             book_links_json=links("Konstitutsiya, 76-modda izohi", "Huquq 11-sinf, 41-bet", "Konstitutsiya, IX bo'lim", "Huquq 11-sinf, 55-bet"),
+             analysis_text="Oliy Majlis Qonunchilik palatasi va Senatdan iborat."),
+        dict(order_num=3, question_text="Fuqaro necha yoshdan to'liq muomala layoqatiga ega bo'ladi?",
+             option_a="14", option_b="16", option_c="18", option_d="21",
+             correct_option=2, topic="Fuqarolik layoqati", direction="Fuqarolik huquqi", difficulty="oson",
+             book_links_json=links("Fuqarolik kodeksi, 22-modda", "Huquq 10-sinf, 30-bet", "Fuqarolik kodeksi, 27-modda", "Mehnat kodeksi, 77-modda"),
+             analysis_text="To'liq muomala layoqati 18 yoshga to'lganda vujudga keladi."),
+    ]
+
+    def add_questions(quiz, specs):
+        beta_by_label = {"oson": 1.4, "orta": 2.1, "qiyin": 2.9}
+        rows = []
+        for spec in specs:
+            prepared = dict(spec)
+            prepared.setdefault("difficulty_beta", beta_by_label.get(prepared.get("difficulty"), 2.0))
+            if prepared.get("book_links_json") and not prepared.get("option_sources"):
+                prepared["option_sources"] = prepared["book_links_json"]
+            if prepared.get("analysis_text") and not prepared.get("solution_text"):
+                prepared["solution_text"] = prepared["analysis_text"]
+            row = ExamQuestion(quiz_id=quiz.id, **prepared)
+            session.add(row)
+            rows.append(row)
+        return rows
+
+    milliy_rows = add_questions(quiz_milliy, milliy_specs)
+    add_questions(quiz_bmba, bmba_specs)
+    add_questions(quiz_huquq, huquq_specs)
+    await session.flush()
+
+    def _region_key(fragment):
+        for key in REGIONS_DATA:
+            if fragment in key:
+                return key
+        return fragment
+
+    def _district_name(region_key, fragment):
+        for name in REGIONS_DATA.get(region_key, []):
+            if fragment in name:
+                return name
+        return fragment
+
+    xorazm = _region_key("Xorazm")
+    fargona = _region_key("Farg")
+    samarqand = _region_key("Samarqand")
+    buxoro = _region_key("Buxoro")
+    namangan = _region_key("Namangan")
+    toshkent = _region_key("Toshkent shahri")
+    andijon = _region_key("Andijon")
+    people = [
+        (9001006, "Sevara Yusupova", xorazm, _district_name(xorazm, "Urganch shahri"), set()),
+        (9001003, "Nilufar Rahimova", fargona, _district_name(fargona, "qon shahri"), {3}),
+        (9001002, "Jasur Toshpo'latov", samarqand, _district_name(samarqand, "Urgut"), {3, 5}),
+        (9001005, "Dilshod Nurmatov", buxoro, _district_name(buxoro, "Buxoro shahri"), {2, 5}),
+        (9001007, "Akmal Qodirov", namangan, _district_name(namangan, "Namangan shahri"), {1, 3, 5}),
+        (9001001, "Madina Karimova", toshkent, _district_name(toshkent, "Chilonzor"), {2, 3, 4}),
+        (9001004, "Bekzod Aliyev", andijon, _district_name(andijon, "Asaka"), {1, 2, 3, 4}),
+    ]
+    for tg_id, name, region, district, wrong in people:
+        await _ensure_named_user(session, tg_id, name, region, district)
+        answers = _answers_payload(milliy_rows, wrong)
+        score, total, percent = _score_answers(milliy_rows, {int(k): v for k, v in answers.items()})
+        session.add(ExamSubmission(
+            quiz_id=quiz_milliy.id,
+            user_id=tg_id,
+            full_name=name,
+            region=region,
+            district=district,
+            score=score,
+            total_questions=total,
+            percent=percent,
+            answers_json=json.dumps(answers),
+            mode="elektron",
+            level_label=_exam_level(percent),
+            created_at=datetime(2026, 10, 12, 9, tg_id % 50, 0),
+        ))
+
+    yunusobod = _district_name(toshkent, "Yunusobod")
+    current = await _ensure_named_user(
+        session, 84920194, "Jahongir", toshkent, yunusobod
+    )
+    current_region = current.region if current.region and current.region not in ("O'zbekiston", "Tanlanmagan") else toshkent
+    current_district = current.district if current.district and current.district not in ("Tanlanmagan",) else yunusobod
+    current_name = current.full_name or "Jahongir"
+    current_answers = _answers_payload(milliy_rows, {3, 5})
+    score, total, percent = _score_answers(milliy_rows, {int(k): v for k, v in current_answers.items()})
+    session.add(ExamSubmission(
+        quiz_id=quiz_milliy.id,
+        user_id=current.telegram_id,
+        full_name=current_name,
+        region=current_region,
+        district=current_district,
+        score=score,
+        total_questions=total,
+        percent=percent,
+        answers_json=json.dumps(current_answers),
+        mode="elektron",
+        level_label=_exam_level(percent),
+        created_at=datetime(2026, 10, 16, 18, 0, 0),
+    ))
+
+    for tg_id, stars in ((9001006, 5), (9001003, 5), (9001002, 4), (84920194, 4), (9001001, 3), (9001004, 5)):
+        session.add(ExamRating(quiz_id=quiz_milliy.id, user_id=tg_id, stars=stars))
+    session.add(ExamRating(quiz_id=quiz_bmba.id, user_id=84920194, stars=5))
+    session.add(ExamRating(quiz_id=quiz_huquq.id, user_id=9001002, stars=4))
+    await session.commit()
+
+
+async def _load_quiz(session, quiz_id: int) -> ExamQuiz:
+    quiz = (
+        await session.execute(select(ExamQuiz).where(ExamQuiz.id == quiz_id, ExamQuiz.is_active == True))
+    ).scalar_one_or_none()
+    if not quiz:
+        raise HTTPException(status_code=404, detail="Test topilmadi")
+    return quiz
+
+
+async def _load_questions(session, quiz_id: int) -> list:
+    rows = (
+        await session.execute(
+            select(ExamQuestion).where(ExamQuestion.quiz_id == quiz_id).order_by(ExamQuestion.order_num.asc())
+        )
+    ).scalars().all()
+    return list(rows)
+
+
+async def _rating_stats(session, quiz_id: int, telegram_id: Optional[int] = None) -> dict:
+    avg_value, votes = (
+        await session.execute(
+            select(func.avg(ExamRating.stars), func.count(ExamRating.id)).where(ExamRating.quiz_id == quiz_id)
+        )
+    ).one()
+    my_stars = None
+    if telegram_id:
+        mine = (
+            await session.execute(
+                select(ExamRating.stars).where(
+                    ExamRating.quiz_id == quiz_id,
+                    ExamRating.user_id == telegram_id,
+                )
+            )
+        ).scalar_one_or_none()
+        my_stars = int(mine) if mine is not None else None
+    return {
+        "avg_rating": round(float(avg_value), 2) if avg_value is not None else 0.0,
+        "votes": int(votes or 0),
+        "my_stars": my_stars,
+    }
+
+
+async def _participant_count(session, quiz_id: int) -> int:
+    value = (
+        await session.execute(
+            select(func.count(func.distinct(ExamSubmission.user_id))).where(ExamSubmission.quiz_id == quiz_id)
+        )
+    ).scalar()
+    return int(value or 0)
+
+
+def _best_submissions(rows: list) -> list:
+    best = {}
+    for row in rows:
+        current = best.get(row.user_id)
+        if current is None or (row.percent or 0, row.score or 0, row.id or 0) > (
+            current.percent or 0, current.score or 0, current.id or 0
+        ):
+            best[row.user_id] = row
+    ordered = list(best.values())
+    ordered.sort(key=lambda item: (-(item.percent or 0), -(item.score or 0), item.created_at or datetime.min, item.id or 0))
+    return ordered
+
+
+def _place_label(region: Optional[str], district: Optional[str]) -> str:
+    region_name = region or "—"
+    district_name = district or "—"
+    if district_name.startswith(region_name):
+        return district_name
+    return f"{region_name}, {district_name}"
+
+
+def _public_rank_label(rank: Optional[int], has_submission: bool, filtered_out: bool) -> str:
+    if not has_submission:
+        return "Siz hali bu testda ishtirok etmadingiz"
+    if filtered_out or not rank:
+        return "Siz ushbu filtrda ishtirok etmagansiz"
+    return f"Siz {rank}-o'rindasiz"
+
+
+@app.get("/api/exams/list")
+async def exams_list(
+    subject: str = "tarix",
+    exam_type: str = "milliy_sertifikat",
+    telegram_id: Optional[str] = None,
+):
+    tg_id = _coerce_telegram_id(telegram_id)
+    async with async_session() as session:
+        await _ensure_exam_seed(session)
+        rows = (
+            await session.execute(
+                select(ExamQuiz).where(
+                    ExamQuiz.is_active == True,
+                    ExamQuiz.subject == subject,
+                    ExamQuiz.exam_type == exam_type,
+                ).order_by(ExamQuiz.announced_at.desc())
+            )
+        ).scalars().all()
+        now = _exam_now()
+        owned = await _owned_course_ids(session, tg_id)
+        shared = await _user_has_shared(session, tg_id)
+        items = []
+        for quiz in rows:
+            window = _quiz_window(quiz, now)
+            if window == "hidden":
+                continue
+            seconds_left, starts_label = _starts_countdown(quiz.starts_at, now) if window == "scheduled" else (0, "")
+            pricing = _price_for_user(quiz, owned, shared)
+            stats = await _rating_stats(session, quiz.id, tg_id)
+            items.append({
+                "id": quiz.id,
+                "title": quiz.title,
+                "subject": quiz.subject,
+                "subject_label": EXAM_SUBJECTS.get(quiz.subject, quiz.subject),
+                "exam_type": quiz.exam_type,
+                "exam_type_label": EXAM_TYPES.get(quiz.exam_type, quiz.exam_type),
+                "price": pricing["price"],
+                "base_price": pricing["base_price"],
+                "discount_percent": pricing["discount_percent"],
+                "free_reason": pricing["free_reason"],
+                "access": window,
+                "starts_at": quiz.starts_at.isoformat() if quiz.starts_at else None,
+                "visible_at": quiz.visible_at.isoformat() if quiz.visible_at else None,
+                "starts_in_seconds": seconds_left,
+                "starts_in_label": starts_label,
+                "command_path": quiz.command_path,
+                "link": quiz.link,
+                "pdf_url": quiz.pdf_url,
+                "answer_sheet_url": quiz.answer_sheet_url,
+                "announced_at": quiz.announced_at.isoformat() if quiz.announced_at else None,
+                "announced_label": quiz.announced_at.strftime("%d.%m.%Y") if quiz.announced_at else "",
+                "participants": await _participant_count(session, quiz.id),
+                "duration_minutes": quiz.duration_minutes or 20,
+                "questions_count": (
+                    await session.execute(
+                        select(func.count(ExamQuestion.id)).where(ExamQuestion.quiz_id == quiz.id)
+                    )
+                ).scalar() or 0,
+                **stats,
+            })
+        return {"items": items, "subject": subject, "exam_type": exam_type}
+
+
+@app.post("/api/exams/rate")
+async def exams_rate(payload: ExamRateSchema):
+    stars = int(payload.stars)
+    if stars < 1 or stars > 5:
+        raise HTTPException(status_code=400, detail="Baho 1 dan 5 gacha bo'lishi kerak")
+    async with async_session() as session:
+        await _ensure_exam_seed(session)
+        await _load_quiz(session, payload.quiz_id)
+        row = (
+            await session.execute(
+                select(ExamRating).where(
+                    ExamRating.quiz_id == payload.quiz_id,
+                    ExamRating.user_id == payload.telegram_id,
+                )
+            )
+        ).scalar_one_or_none()
+        if row:
+            row.stars = stars
+        else:
+            session.add(ExamRating(quiz_id=payload.quiz_id, user_id=payload.telegram_id, stars=stars))
+        await session.commit()
+        stats = await _rating_stats(session, payload.quiz_id, payload.telegram_id)
+        return {"status": "ok", **stats}
+
+
+@app.get("/api/exams/questions/{quiz_id}")
+async def exams_questions(quiz_id: int):
+    async with async_session() as session:
+        await _ensure_exam_seed(session)
+        quiz = await _load_quiz(session, quiz_id)
+        _ensure_quiz_open(quiz)
+        questions = await _load_questions(session, quiz_id)
+        return {
+            "quiz": {
+                "id": quiz.id,
+                "title": quiz.title,
+                "duration_minutes": quiz.duration_minutes or 20,
+                "price": _quiz_base_amount(quiz),
+                "link": quiz.link,
+                "pdf_url": quiz.pdf_url,
+                "answer_sheet_url": quiz.answer_sheet_url,
+                "subject_label": EXAM_SUBJECTS.get(quiz.subject, quiz.subject),
+                "exam_type_label": EXAM_TYPES.get(quiz.exam_type, quiz.exam_type),
+            },
+            "questions": [
+                {
+                    "id": question.id,
+                    "order_num": question.order_num,
+                    "order": question.order_num,
+                    "question_text": question.question_text,
+                    "text": question.question_text,
+                    "image_top": question.image_top,
+                    "image_bottom": question.image_bottom,
+                    "options": [question.option_a, question.option_b, question.option_c, question.option_d],
+                }
+                for question in questions
+            ],
+        }
+
+
+def _normalize_answer_map(raw: dict) -> dict:
+    parsed = {}
+    if not isinstance(raw, dict):
+        return parsed
+    for key, value in raw.items():
+        try:
+            parsed[int(key)] = int(value)
+        except (TypeError, ValueError):
+            continue
+    return parsed
+
+
+def _simulate_scan_answers(questions: list, image_base64: str) -> dict:
+    seed = len(image_base64 or "") % 97
+    answers = {}
+    for index, question in enumerate(questions):
+        if (index + seed) % 4 == 0:
+            answers[question.id] = (question.correct_option + 1 + (seed % 3)) % 4
+        else:
+            answers[question.id] = question.correct_option
+    return answers
+
+
+@app.post("/api/exams/submit")
+async def exams_submit(payload: ExamSubmitSchema):
+    mode = (payload.mode or "elektron").strip().lower()
+    if mode not in ("elektron", "skaner", "qogoz"):
+        raise HTTPException(status_code=400, detail="Noto'g'ri rejim")
+    async with async_session() as session:
+        await _ensure_exam_seed(session)
+        quiz = await _load_quiz(session, payload.quiz_id)
+        _ensure_quiz_open(quiz)
+        questions = await _load_questions(session, quiz.id)
+        answers = _normalize_answer_map(payload.answers or {})
+        simulated = False
+        if mode == "skaner" and not answers:
+            answers = _simulate_scan_answers(questions, payload.image_base64 or "")
+            simulated = True
+        score, total, percent, theta, level = _evaluate_exam(questions, answers)
+        user = (
+            await session.execute(select(User).where(User.telegram_id == payload.telegram_id))
+        ).scalar_one_or_none()
+        if not user:
+            user = User(
+                telegram_id=payload.telegram_id,
+                full_name=f"O'quvchi {payload.telegram_id}",
+                region="Toshkent shahri",
+                district="Yunusobod tumani",
+                selected_subject=quiz.subject or "tarix",
+            )
+            session.add(user)
+            await session.flush()
+        region = user.region if user.region and user.region not in ("Tanlanmagan",) else "Toshkent shahri"
+        district = user.district if user.district and user.district not in ("Tanlanmagan",) else "Yunusobod tumani"
+        stored = {str(key): value for key, value in answers.items()}
+        submission = ExamSubmission(
+            quiz_id=quiz.id,
+            user_id=payload.telegram_id,
+            full_name=user.full_name or f"O'quvchi {payload.telegram_id}",
+            region=region,
+            district=district,
+            score=score,
+            total_questions=total,
+            percent=percent,
+            ability_theta=theta,
+            answers_json=json.dumps(stored),
+            mode=mode,
+            level_label=level,
+        )
+        session.add(submission)
+        await session.commit()
+
+        all_rows = (
+            await session.execute(select(ExamSubmission).where(ExamSubmission.quiz_id == quiz.id))
+        ).scalars().all()
+        ranking = _best_submissions(list(all_rows))
+        rank = next((index + 1 for index, row in enumerate(ranking) if row.user_id == payload.telegram_id), None)
+        return {
+            "status": "ok",
+            "submission_id": submission.id,
+            "score": score,
+            "total": total,
+            "percent": percent,
+            "theta": theta,
+            "grade": level,
+            "level": level,
+            "mode": mode,
+            "scan_simulated": simulated,
+            "rank": rank,
+            "rank_label": _public_rank_label(rank, True, False),
+            "participants": len(ranking),
+        }
+
+
+@app.get("/api/exams/paper/{quiz_id}")
+async def exams_paper(
+    quiz_id: int,
+    telegram_id: Optional[str] = None,
+    kind: str = "test",
+    download: int = 0,
+):
+    kind = "answers" if kind == "answers" else "test"
+    tg_id = _coerce_telegram_id(telegram_id)
+    async with async_session() as session:
+        await _ensure_exam_seed(session)
+        quiz = await _load_quiz(session, quiz_id)
+        _ensure_quiz_open(quiz)
+        questions = await _load_questions(session, quiz_id)
+        user = None
+        if tg_id:
+            user = (
+                await session.execute(select(User).where(User.telegram_id == tg_id))
+            ).scalar_one_or_none()
+        watermark = None
+        if kind == "test":
+            name = (user.full_name if user and user.full_name else None) or (f"ID {tg_id}" if tg_id else "PHAROS o'quvchi")
+            watermark = f"PHAROS | {name} | ID {tg_id or '-'}"
+        title = quiz.title if kind == "test" else f"{quiz.title} — javoblar varaqasi"
+        pdf_bytes = _build_simple_pdf(title, _quiz_pdf_lines(quiz, questions, kind), watermark)
+        filename = f"pharos-{'javoblar' if kind == 'answers' else 'test'}-{quiz_id}.pdf"
+        disposition = "attachment" if download else "inline"
+        return Response(
+            content=pdf_bytes,
+            media_type="application/pdf",
+            headers={"Content-Disposition": f"{disposition}; filename=\"{filename}\""},
+        )
+
+
+@app.get("/api/exams/leaderboard/{quiz_id}")
+async def exams_leaderboard(
+    quiz_id: int,
+    telegram_id: Optional[str] = None,
+    region: str = "",
+    district: str = "",
+):
+    tg_id = _coerce_telegram_id(telegram_id)
+    async with async_session() as session:
+        await _ensure_exam_seed(session)
+        quiz = await _load_quiz(session, quiz_id)
+        rows = (
+            await session.execute(select(ExamSubmission).where(ExamSubmission.quiz_id == quiz.id))
+        ).scalars().all()
+        best = _best_submissions(list(rows))
+        mine = next((row for row in best if tg_id and row.user_id == tg_id), None)
+        region_name = (region or "").strip()
+        district_name = (district or "").strip()
+        filtered = best
+        if region_name:
+            filtered = [row for row in filtered if (row.region or "") == region_name]
+        if district_name:
+            filtered = [row for row in filtered if (row.district or "") == district_name]
+        items = []
+        my_rank = None
+        for index, row in enumerate(filtered, start=1):
+            if tg_id and row.user_id == tg_id:
+                my_rank = index
+            items.append({
+                "rank": index,
+                "telegram_id": row.user_id,
+                "full_name": row.full_name or f"O'quvchi {row.user_id}",
+                "region": row.region or "—",
+                "district": row.district or "—",
+                "place": _place_label(row.region, row.district),
+                "score": row.score or 0,
+                "total": row.total_questions or 0,
+                "percent": row.percent or 0,
+                "theta": row.ability_theta,
+                "level": row.level_label or _exam_level(row.percent or 0),
+            })
+        filtered_out = bool(mine) and my_rank is None
+        return {
+            "quiz_id": quiz.id,
+            "title": quiz.title,
+            "my_rank": my_rank,
+            "my_label": _public_rank_label(my_rank, mine is not None, filtered_out),
+            "has_submission": mine is not None,
+            "regions_map": REGIONS_DATA,
+            "items": items,
+        }
+
+
+@app.get("/api/exams/analysis/{quiz_id}")
+async def exams_analysis(quiz_id: int, telegram_id: Optional[str] = None):
+    tg_id = _coerce_telegram_id(telegram_id)
+    async with async_session() as session:
+        await _ensure_exam_seed(session)
+        quiz = await _load_quiz(session, quiz_id)
+        if _quiz_window(quiz) == "hidden":
+            raise HTTPException(status_code=404, detail="Test topilmadi")
+        if _quiz_window(quiz) == "scheduled":
+            _seconds, label = _starts_countdown(quiz.starts_at, _exam_now())
+            return {
+                "quiz_id": quiz.id,
+                "title": quiz.title,
+                "locked": True,
+                "lock_message": f"Tahlil test boshlangach ochiladi. Boshlanishiga: {label} qoldi",
+                "analysis_text": "",
+                "full_analysis_video": None,
+                "has_submission": False,
+                "score": None,
+                "total": 0,
+                "percent": None,
+                "theta": None,
+                "level": None,
+                "mode": None,
+                "questions": [],
+                "diagnostics": [],
+            }
+        questions = await _load_questions(session, quiz_id)
+        submission = None
+        if tg_id:
+            rows = (
+                await session.execute(
+                    select(ExamSubmission).where(
+                        ExamSubmission.quiz_id == quiz.id,
+                        ExamSubmission.user_id == tg_id,
+                    ).order_by(ExamSubmission.created_at.desc())
+                )
+            ).scalars().all()
+            submission = rows[0] if rows else None
+        chosen_map = {}
+        if submission and submission.answers_json:
+            try:
+                raw = json.loads(submission.answers_json)
+                chosen_map = {int(key): int(value) for key, value in raw.items()}
+            except Exception:
+                chosen_map = {}
+
+        question_items = []
+        grouped = {}
+        for question in questions:
+            sources = _exam_links(question.option_sources) or _exam_links(question.book_links_json)
+            solution = (question.solution_text or question.analysis_text or "").strip()
+            options = [question.option_a, question.option_b, question.option_c, question.option_d]
+            user_index = chosen_map.get(question.id)
+            is_wrong = user_index is not None and user_index != question.correct_option
+            is_blank = submission is not None and user_index is None
+            missed = is_wrong or is_blank
+            option_rows = []
+            for index, text in enumerate(options):
+                key = EXAM_OPTION_KEYS[index]
+                option_rows.append({
+                    "index": index,
+                    "key": key,
+                    "text": text,
+                    "source": sources.get(key) or sources.get(key.lower()) or "",
+                    "is_correct": index == question.correct_option,
+                    "is_user_choice": user_index == index,
+                })
+            question_items.append({
+                "id": question.id,
+                "order": question.order_num,
+                "text": question.question_text,
+                "question_text": question.question_text,
+                "image_top": question.image_top,
+                "image_bottom": question.image_bottom,
+                "solution_text": solution,
+                "video_solution_url": question.video_solution_url,
+                "options": option_rows,
+                "correct_index": question.correct_option,
+                "correct_key": EXAM_OPTION_KEYS[question.correct_option],
+                "user_index": user_index,
+                "user_key": EXAM_OPTION_KEYS[user_index] if user_index is not None and 0 <= user_index <= 3 else None,
+                "is_correct": user_index is not None and user_index == question.correct_option,
+                "answered": user_index is not None,
+                "topic": question.topic or "Mavzu ko'rsatilmagan",
+                "direction": question.direction or "Yo'nalish ko'rsatilmagan",
+                "difficulty": question.difficulty or "orta",
+                "difficulty_label": EXAM_DIFFICULTY_LABELS.get(question.difficulty or "orta", question.difficulty or "O'rta"),
+                "analysis_text": solution,
+            })
+            bucket_key = (question.direction or "—", question.topic or "—", question.difficulty or "orta")
+            bucket = grouped.setdefault(bucket_key, {"total": 0, "wrong": 0})
+            bucket["total"] += 1
+            if missed or (submission is None):
+                if submission is not None and missed:
+                    bucket["wrong"] += 1
+        diagnostics = []
+        for (direction, topic, difficulty), bucket in grouped.items():
+            total = bucket["total"]
+            wrong = bucket["wrong"] if submission is not None else 0
+            mastery = round(((total - wrong) / total) * 100, 1) if total and submission is not None else None
+            diagnostics.append({
+                "direction": direction,
+                "topic": topic,
+                "difficulty": difficulty,
+                "difficulty_label": EXAM_DIFFICULTY_LABELS.get(difficulty, difficulty),
+                "total": total,
+                "wrong": wrong,
+                "mastery": mastery,
+            })
+        return {
+            "quiz_id": quiz.id,
+            "title": quiz.title,
+            "analysis_text": quiz.analysis_text or "",
+            "full_analysis_video": quiz.full_analysis_video,
+            "locked": False,
+            "lock_message": "",
+            "has_submission": submission is not None,
+            "score": submission.score if submission else None,
+            "total": submission.total_questions if submission else len(questions),
+            "percent": submission.percent if submission else None,
+            "theta": submission.ability_theta if submission else None,
+            "level": submission.level_label if submission else None,
+            "mode": submission.mode if submission else None,
+            "questions": question_items,
+            "diagnostics": diagnostics,
+        }
+
+
+@app.get("/api/exams/student/{telegram_id}")
+async def exams_student(telegram_id: int, quiz_id: Optional[int] = None):
+    async with async_session() as session:
+        await _ensure_exam_seed(session)
+        user = (
+            await session.execute(select(User).where(User.telegram_id == telegram_id))
+        ).scalar_one_or_none()
+        rows = (
+            await session.execute(
+                select(ExamSubmission).where(ExamSubmission.user_id == telegram_id).order_by(ExamSubmission.percent.desc())
+            )
+        ).scalars().all()
+        best = rows[0] if rows else None
+        quiz_row = None
+        quiz_rank = None
+        if quiz_id:
+            quiz_rows = (
+                await session.execute(select(ExamSubmission).where(ExamSubmission.quiz_id == quiz_id))
+            ).scalars().all()
+            ordered = _best_submissions(list(quiz_rows))
+            for index, row in enumerate(ordered, start=1):
+                if row.user_id == telegram_id:
+                    quiz_row = row
+                    quiz_rank = index
+                    break
+        source = quiz_row or best
+        return {
+            "telegram_id": telegram_id,
+            "full_name": (user.full_name if user and user.full_name else None) or (source.full_name if source else None) or f"O'quvchi {telegram_id}",
+            "region": (user.region if user and user.region else None) or (source.region if source else None) or "—",
+            "district": (user.district if user and user.district else None) or (source.district if source else None) or "—",
+            "avatar_url": user.avatar_url if user else None,
+            "exams_taken": len({row.quiz_id for row in rows}),
+            "attempts": len(rows),
+            "best_percent": best.percent if best else None,
+            "level": (quiz_row.level_label if quiz_row else None) or (best.level_label if best else "Boshlang'ich"),
+            "quiz_rank": quiz_rank,
+            "quiz_score": quiz_row.score if quiz_row else None,
+            "quiz_total": quiz_row.total_questions if quiz_row else None,
+            "quiz_percent": quiz_row.percent if quiz_row else None,
+        }
 
 
 # ==========================================================

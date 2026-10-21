@@ -12,12 +12,20 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <script src="https://unpkg.com/lucide@latest"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.22/dist/katex.min.css">
+    <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.22/dist/katex.min.js"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.22/dist/contrib/auto-render.min.js"></script>
 
     <style>
       body {
         font-family: 'Outfit', sans-serif;
         background-color: #0A0E17;
       }
+      .ph-modal { display: none !important; }
+      .ph-modal.ph-open { display: flex !important; }
+      .ph-hide { display: none !important; }
+      .katex, .katex-display { color: #e2e8f0; }
+      .katex-display { margin: 0.35rem 0; overflow-x: auto; overflow-y: hidden; }
     </style>
 </head>
 <body class="bg-[#0A0E17] text-slate-100 min-h-screen flex flex-col select-none pb-24">
@@ -40,12 +48,12 @@
                 </div>
             </div>
 
-            <!-- 2. PROFIL ICHIDA ([🏠 Bosh sahifa]) -->
-            <div id="hdr-home-return-wrap" class="hidden flex items-center gap-2 px-1 py-0.5">
-                <div class="w-7 h-7 rounded-xl bg-emerald-500/20 border border-emerald-500/30 text-emerald-400 flex items-center justify-center shadow-[0_0_8px_rgba(16,185,129,0.3)]">
-                    <i data-lucide="house" class="w-4 h-4 stroke-[2.2]"></i>
+            <!-- 2. Ortga / Bosh sahifa (profil yoki kabinet kursi ichida) -->
+            <div id="hdr-home-return-wrap" class="hidden items-center gap-2 px-1 py-0.5">
+                <div id="hdr-back-icon-box" class="w-7 h-7 rounded-xl bg-emerald-500/20 border border-emerald-500/30 text-emerald-400 flex items-center justify-center shadow-[0_0_8px_rgba(16,185,129,0.3)]">
+                    <i data-lucide="arrow-left" class="w-4 h-4 stroke-[2.2]"></i>
                 </div>
-                <span class="text-xs font-bold text-slate-200 pr-1">Bosh sahifa</span>
+                <span id="hdr-back-label" class="text-xs font-bold text-slate-200 pr-1">Ortga</span>
             </div>
         </button>
 
@@ -327,125 +335,692 @@
         <div id="lessons-list" class="space-y-2.5"></div>
     </main>
 
-    <!-- 3-BO'LIM: REYTING TAB -->
-    <main id="tab-rating" class="hidden flex-1 px-4 py-4 max-w-md mx-auto w-full">
-        <p class="text-xs font-bold text-slate-400 mb-3 uppercase tracking-wider flex items-center gap-1.5">
-            <i data-lucide="trophy" class="w-3.5 h-3.5 text-emerald-400"></i> O'quvchilar umumiy reytingi:
-        </p>
-        <div class="bg-[#111827] border border-[#1F2937] rounded-2xl divide-y divide-[#1F2937] overflow-hidden shadow-sm">
-            <div class="p-3.5 flex items-center justify-between">
-                <div class="flex items-center gap-3">
-                    <span class="w-6 h-6 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center font-bold text-xs">1</span>
-                    <div>
-                        <h4 class="text-xs font-bold text-white">Jahongir Qadamov</h4>
-                        <p class="text-[10px] text-slate-400">100% natija (15/15)</p>
+    <!-- ======================================================== -->
+    <!-- SHU YERGA: KABINET (DARSLARIM / KUTUBXONA) BO'LIMI KIRITILADI -->
+    <!-- ======================================================== -->
+    <main id="tab-cabinet" class="hidden flex-1 px-3 py-3 max-w-md mx-auto w-full space-y-3 pb-24">
+        <!-- 1. YUQORI BLOK: FILTRLASH CHIPLARI (4 TA CHIP) -->
+        <div class="flex gap-2 overflow-x-auto pb-1 scrollbar-none snap-x">
+            <button onclick="switchCabinetFilter('active')" id="cab-chip-active" class="cab-chip px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap bg-emerald-500 text-slate-950 shadow-md transition-all active:scale-95 cursor-pointer">
+                Faol
+            </button>
+            <button onclick="switchCabinetFilter('inactive')" id="cab-chip-inactive" class="cab-chip px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap bg-[#161F30] border border-[#283548] text-slate-300 hover:border-emerald-500/50 transition-all active:scale-95 cursor-pointer">
+                Nofaol
+            </button>
+            <button onclick="switchCabinetFilter('cart')" id="cab-chip-cart" class="cab-chip px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap bg-[#161F30] border border-[#283548] text-slate-300 hover:border-emerald-500/50 transition-all active:scale-95 cursor-pointer">
+                Savat
+            </button>
+            <button onclick="switchCabinetFilter('archive')" id="cab-chip-archive" class="cab-chip px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap bg-[#161F30] border border-[#283548] text-slate-300 hover:border-emerald-500/50 transition-all active:scale-95 cursor-pointer">
+                Arxiv
+            </button>
+        </div>
+
+        <!-- 2. ASOSIY MAYDON: RO'YXAT KONTEYNERI -->
+        <div id="cabinet-cards-container" class="space-y-3 pt-1">
+            <!-- JS orqali kartochkalar yoki bo'sh holat chiziladi -->
+        </div>
+
+        <!-- Fan paneli ochish tugmasi -->
+        <button type="button" onclick="typeof openSubjectHub==='function'&&openSubjectHub()"
+                class="w-full mt-2 py-2.5 rounded-2xl border border-emerald-500/30 bg-emerald-500/10 text-emerald-400 text-xs font-bold flex items-center justify-center gap-2 active:scale-95 transition-all cursor-pointer">
+            <i data-lucide="layout-dashboard" class="w-3.5 h-3.5"></i>
+            Fan tizimi va o'quv paneli
+        </button>
+    </main>
+
+    <!-- ======================================================== -->
+    <!-- FAN TIZIMI VA O'QUV PANELI (SUBJECT HUB) -->
+    <!-- ======================================================== -->
+    <main id="tab-subject-hub" class="hidden flex-1 px-3 py-3 max-w-md mx-auto w-full space-y-3 pb-28 text-slate-200">
+        <div id="view-subject-hub" class="space-y-3">
+
+            <!-- Fanlar ro'yxati (tanlanmaguncha) -->
+            <section id="sh-subjects-list-wrap" class="space-y-2.5">
+                <div class="bg-gradient-to-br from-[#111827] to-[#0A0E17] border border-emerald-500/25 rounded-2xl p-3.5 relative overflow-hidden">
+                    <div class="absolute -right-8 -top-8 w-28 h-28 bg-emerald-500/10 rounded-full blur-2xl pointer-events-none"></div>
+                    <div class="relative z-10 flex items-center gap-2.5">
+                        <div class="w-10 h-10 rounded-xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 flex items-center justify-center">
+                            <i data-lucide="book-open" class="w-5 h-5"></i>
+                        </div>
+                        <div>
+                            <h2 class="text-sm font-extrabold text-white tracking-wide">Fan paneli</h2>
+                            <p class="text-[10px] text-slate-400">O'qigan va faol fanlaringiz</p>
+                        </div>
                     </div>
                 </div>
-                <span class="text-xs font-bold text-emerald-400">1500 ball</span>
-            </div>
-            <div class="p-3.5 flex items-center justify-between">
-                <div class="flex items-center gap-3">
-                    <span class="w-6 h-6 rounded-full bg-[#161F30] text-slate-300 flex items-center justify-center font-bold text-xs">2</span>
-                    <div>
-                        <h4 class="text-xs font-bold text-white">Ali Valiyev</h4>
-                        <p class="text-[10px] text-slate-400">85% natija (12/15)</p>
+                <div id="sh-subjects-list" class="space-y-2.5">
+                    <p class="text-[11px] text-slate-500 text-center py-6">Yuklanmoqda...</p>
+                </div>
+            </section>
+
+            <!-- Tanlangan fan dashboard -->
+            <section id="sh-dashboard" class="hidden space-y-3">
+                <!-- Sarlavha: nom, status, progress -->
+                <div class="bg-gradient-to-br from-[#111827] to-[#0A0E17] border border-[#1F2937] rounded-2xl p-3.5 shadow-lg relative overflow-hidden">
+                    <div class="absolute -right-6 -top-6 w-24 h-24 bg-emerald-500/10 rounded-full blur-2xl pointer-events-none"></div>
+                    <div class="relative z-10 space-y-3">
+                        <div class="flex items-start justify-between gap-2">
+                            <div class="min-w-0">
+                                <button type="button" onclick="shBackToSubjects()" class="text-[10px] text-slate-400 hover:text-emerald-400 flex items-center gap-1 mb-1.5 cursor-pointer">
+                                    <i data-lucide="arrow-left" class="w-3 h-3"></i> Fanlar ro'yxati
+                                </button>
+                                <h2 id="sh-subject-title" class="text-sm font-extrabold text-white truncate">Fan nomi</h2>
+                                <p id="sh-subject-desc" class="text-[10px] text-slate-400 mt-0.5 line-clamp-2"></p>
+                            </div>
+                            <span id="sh-rank-badge" class="shrink-0 text-[9px] uppercase font-bold tracking-wider px-2 py-1 rounded-lg border border-emerald-500/30 text-emerald-400 bg-emerald-500/10">
+                                Shogird
+                            </span>
+                        </div>
+                        <div>
+                            <div class="flex items-center justify-between mb-1">
+                                <span class="text-[10px] text-slate-400">Kurs chiqishi</span>
+                                <span id="sh-pace-label" class="text-[10px] font-bold text-emerald-400">Rejada</span>
+                            </div>
+                            <div class="flex items-center gap-2">
+                                <div class="relative flex-1 h-2.5 rounded-full overflow-hidden bg-[#161F30] border border-[#283548]">
+                                    <div id="sh-progress-bar" class="absolute inset-y-0 left-0 rounded-full transition-all duration-500" style="width:45%;background:#10B981;"></div>
+                                    <div id="sh-expected-marker" class="absolute top-0 bottom-0 w-0.5 bg-white/70" style="left:65%;"></div>
+                                </div>
+                                <span id="sh-progress-pct" class="text-[11px] font-mono font-bold text-emerald-400 shrink-0">45%</span>
+                            </div>
+                            <p class="text-[9px] text-slate-500 mt-1">Yashil — siz · chiziq — reja nuqtasi</p>
+                        </div>
                     </div>
                 </div>
-                <span class="text-xs font-bold text-slate-300">1200 ball</span>
-            </div>
+
+                <!-- Ichki navigatsiya -->
+                <div class="flex gap-1.5 overflow-x-auto pb-1 scrollbar-none snap-x">
+                    <button type="button" data-sh-panel="wiki" onclick="shSwitchPanel('wiki')" class="sh-nav-chip snap-start px-3 py-1.5 rounded-xl text-[10px] font-bold whitespace-nowrap bg-emerald-500 text-slate-950 shadow-md cursor-pointer">Wiki</button>
+                    <button type="button" data-sh-panel="battle" onclick="shSwitchPanel('battle')" class="sh-nav-chip snap-start px-3 py-1.5 rounded-xl text-[10px] font-semibold whitespace-nowrap bg-[#161F30] border border-[#283548] text-slate-300 cursor-pointer">Battle</button>
+                    <button type="button" data-sh-panel="schedule" onclick="shSwitchPanel('schedule')" class="sh-nav-chip snap-start px-3 py-1.5 rounded-xl text-[10px] font-semibold whitespace-nowrap bg-[#161F30] border border-[#283548] text-slate-300 cursor-pointer">Jadval</button>
+                    <button type="button" data-sh-panel="mistakes" onclick="shSwitchPanel('mistakes')" class="sh-nav-chip snap-start px-3 py-1.5 rounded-xl text-[10px] font-semibold whitespace-nowrap bg-[#161F30] border border-[#283548] text-slate-300 cursor-pointer">Xatolar</button>
+                    <button type="button" data-sh-panel="community" onclick="shSwitchPanel('community')" class="sh-nav-chip snap-start px-3 py-1.5 rounded-xl text-[10px] font-semibold whitespace-nowrap bg-[#161F30] border border-[#283548] text-slate-300 cursor-pointer">Hamjamiyat</button>
+                    <button type="button" data-sh-panel="books" onclick="shSwitchPanel('books')" class="sh-nav-chip snap-start px-3 py-1.5 rounded-xl text-[10px] font-semibold whitespace-nowrap bg-[#161F30] border border-[#283548] text-slate-300 cursor-pointer">Kitoblar</button>
+                    <button type="button" data-sh-panel="modules" onclick="shSwitchPanel('modules')" class="sh-nav-chip snap-start px-3 py-1.5 rounded-xl text-[10px] font-semibold whitespace-nowrap bg-[#161F30] border border-[#283548] text-slate-300 cursor-pointer">Modullar</button>
+                    <button type="button" data-sh-panel="quizzes" onclick="shSwitchPanel('quizzes')" class="sh-nav-chip snap-start px-3 py-1.5 rounded-xl text-[10px] font-semibold whitespace-nowrap bg-[#161F30] border border-[#283548] text-slate-300 cursor-pointer">Testlar</button>
+                    <button type="button" data-sh-panel="diagnostics" onclick="shSwitchPanel('diagnostics')" class="sh-nav-chip snap-start px-3 py-1.5 rounded-xl text-[10px] font-semibold whitespace-nowrap bg-[#161F30] border border-[#283548] text-slate-300 cursor-pointer">Diagnostika</button>
+                </div>
+
+                <!-- PANEL: Wiki -->
+                <div id="sh-panel-wiki" class="sh-panel space-y-2.5">
+                    <div class="bg-[#111827] border border-[#1F2937] rounded-2xl p-3 space-y-2.5">
+                        <div class="flex gap-2">
+                            <input id="sh-wiki-search" type="search" placeholder="Tushuncha qidirish..."
+                                   class="flex-1 bg-[#161F30] border border-[#283548] rounded-xl px-3 py-2 text-xs text-white outline-none focus:border-emerald-500/50 placeholder:text-slate-600"
+                                   oninput="shOnWikiSearch()">
+                            <select id="sh-wiki-type" onchange="shLoadWiki()"
+                                    class="bg-[#161F30] border border-[#283548] rounded-xl px-2 py-2 text-[10px] text-slate-200 outline-none max-w-[110px]">
+                                <option value="all">Barcha tip</option>
+                                <option value="atama">Atama</option>
+                                <option value="shaxs">Shaxs</option>
+                                <option value="sana">Sana</option>
+                                <option value="qoida">Qoida</option>
+                                <option value="nazariya">Nazariya</option>
+                            </select>
+                        </div>
+                        <div id="sh-wiki-results" class="space-y-2 max-h-80 overflow-y-auto"></div>
+                    </div>
+                </div>
+
+                <!-- PANEL: Battle -->
+                <div id="sh-panel-battle" class="sh-panel hidden space-y-2.5">
+                    <div class="bg-[#111827] border border-[#1F2937] rounded-2xl p-3 space-y-3">
+                        <h3 class="text-[11px] font-bold text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
+                            <i data-lucide="swords" class="w-3.5 h-3.5 text-amber-400"></i> Fan Battle
+                        </h3>
+                        <div>
+                            <label class="text-[9px] text-slate-500 mb-1 block">Modul / mavzu doirasi</label>
+                            <select id="sh-battle-module" class="w-full bg-[#161F30] border border-[#283548] rounded-xl px-2.5 py-2 text-xs text-white outline-none"></select>
+                        </div>
+                        <div>
+                            <label class="text-[9px] text-slate-500 mb-1 block">Daraja</label>
+                            <select id="sh-battle-level" class="w-full bg-[#161F30] border border-[#283548] rounded-xl px-2.5 py-2 text-xs text-white outline-none">
+                                <option value="oson">Oson</option>
+                                <option value="orta" selected>O'rta</option>
+                                <option value="qiyin">Qiyin</option>
+                            </select>
+                        </div>
+                        <div id="sh-battle-games" class="grid grid-cols-1 gap-1.5"></div>
+                        <button type="button" onclick="shSendCommunityChallenge()"
+                                class="w-full py-2.5 bg-gradient-to-r from-emerald-500 to-emerald-600 text-slate-950 text-[11px] font-bold rounded-xl active:scale-95 transition-all flex items-center justify-center gap-2 cursor-pointer">
+                            <i data-lucide="send" class="w-3.5 h-3.5"></i> Community ga chaqiriq
+                        </button>
+                        <p id="sh-battle-status" class="hidden text-[10px] text-center text-emerald-300/90 font-medium"></p>
+                    </div>
+                </div>
+
+                <!-- PANEL: Jadval -->
+                <div id="sh-panel-schedule" class="sh-panel hidden space-y-2.5">
+                    <div id="sh-schedule-list" class="space-y-2"></div>
+                </div>
+
+                <!-- PANEL: Xatolar -->
+                <div id="sh-panel-mistakes" class="sh-panel hidden space-y-2.5">
+                    <div id="sh-mistakes-list" class="space-y-2"></div>
+                </div>
+
+                <!-- PANEL: Hamjamiyat -->
+                <div id="sh-panel-community" class="sh-panel hidden space-y-2.5">
+                    <div class="flex gap-1.5 overflow-x-auto scrollbar-none">
+                        <button type="button" onclick="shFilterCommunity('all')" data-sh-tag="all" class="sh-tag-chip px-2.5 py-1 rounded-lg text-[10px] font-bold bg-emerald-500 text-slate-950 cursor-pointer">Barchasi</button>
+                        <button type="button" onclick="shFilterCommunity('#savol')" data-sh-tag="#savol" class="sh-tag-chip px-2.5 py-1 rounded-lg text-[10px] font-semibold bg-[#161F30] border border-[#283548] text-slate-300 cursor-pointer">#savol</button>
+                        <button type="button" onclick="shFilterCommunity('#manba')" data-sh-tag="#manba" class="sh-tag-chip px-2.5 py-1 rounded-lg text-[10px] font-semibold bg-[#161F30] border border-[#283548] text-slate-300 cursor-pointer">#manba</button>
+                        <button type="button" onclick="shFilterCommunity('#tushunmadim')" data-sh-tag="#tushunmadim" class="sh-tag-chip px-2.5 py-1 rounded-lg text-[10px] font-semibold bg-[#161F30] border border-[#283548] text-slate-300 cursor-pointer">#tushunmadim</button>
+                    </div>
+                    <div id="sh-community-list" class="space-y-2 max-h-64 overflow-y-auto"></div>
+                    <div class="bg-[#111827] border border-[#1F2937] rounded-2xl p-3 space-y-2">
+                        <textarea id="sh-ask-content" rows="2" placeholder="Savolingizni yozing... #savol"
+                                  class="w-full bg-[#161F30] border border-[#283548] rounded-xl px-3 py-2 text-xs text-white outline-none focus:border-emerald-500/50 placeholder:text-slate-600 resize-none"></textarea>
+                        <div class="flex gap-2">
+                            <select id="sh-ask-tag" class="bg-[#161F30] border border-[#283548] rounded-xl px-2 py-2 text-[10px] text-slate-200">
+                                <option value="#savol">#savol</option>
+                                <option value="#manba">#manba</option>
+                                <option value="#tushunmadim">#tushunmadim</option>
+                                <option value="#javob">#javob</option>
+                            </select>
+                            <button type="button" onclick="shAskQuestion()"
+                                    class="flex-1 py-2 bg-emerald-500 text-slate-950 text-[11px] font-bold rounded-xl active:scale-95 cursor-pointer">Yuborish</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- PANEL: Kitoblar -->
+                <div id="sh-panel-books" class="sh-panel hidden space-y-2.5">
+                    <div id="sh-books-list" class="grid grid-cols-2 gap-2"></div>
+                </div>
+
+                <!-- PANEL: Modullar -->
+                <div id="sh-panel-modules" class="sh-panel hidden space-y-2.5">
+                    <div id="sh-modules-list" class="space-y-2"></div>
+                </div>
+
+                <!-- PANEL: Testlar -->
+                <div id="sh-panel-quizzes" class="sh-panel hidden space-y-2.5">
+                    <div class="flex gap-2 mb-1">
+                        <button type="button" onclick="shLoadQuizzes('all')" id="sh-quiz-filter-all" class="px-2.5 py-1 rounded-lg text-[10px] font-bold bg-emerald-500 text-slate-950 cursor-pointer">Barchasi</button>
+                        <button type="button" onclick="shLoadQuizzes('free')" id="sh-quiz-filter-free" class="px-2.5 py-1 rounded-lg text-[10px] font-semibold bg-[#161F30] border border-[#283548] text-slate-300 cursor-pointer">Bepul</button>
+                        <button type="button" onclick="shLoadQuizzes('paid')" id="sh-quiz-filter-paid" class="px-2.5 py-1 rounded-lg text-[10px] font-semibold bg-[#161F30] border border-[#283548] text-slate-300 cursor-pointer">Pullik</button>
+                    </div>
+                    <div id="sh-quizzes-list" class="space-y-2"></div>
+                </div>
+
+                <!-- PANEL: Diagnostika -->
+                <div id="sh-panel-diagnostics" class="sh-panel hidden space-y-2.5">
+                    <div class="bg-[#111827] border border-[#1F2937] rounded-2xl p-3 space-y-2">
+                        <label class="text-[9px] text-slate-500">Test ID</label>
+                        <div class="flex gap-2">
+                            <input id="sh-diag-quiz-id" type="number" value="1" min="1"
+                                   class="flex-1 bg-[#161F30] border border-[#283548] rounded-xl px-3 py-2 text-xs text-white outline-none">
+                            <button type="button" onclick="shLoadDiagnostics()"
+                                    class="px-3 py-2 bg-emerald-500 text-slate-950 text-[11px] font-bold rounded-xl cursor-pointer">Ochish</button>
+                        </div>
+                    </div>
+                    <div id="sh-diagnostics-body" class="space-y-2"></div>
+                </div>
+            </section>
         </div>
     </main>
 
-    <!-- 4-BO'LIM: TESTLAR TAB -->
-    <main id="tab-tests" class="hidden flex-1 px-4 py-4 max-w-md mx-auto w-full">
-        <section class="p-3 bg-[#111827] border border-[#1F2937] rounded-2xl mb-4">
-            <p class="text-[11px] font-bold text-slate-400 mb-2 uppercase tracking-wider">Savollar to'ri:</p>
-            <div id="grid-container" class="flex flex-wrap gap-2 max-h-28 overflow-y-auto"></div>
-        </section>
-
-        <div id="quiz-box">
-            <div class="bg-[#111827] p-4 rounded-2xl border border-[#1F2937] mb-4 shadow-sm">
-                <span id="question-number" class="text-xs font-bold text-emerald-400 uppercase tracking-wider block mb-1.5">Savol 1</span>
-                <p id="question-text" class="text-sm font-semibold leading-relaxed text-slate-100">Yuklanmoqda...</p>
-            </div>
-            <div id="options-container" class="space-y-2.5"></div>
+    <!-- Kitob / video in-app viewer modal (download bloklangan) -->
+    <div id="sh-viewer-modal" class="hidden fixed inset-0 z-50 bg-[#0A0E17]/95 backdrop-blur-sm flex flex-col">
+        <div class="flex items-center justify-between px-4 py-3 border-b border-[#1F2937] max-w-md mx-auto w-full">
+            <h3 id="sh-viewer-title" class="text-xs font-bold text-white truncate pr-3">Ko'rish</h3>
+            <button type="button" onclick="shCloseViewer()" class="w-8 h-8 rounded-xl bg-[#161F30] border border-[#283548] text-slate-300 flex items-center justify-center cursor-pointer">
+                <i data-lucide="x" class="w-4 h-4"></i>
+            </button>
         </div>
+        <div class="flex-1 flex items-center justify-center p-3 max-w-md mx-auto w-full" oncontextmenu="return false;">
+            <video id="sh-viewer-video" controls controlsList="nodownload noremoteplayback" disablePictureInPicture
+                   oncontextmenu="return false;" playsinline
+                   class="w-full rounded-xl bg-black aspect-video shadow-lg"></video>
+        </div>
+        <p class="text-center text-[9px] text-slate-500 pb-4">Yuklab olish bloklangan · faqat platforma ichida</p>
+    </div>
 
-        <footer class="mt-5 pt-3 border-t border-[#1F2937] flex gap-2">
-            <button id="prev-btn" onclick="prevQuestion()" class="flex-1 py-3 bg-[#161F30] hover:bg-[#1F2937] border border-[#283548] text-xs font-semibold rounded-xl disabled:opacity-30 disabled:pointer-events-none flex items-center justify-center gap-1.5 cursor-pointer">
-                <i data-lucide="arrow-left" class="w-3.5 h-3.5"></i> Oldingi
-            </button>
-            <button id="next-btn" onclick="nextQuestion()" class="flex-1 py-3 bg-[#161F30] hover:bg-[#1F2937] border border-[#283548] text-xs font-semibold rounded-xl disabled:opacity-30 disabled:pointer-events-none flex items-center justify-center gap-1.5 cursor-pointer">
-                Keyingi <i data-lucide="arrow-right" class="w-3.5 h-3.5"></i>
-            </button>
-            <button onclick="finishQuizPrompt()" class="px-4 py-3 bg-emerald-600 hover:bg-emerald-500 text-xs font-bold rounded-xl text-white shadow-md active:scale-95 transition-all cursor-pointer">
-                Yakunlash ✅
-            </button>
-        </footer>
-    </main>
+    <!-- Jadval dars detali modal -->
+    <div id="sh-schedule-modal" class="hidden fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-end sm:items-center justify-center p-3" onclick="if(event.target===this)shCloseScheduleModal()">
+        <div class="bg-[#111827] border border-[#1F2937] rounded-2xl p-4 w-full max-w-md space-y-3 shadow-2xl">
+            <div class="flex items-start justify-between gap-2">
+                <h3 id="sh-sched-modal-title" class="text-sm font-bold text-white"></h3>
+                <button type="button" onclick="shCloseScheduleModal()" class="text-slate-400 cursor-pointer"><i data-lucide="x" class="w-4 h-4"></i></button>
+            </div>
+            <p id="sh-sched-modal-meta" class="text-[11px] text-slate-400"></p>
+            <p id="sh-sched-modal-score" class="text-[11px] text-emerald-400 font-semibold"></p>
+            <button type="button" id="sh-sched-modal-video-btn" onclick="shPlayScheduleVideo()"
+                    class="w-full py-2.5 bg-emerald-500 text-slate-950 text-xs font-bold rounded-xl cursor-pointer">Videoni ochish</button>
+        </div>
+    </div>
 
-    <!-- 5-BO'LIM: KITOBLAR TAB -->
-    <main id="tab-books" class="hidden flex-1 px-4 py-4 max-w-md mx-auto w-full">
-        <p class="text-xs font-bold text-slate-400 mb-3 uppercase tracking-wider flex items-center gap-1.5">
-            <i data-lucide="bookmark" class="w-3.5 h-3.5 text-emerald-400"></i> Rasmiy qo'llanma va to'plamlar:
-        </p>
-        <div class="space-y-3">
-            <div class="bg-[#111827] border border-[#1F2937] p-3.5 rounded-2xl flex gap-3.5 items-center shadow-sm">
-                <div class="w-14 h-18 bg-emerald-500/10 rounded-xl flex items-center justify-center text-emerald-400 border border-emerald-500/30 shrink-0">
-                    <i data-lucide="library-big" class="w-7 h-7"></i>
-                </div>
-                <div class="flex-1">
-                    <h4 class="text-xs font-bold text-slate-100">Tarix: 6-11 Attestatsiya to'plami</h4>
-                    <p class="text-[10px] text-slate-400 mt-0.5">Muallif: PHAROS jamoasi</p>
-                    <p class="text-xs font-bold text-emerald-400 mt-1">45 000 so'm</p>
-                </div>
-                <button onclick="alert('Tez orada: Ushbu kitobni xarid qilasiz!')" class="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-xl cursor-pointer">
-                    Xarid
+    <!-- 3-BO'LIM: MAQSAD (ROADMAP / MUASSASALAR) TAB -->
+    <main id="tab-target" class="hidden flex-1 px-3 py-3 max-w-md mx-auto w-full space-y-3 pb-24">
+
+        <!-- 1. YUQORI CHIPSLI 4 TA TOIFA -->
+        <div>
+            <p class="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1.5 flex items-center gap-1">
+                <i data-lucide="target" class="w-3.5 h-3.5 text-emerald-400"></i> Muassasa toifasini tanlang:
+            </p>
+            <div class="grid grid-cols-2 gap-1.5 sm:flex sm:gap-2 overflow-x-auto pb-1 scrollbar-none">
+                <button onclick="selectTargetInstType('otm')" id="target-chip-otm" class="target-type-chip py-2 px-2.5 rounded-xl text-xs font-bold bg-emerald-500 text-slate-950 shadow-md transition-all active:scale-95 cursor-pointer text-center truncate">
+                    🏛 OTM
+                </button>
+                <button onclick="selectTargetInstType('otm_harbiy')" id="target-chip-otm_harbiy" class="target-type-chip py-2 px-2.5 rounded-xl text-xs font-semibold bg-[#161F30] border border-[#283548] text-slate-300 hover:border-emerald-500/50 transition-all active:scale-95 cursor-pointer text-center truncate">
+                    🎖 OTM (harbiy)
+                </button>
+                <button onclick="selectTargetInstType('litsey')" id="target-chip-litsey" class="target-type-chip py-2 px-2.5 rounded-xl text-xs font-semibold bg-[#161F30] border border-[#283548] text-slate-300 hover:border-emerald-500/50 transition-all active:scale-95 cursor-pointer text-center truncate">
+                    🏫 Litsey
+                </button>
+                <button onclick="selectTargetInstType('litsey_harbiy')" id="target-chip-litsey_harbiy" class="target-type-chip py-2 px-2.5 rounded-xl text-xs font-semibold bg-[#161F30] border border-[#283548] text-slate-300 hover:border-emerald-500/50 transition-all active:scale-95 cursor-pointer text-center truncate">
+                    🛡 Litsey (harbiy)
                 </button>
             </div>
+        </div>
+
+        <!-- 2. FILTRLAR: Yo'nalish, Fanlar majmuasi, Viloyat -->
+        <div class="bg-[#111827] border border-[#1F2937] p-3 rounded-2xl space-y-2 shadow-sm">
+            <p class="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1 flex items-center gap-1">
+                <i data-lucide="sliders-horizontal" class="w-3.5 h-3.5 text-amber-400"></i> Filtrlash:
+            </p>
+            <div class="grid grid-cols-1 gap-2 text-xs">
+                <label class="block space-y-1">
+                    <span class="text-[10px] font-semibold text-slate-500">Yo'nalish</span>
+                    <select id="target-filter-direction" onchange="onTargetFilterChange()" class="w-full bg-[#161F30] border border-[#283548] rounded-xl px-3 py-2 text-white outline-none focus:border-emerald-500 transition">
+                        <option value="">Barcha yo'nalishlar</option>
+                    </select>
+                </label>
+                <label class="block space-y-1">
+                    <span class="text-[10px] font-semibold text-slate-500">Fanlar majmuasi</span>
+                    <select id="target-filter-subject-block" onchange="onTargetFilterChange()" class="w-full bg-[#161F30] border border-[#283548] rounded-xl px-3 py-2 text-white outline-none focus:border-emerald-500 transition">
+                        <option value="">Barcha fanlar majmuasi</option>
+                    </select>
+                </label>
+                <label class="block space-y-1">
+                    <span class="text-[10px] font-semibold text-slate-500">Viloyat</span>
+                    <select id="target-filter-region" onchange="onTargetFilterChange()" class="w-full bg-[#161F30] border border-[#283548] rounded-xl px-3 py-2 text-white outline-none focus:border-emerald-500 transition">
+                        <option value="">Barcha viloyatlar</option>
+                    </select>
+                </label>
+            </div>
+            <button type="button" id="target-start-exam-btn" onclick="startTargetHeroExam()"
+                    class="w-full bg-gradient-to-r from-emerald-600 to-emerald-500 hover:from-emerald-500 hover:to-emerald-400 text-white font-bold py-3 rounded-2xl shadow-lg active:scale-95 transition-all text-sm flex items-center justify-center gap-2">
+                Imtihon topshirish 🎯
+            </button>
+        </div>
+
+        <!-- 3. SARALANGAN YO'NALISHLAR KARTALARI KONTEYNERI -->
+        <div id="target-cards-container" class="space-y-3 pt-1">
+            <p class="text-xs text-slate-500 text-center py-6">Yo'nalishlar yuklanmoqda...</p>
+        </div>
+    </main>
+
+    <!-- MAQSAD: 5 BLOKLI NAMUNAVIY IMTIHON -->
+    <div id="target-exam-modal" class="hidden fixed inset-0 z-[80] bg-black/75 backdrop-blur-sm flex items-end sm:items-center justify-center p-2">
+        <div class="bg-[#0B1220] border border-[#1F2937] w-full max-w-md max-h-[92vh] rounded-3xl flex flex-col overflow-hidden shadow-2xl">
+            <div class="px-4 pt-4 pb-2 border-b border-[#1F2937]">
+                <div class="flex items-start justify-between gap-2">
+                    <div class="min-w-0">
+                        <p class="text-[10px] uppercase tracking-wider text-emerald-400 font-bold">Namunaviy test</p>
+                        <h3 id="target-exam-title" class="text-sm font-extrabold text-white leading-tight"></h3>
+                        <p id="target-exam-subtitle" class="text-[10px] text-slate-400 mt-0.5 truncate"></p>
+                    </div>
+                    <button type="button" onclick="closeTargetExam()" class="shrink-0 w-8 h-8 rounded-xl bg-[#161F30] border border-[#283548] text-slate-300 text-sm cursor-pointer">✕</button>
+                </div>
+                <div id="target-exam-blocks" class="flex gap-1.5 overflow-x-auto py-2 scrollbar-none"></div>
+                <div class="flex items-center justify-between text-[10px] text-slate-400 pb-1">
+                    <span id="target-exam-progress"></span>
+                    <span id="target-exam-timer" class="font-mono text-amber-300"></span>
+                </div>
+            </div>
+            <div id="target-exam-play" class="flex-1 overflow-y-auto px-4 py-3">
+                <p id="target-exam-block-label" class="text-[10px] font-bold text-amber-400 uppercase mb-1"></p>
+                <p id="target-exam-qtext" class="text-sm font-semibold text-slate-100 mb-3 leading-relaxed"></p>
+                <div id="target-exam-options" class="space-y-2"></div>
+            </div>
+            <div id="target-exam-result" class="hidden flex-1 overflow-y-auto px-4 py-3 space-y-2"></div>
+            <div id="target-exam-footer" class="px-4 py-3 border-t border-[#1F2937] flex gap-2">
+                <button type="button" id="target-exam-prev" onclick="targetExamPrev()" class="flex-1 py-2.5 bg-[#161F30] border border-[#283548] text-xs font-semibold rounded-xl text-slate-200 cursor-pointer">Oldingi</button>
+                <button type="button" id="target-exam-next" onclick="targetExamNext()" class="flex-1 py-2.5 bg-[#161F30] border border-[#283548] text-xs font-semibold rounded-xl text-slate-200 cursor-pointer">Keyingi</button>
+                <button type="button" onclick="finishTargetExam()" class="px-3 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-xs font-bold rounded-xl text-white cursor-pointer">Yakunlash</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 4-BO'LIM: TESTLAR TAB -->
+    <main id="tab-tests" class="hidden flex-1 px-4 py-4 max-w-md mx-auto w-full pb-24">
+        <div class="mb-3">
+            <h2 class="text-sm font-extrabold text-white tracking-wide flex items-center gap-1.5">
+                <i data-lucide="circle-check-big" class="w-4 h-4 text-emerald-400"></i>
+                Testlar
+            </h2>
+            <p class="text-[11px] text-slate-400 mt-1">Fan va imtihon turini tanlang — kartochkalar avtomatik yangilanadi.</p>
+        </div>
+
+        <div class="space-y-2.5 mb-4">
+            <label class="block">
+                <span class="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1 flex items-center gap-1">
+                    <i data-lucide="compass" class="w-3.5 h-3.5 text-emerald-400"></i> Fan
+                </span>
+                <span class="relative block mt-1">
+                    <select id="exam-subject-select" class="w-full appearance-none bg-[#111827] border border-[#1F2937] text-slate-100 text-xs font-semibold rounded-xl px-3 py-2.5 pr-8 focus:outline-none focus:border-emerald-500 cursor-pointer">
+                        <option value="tarix">Tarix</option>
+                        <option value="huquq">Huquqshunoslik</option>
+                        <option value="psixologiya">Psixologiya</option>
+                        <option value="ona_tili">Ona tili</option>
+                    </select>
+                    <i data-lucide="chevron-down" class="w-3.5 h-3.5 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none"></i>
+                </span>
+            </label>
+            <label class="block">
+                <span class="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1 flex items-center gap-1">
+                    <i data-lucide="layers" class="w-3.5 h-3.5 text-amber-400"></i> Imtihon turi
+                </span>
+                <span class="relative block mt-1">
+                    <select id="exam-type-select" class="w-full appearance-none bg-[#111827] border border-[#1F2937] text-slate-100 text-xs font-semibold rounded-xl px-3 py-2.5 pr-8 focus:outline-none focus:border-emerald-500 cursor-pointer">
+                        <option value="milliy_sertifikat">Milliy sertifikat</option>
+                        <option value="namunaviy">Namunaviy testlar</option>
+                        <option value="imtihon">Imtihon</option>
+                        <option value="bmba_asosiy">BMBA (Asosiy blok)</option>
+                        <option value="bmba_majburiy">BMBA (Majburiy blok)</option>
+                        <option value="akademik_litsey">Akademik litsey imtihoni</option>
+                        <option value="olimpiada">Olimpiada</option>
+                        <option value="attestatsiya">Attestatsiya</option>
+                    </select>
+                    <i data-lucide="chevron-down" class="w-3.5 h-3.5 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none"></i>
+                </span>
+            </label>
+        </div>
+
+        <div id="exam-cards-root" class="space-y-3">
+            <p class="text-xs text-slate-500 text-center py-6">Testlar yuklanmoqda...</p>
+        </div>
+
+        <div id="exam-empty-state" class="ph-hide py-16 flex flex-col items-center justify-center text-center">
+            <div class="w-16 h-16 rounded-2xl bg-[#111827] border border-[#1F2937] flex items-center justify-center mb-3 shadow-lg shadow-black/30">
+                <i data-lucide="clipboard-list" class="w-7 h-7 text-slate-500"></i>
+            </div>
+            <p class="text-sm font-bold text-slate-100">Hali testlar yaratilmagan</p>
+            <p class="text-[11px] text-slate-500 mt-1.5 max-w-[240px] leading-relaxed">Tanlangan fan va imtihon turi bo'yicha bazada hozircha test yo'q.</p>
+        </div>
+    </main>
+
+    <!-- TEST: rejim tanlash -->
+    <div id="exam-mode-modal" class="ph-modal fixed inset-0 z-[80] bg-black/75 backdrop-blur-sm items-end sm:items-center justify-center p-3">
+        <div class="bg-[#111827] border border-[#1F2937] w-full max-w-md rounded-3xl p-4 shadow-2xl">
+            <div class="flex items-start justify-between gap-2 mb-3">
+                <div class="min-w-0">
+                    <p class="text-[10px] uppercase tracking-wider text-emerald-400 font-bold">Testni ishlash va tekshirish</p>
+                    <h3 id="exam-mode-title" class="text-sm font-extrabold text-white leading-tight mt-0.5"></h3>
+                </div>
+                <button type="button" onclick="closeExamModeModal()" class="shrink-0 w-8 h-8 rounded-xl bg-[#161F30] border border-[#283548] text-slate-300 text-sm cursor-pointer">✕</button>
+            </div>
+            <div class="space-y-2">
+                <button type="button" onclick="startElectronicExam()" class="w-full text-left p-3 rounded-2xl bg-[#0A0E17] border border-[#1F2937] hover:border-emerald-500/50 cursor-pointer">
+                    <p class="text-xs font-bold text-white">1. Elektron</p>
+                    <p class="text-[11px] text-slate-400 mt-0.5">Interaktiv savollar, setka va taymer.</p>
+                </button>
+                <button type="button" onclick="openExamPaper()" class="w-full text-left p-3 rounded-2xl bg-[#0A0E17] border border-[#1F2937] hover:border-emerald-500/50 cursor-pointer">
+                    <p class="text-xs font-bold text-white">2. Qog'oz</p>
+                    <p class="text-[11px] text-slate-400 mt-0.5">DTM test varaqasi (suv belgisi) va toza javoblar varaqasi.</p>
+                </button>
+                <button type="button" onclick="openExamScanner()" class="w-full text-left p-3 rounded-2xl bg-[#0A0E17] border border-[#1F2937] hover:border-emerald-500/50 cursor-pointer">
+                    <p class="text-xs font-bold text-white">3. Skaner</p>
+                    <p class="text-[11px] text-slate-400 mt-0.5">Kamerada javoblar varaqasini rasmga oling.</p>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- TEST: elektron fullscreen -->
+    <div id="exam-play-layer" class="ph-modal fixed inset-0 z-[90] bg-[#0A0E17] flex-col">
+        <div class="px-4 pt-3 pb-2 border-b border-[#1F2937] bg-[#111827]/95">
+            <div class="flex items-start justify-between gap-2">
+                <div class="min-w-0">
+                    <p class="text-[10px] uppercase tracking-wider text-emerald-400 font-bold">Elektron test</p>
+                    <h3 id="exam-play-title" class="text-sm font-extrabold text-white truncate"></h3>
+                </div>
+                <div class="flex items-center gap-2 shrink-0">
+                    <span id="exam-play-timer" class="font-mono text-xs font-bold text-amber-400 bg-[#161F30] border border-amber-500/40 px-2 py-1 rounded-lg">00:00</span>
+                    <button type="button" onclick="closeExamPlay()" class="w-8 h-8 rounded-xl bg-[#161F30] border border-[#283548] text-slate-300 text-sm cursor-pointer">✕</button>
+                </div>
+            </div>
+            <div id="exam-play-grid" class="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto py-2"></div>
+        </div>
+        <div id="exam-play-body" class="flex-1 overflow-y-auto px-4 py-4"></div>
+        <div id="exam-play-footer" class="px-4 py-3 border-t border-[#1F2937] bg-[#111827] flex gap-2">
+            <button type="button" id="exam-back-btn" onclick="examPlayBack()" class="flex-1 py-3 bg-[#161F30] border border-[#283548] text-xs font-semibold rounded-xl text-slate-200 cursor-pointer">Orqaga</button>
+            <button type="button" id="exam-forward-btn" onclick="examPlayForward()" class="flex-1 py-3 bg-emerald-600 hover:bg-emerald-500 text-xs font-bold rounded-xl text-white cursor-pointer">Oldinga</button>
+        </div>
+    </div>
+
+    <!-- TEST: qog'oz PDF -->
+    <div id="exam-paper-modal" class="ph-modal fixed inset-0 z-[86] bg-black/75 backdrop-blur-sm items-end sm:items-center justify-center p-2">
+        <div class="bg-[#111827] border border-[#1F2937] w-full max-w-md max-h-[92vh] rounded-3xl flex flex-col overflow-hidden shadow-2xl">
+            <div class="px-4 pt-4 pb-2 border-b border-[#1F2937] flex items-start justify-between gap-2">
+                <div class="min-w-0">
+                    <p class="text-[10px] uppercase tracking-wider text-emerald-400 font-bold">Qog'oz formati</p>
+                    <h3 id="exam-paper-title" class="text-sm font-extrabold text-white leading-tight"></h3>
+                </div>
+                <button type="button" onclick="closeExamPaper()" class="shrink-0 w-8 h-8 rounded-xl bg-[#161F30] border border-[#283548] text-slate-300 text-sm cursor-pointer">✕</button>
+            </div>
+            <div class="px-4 pt-3 flex gap-2">
+                <button type="button" id="exam-paper-tab-test" onclick="setExamPaperKind('test')" class="flex-1 py-2 text-[11px] font-bold rounded-xl bg-emerald-500 text-slate-950 cursor-pointer">Test varaqasi</button>
+                <button type="button" id="exam-paper-tab-answers" onclick="setExamPaperKind('answers')" class="flex-1 py-2 text-[11px] font-bold rounded-xl bg-[#161F30] border border-[#283548] text-slate-300 cursor-pointer">Javoblar varaqasi</button>
+            </div>
+            <div class="flex-1 overflow-hidden px-4 py-3">
+                <iframe id="exam-paper-frame" title="Test PDF" class="w-full h-[52vh] rounded-xl bg-white border border-[#1F2937]"></iframe>
+            </div>
+            <div class="px-4 pb-4">
+                <a id="exam-paper-download" href="#" download class="w-full py-2.5 bg-emerald-600 hover:bg-emerald-500 text-xs font-bold rounded-xl text-white flex items-center justify-center gap-1.5 cursor-pointer">Yuklab olish</a>
+                <p id="exam-paper-note" class="text-[10px] text-slate-500 text-center mt-2"></p>
+            </div>
+        </div>
+    </div>
+
+    <!-- TEST: skaner -->
+    <div id="exam-scan-modal" class="ph-modal fixed inset-0 z-[86] bg-black/80 backdrop-blur-sm items-end sm:items-center justify-center p-2">
+        <div class="bg-[#111827] border border-[#1F2937] w-full max-w-md rounded-3xl overflow-hidden shadow-2xl flex flex-col max-h-[92vh]">
+            <div class="px-4 pt-4 pb-2 flex items-start justify-between gap-2">
+                <div>
+                    <p class="text-[10px] uppercase tracking-wider text-emerald-400 font-bold">Skaner</p>
+                    <h3 class="text-sm font-extrabold text-white">Javoblar varaqasini rasmga oling</h3>
+                </div>
+                <button type="button" onclick="closeExamScanner()" class="shrink-0 w-8 h-8 rounded-xl bg-[#161F30] border border-[#283548] text-slate-300 text-sm cursor-pointer">✕</button>
+            </div>
+            <div class="px-4 pb-4">
+                <div class="relative rounded-2xl overflow-hidden border-2 border-dashed border-emerald-500/50 bg-black aspect-[3/4] max-h-[58vh]">
+                    <video id="exam-scan-video" autoplay playsinline muted class="w-full h-full object-cover"></video>
+                    <img id="exam-scan-still" alt="" class="ph-hide absolute inset-0 w-full h-full object-cover">
+                    <div class="pointer-events-none absolute inset-6 border-2 border-emerald-400/80 rounded-xl"></div>
+                    <p class="pointer-events-none absolute bottom-3 left-0 right-0 text-center text-[10px] text-emerald-200">Varaqani ramka ichiga joylang</p>
+                </div>
+                <canvas id="exam-scan-canvas" class="ph-hide"></canvas>
+                <p id="exam-scan-status" class="text-[11px] text-slate-400 text-center mt-2 min-h-[16px]"></p>
+                <button type="button" id="exam-scan-capture" onclick="captureExamSheet()" class="w-full mt-2 py-3 bg-emerald-600 hover:bg-emerald-500 text-xs font-bold rounded-xl text-white cursor-pointer">Rasmga olish</button>
+                <button type="button" id="exam-scan-fallback" onclick="submitSimulatedSheet()" class="ph-hide w-full mt-2 py-2.5 bg-[#161F30] border border-[#283548] text-[11px] font-semibold rounded-xl text-slate-200 cursor-pointer">Kamerasiz sinov varaqasini yuborish</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- TEST: reyting -->
+    <div id="exam-board-modal" class="ph-modal fixed inset-0 z-[84] bg-black/75 backdrop-blur-sm items-end sm:items-center justify-center p-2">
+        <div class="bg-[#111827] border border-[#1F2937] w-full max-w-md max-h-[92vh] rounded-3xl flex flex-col overflow-hidden shadow-2xl">
+            <div class="px-4 pt-4 pb-2 border-b border-[#1F2937]">
+                <div class="flex items-start justify-between gap-2">
+                    <div class="min-w-0">
+                        <p class="text-[10px] uppercase tracking-wider text-emerald-400 font-bold">Natija va reyting</p>
+                        <h3 id="exam-board-title" class="text-sm font-extrabold text-white leading-tight"></h3>
+                    </div>
+                    <button type="button" onclick="closeExamLeaderboard()" class="shrink-0 w-8 h-8 rounded-xl bg-[#161F30] border border-[#283548] text-slate-300 text-sm cursor-pointer">✕</button>
+                </div>
+                <div id="exam-board-myrank" class="mt-2 text-center text-sm font-extrabold text-amber-300 bg-amber-500/10 border border-amber-500/30 rounded-xl py-2">Siz —</div>
+                <div class="grid grid-cols-2 gap-2 mt-3 pb-2">
+                    <select id="exam-board-region" onchange="onExamBoardRegionChange()" class="bg-[#0A0E17] border border-[#1F2937] text-[11px] text-slate-100 rounded-xl px-2 py-2 focus:outline-none focus:border-emerald-500">
+                        <option value="">Barcha viloyatlar</option>
+                    </select>
+                    <select id="exam-board-district" onchange="loadExamLeaderboard()" class="bg-[#0A0E17] border border-[#1F2937] text-[11px] text-slate-100 rounded-xl px-2 py-2 focus:outline-none focus:border-emerald-500">
+                        <option value="">Barcha tumanlar</option>
+                    </select>
+                </div>
+            </div>
+            <div id="exam-board-list" class="flex-1 overflow-y-auto px-3 py-3 space-y-2"></div>
+        </div>
+    </div>
+
+    <!-- TEST: tahlil -->
+    <div id="exam-analysis-modal" class="ph-modal fixed inset-0 z-[84] bg-black/75 backdrop-blur-sm items-end sm:items-center justify-center p-2">
+        <div class="bg-[#111827] border border-[#1F2937] w-full max-w-md max-h-[92vh] rounded-3xl flex flex-col overflow-hidden shadow-2xl">
+            <div class="px-4 pt-4 pb-3 border-b border-[#1F2937] flex items-start justify-between gap-2">
+                <div class="min-w-0">
+                    <p class="text-[10px] uppercase tracking-wider text-emerald-400 font-bold">Tahlil va diagnostika</p>
+                    <h3 id="exam-analysis-title" class="text-sm font-extrabold text-white leading-tight"></h3>
+                    <p id="exam-analysis-score" class="text-[11px] text-slate-400 mt-0.5"></p>
+                </div>
+                <button type="button" onclick="closeExamAnalysis()" class="shrink-0 w-8 h-8 rounded-xl bg-[#161F30] border border-[#283548] text-slate-300 text-sm cursor-pointer">✕</button>
+            </div>
+            <div id="exam-analysis-list" class="flex-1 overflow-y-auto px-3 py-3 space-y-2"></div>
+            <div class="px-4 py-3 border-t border-[#1F2937]">
+                <p id="exam-analysis-note" class="text-[11px] text-slate-300 leading-relaxed mb-2"></p>
+                <button type="button" onclick="openExamDiagnostics()" class="w-full py-2.5 bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-extrabold rounded-xl cursor-pointer">Diagnostika</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- TEST: diagnostika jadvali -->
+    <div id="exam-diag-modal" class="ph-modal fixed inset-0 z-[94] bg-black/80 backdrop-blur-sm items-end sm:items-center justify-center p-2">
+        <div class="bg-[#111827] border border-[#1F2937] w-full max-w-md max-h-[88vh] rounded-3xl flex flex-col overflow-hidden shadow-2xl">
+            <div class="px-4 pt-4 pb-3 border-b border-[#1F2937] flex items-center justify-between">
+                <h3 class="text-sm font-extrabold text-white">Diagnostika</h3>
+                <button type="button" onclick="closeExamDiagnostics()" class="w-8 h-8 rounded-xl bg-[#161F30] border border-[#283548] text-slate-300 text-sm cursor-pointer">✕</button>
+            </div>
+            <div id="exam-diag-body" class="flex-1 overflow-auto px-3 py-3"></div>
+        </div>
+    </div>
+
+    <!-- TEST: o'quvchi profili -->
+    <div id="exam-student-modal" class="ph-modal fixed inset-0 z-[96] bg-black/80 backdrop-blur-sm items-center justify-center p-4">
+        <div class="bg-[#111827] border border-[#1F2937] w-full max-w-sm rounded-3xl p-4 shadow-2xl">
+            <div class="flex justify-end">
+                <button type="button" onclick="closeExamStudent()" class="w-8 h-8 rounded-xl bg-[#161F30] border border-[#283548] text-slate-300 text-sm cursor-pointer">✕</button>
+            </div>
+            <div id="exam-student-body" class="pb-2"></div>
+        </div>
+    </div>
+
+    <div id="exam-zoom-modal" class="ph-modal fixed inset-0 z-[100] bg-black/90 items-center justify-center p-3" onclick="closeExamImageZoom()">
+        <button type="button" onclick="closeExamImageZoom()" class="absolute top-3 right-3 w-9 h-9 rounded-xl bg-[#161F30] border border-[#283548] text-slate-200 text-sm cursor-pointer">✕</button>
+        <img id="exam-zoom-img" alt="Kattalashtirilgan rasm" class="max-w-full max-h-[88vh] object-contain rounded-xl" onclick="event.stopPropagation()">
+    </div>
+
+    <div id="exam-video-modal" class="ph-modal fixed inset-0 z-[102] bg-black/80 backdrop-blur-sm items-end sm:items-center justify-center p-2">
+        <div class="bg-[#111827] border border-[#1F2937] w-full max-w-md rounded-3xl overflow-hidden shadow-2xl">
+            <div class="px-4 pt-4 pb-2 flex items-start justify-between gap-2">
+                <h3 id="exam-video-title" class="text-sm font-extrabold text-white">Video tahlil</h3>
+                <button type="button" onclick="closeExamVideo()" class="shrink-0 w-8 h-8 rounded-xl bg-[#161F30] border border-[#283548] text-slate-300 text-sm cursor-pointer">✕</button>
+            </div>
+            <div id="exam-video-slot" class="px-4 pb-4"></div>
+        </div>
+    </div>
+
+    <!-- 5-BO'LIM: ZAMONAVIY KATALOG (KURSLAR VA KITOBLAR VITRINASI) -->
+    <main id="tab-books" class="hidden flex-1 px-3 py-3 max-w-md mx-auto w-full space-y-3 pb-24">
+
+        <!-- 1-QATOR: FANLAR VA KO'NIKMALAR (Gorizontal Chips) -->
+        <div>
+            <p class="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1.5 flex items-center gap-1">
+                <i data-lucide="compass" class="w-3.5 h-3.5 text-emerald-400"></i> Yo'nalishni tanlang:
+            </p>
+            <div id="catalog-subject-chips" class="flex gap-2 overflow-x-auto pb-1.5 scrollbar-none snap-x">
+                <button onclick="selectCatalogSubject('all')" id="sub-chip-all" class="cat-chip-sub px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap bg-emerald-500 text-slate-950 shadow-md transition-all active:scale-95 cursor-pointer">
+                    Barchasi
+                </button>
+                <button onclick="selectCatalogSubject('tarix')" id="sub-chip-tarix" class="cat-chip-sub px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap bg-[#161F30] border border-[#283548] text-slate-300 hover:border-emerald-500/50 transition-all active:scale-95 cursor-pointer">
+                    🏛 Tarix
+                </button>
+                <button onclick="selectCatalogSubject('huquq')" id="sub-chip-huquq" class="cat-chip-sub px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap bg-[#161F30] border border-[#283548] text-slate-300 hover:border-emerald-500/50 transition-all active:scale-95 cursor-pointer">
+                    ⚖️ Huquqshunoslik
+                </button>
+                <button onclick="selectCatalogSubject('psixologiya')" id="sub-chip-psixologiya" class="cat-chip-sub px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap bg-[#161F30] border border-[#283548] text-slate-300 hover:border-emerald-500/50 transition-all active:scale-95 cursor-pointer">
+                    🧠 Psixologiya
+                </button>
+                <button onclick="selectCatalogSubject('ona_tili')" id="sub-chip-ona_tili" class="cat-chip-sub px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap bg-[#161F30] border border-[#283548] text-slate-300 hover:border-emerald-500/50 transition-all active:scale-95 cursor-pointer">
+                    📖 Ona tili
+                </button>
+            </div>
+        </div>
+
+        <!-- 2-QATOR: IMTIHONLAR VA KATEGORIYALAR (Dinamik o'zgaruvchi ikkinchi qator) -->
+        <div id="catalog-category-wrapper">
+            <p class="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1.5 flex items-center gap-1">
+                <i data-lucide="layers" class="w-3.5 h-3.5 text-amber-400"></i> Imtihon / Toifa:
+            </p>
+            <div id="catalog-category-chips" class="flex gap-2 overflow-x-auto pb-1.5 scrollbar-none snap-x">
+                <!-- JavaScript orqali dinamik to'ldiriladi -->
+            </div>
+        </div>
+
+        <!-- MAHSULOTLAR RO'YXATI (50/50 KARTALAR KONTEYNERI) -->
+        <div id="catalog-cards-container" class="space-y-3 pt-1">
+            <p class="text-xs text-slate-500 text-center py-8">Katalog yuklanmoqda...</p>
         </div>
     </main>
 
     <!-- 6-BO'LIM: YANGILANGAN SHAXSIY PROFIL TAB -->
-    <main id="tab-profile" class="hidden flex-1 px-4 py-4 max-w-md mx-auto w-full pb-20 text-slate-200">
+    <main id="tab-profile" class="hidden flex-1 px-4 py-4 max-w-md mx-auto w-full pb-24 text-slate-200">
+
+        <!-- Yashirin fayl tanlash inputi (Galereyadan rasm tanlash uchun) -->
+        <input type="file" id="avatar-file-input" accept="image/*" class="hidden" onchange="handleAvatarUpload(event)">
+
         <!-- Profil Bosh Kartochkasi -->
         <div class="flex flex-col items-center justify-center my-3">
-            <div class="relative w-20 h-20 rounded-full bg-[#111827] border-2 border-emerald-500/40 flex items-center justify-center shadow-lg">
-                <span id="profile-avatar-icon" class="text-3xl select-none">👤</span>
-                <button onclick="alert('Profil rasmini almashtirish tez orada ulanadi!')" class="absolute bottom-0 right-0 w-6 h-6 rounded-full bg-emerald-500 hover:bg-emerald-400 text-slate-950 flex items-center justify-center text-[11px] shadow font-bold transition-all active:scale-95">
-                    ✏️
+            <div class="relative w-20 h-20 rounded-full bg-[#111827] border-2 border-emerald-500/40 flex items-center justify-center shadow-lg overflow-hidden">
+                <div id="profile-avatar-container" class="w-full h-full flex items-center justify-center">
+                    <span id="profile-avatar-icon" class="text-3xl select-none">👤</span>
+                </div>
+                <!-- Galereyani ochish tugmasi -->
+                <button onclick="document.getElementById('avatar-file-input').click()" title="Rasmni galereyadan tanlash" class="absolute bottom-0 right-0 w-6 h-6 rounded-full bg-emerald-500 hover:bg-emerald-400 text-slate-950 flex items-center justify-center text-[11px] shadow font-bold transition-all active:scale-95 cursor-pointer z-10">
+                    📷
                 </button>
             </div>
 
-            <h3 id="profile-fullname-top" class="text-base font-bold text-white tracking-tight mt-2.5">Yuklanmoqda...</h3>
+            <!-- Ism va obuna nishoni -->
+            <div class="flex items-center gap-1.5 mt-2.5">
+                <h3 id="profile-fullname-top" class="text-base font-bold text-white tracking-tight">Yuklanmoqda...</h3>
+                <span id="profile-sub-badge" class="hidden text-xs bg-amber-500/15 text-amber-400 border border-amber-500/30 px-1.5 py-0.5 rounded-md font-semibold">⭐ Obunachi</span>
+            </div>
 
-            <!-- Status va Kurslar Dropdown bloki -->
-            <div class="relative mt-1 inline-block">
-                <button onclick="toggleCourseDropdown()" class="text-xs font-semibold bg-[#161F30] text-emerald-400 border border-[#283548] hover:border-emerald-500/40 px-3 py-1 rounded-xl flex items-center gap-1.5 active:scale-95 transition-all">
-                    <span id="selected-course-title">6-sinf mavzulashgan test</span>:
-                    <span id="selected-course-level" class="text-amber-400 font-bold">Bilimdon</span>
-                    <i data-lucide="chevron-down" class="w-3.5 h-3.5 ml-1"></i>
-                </button>
-                <div id="course-dropdown" class="hidden absolute left-1/2 -translate-x-1/2 mt-1.5 w-64 bg-[#111827] border border-[#1F2937] rounded-xl shadow-2xl z-30 py-1.5 text-xs divide-y divide-slate-800">
-                    <div class="px-3 py-1 text-[10px] uppercase font-bold text-slate-500">O'qiyotgan kurs va testlaringiz:</div>
-                    <div id="course-dropdown-items" class="max-h-40 overflow-y-auto"></div>
-                </div>
+            <!-- Bilim darajasi -->
+            <div class="mt-1">
+                <span id="profile-knowledge-level" class="text-xs font-semibold bg-[#161F30] text-emerald-400 border border-[#283548] px-3 py-1 rounded-xl">
+                    Mehmon
+                </span>
             </div>
 
             <p class="text-xs text-slate-400 mt-1 font-mono">ID: <span id="profile-tg-id" class="text-slate-300 font-bold">---</span></p>
         </div>
 
-        <!-- 1. MENING MA'LUMOTLARIM -->
+        <!-- 1. SHAXSIY MA'LUMOTLARIM -->
         <div class="mb-4">
             <p class="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
-                <i data-lucide="user" class="w-3.5 h-3.5 text-emerald-400"></i> Mening ma'lumotlarim
+                <i data-lucide="user" class="w-3.5 h-3.5 text-emerald-400"></i> Shaxsiy ma'lumotlarim
             </p>
             <div class="bg-[#111827] border border-[#1F2937] rounded-2xl p-4 space-y-3 text-xs shadow-sm">
                 <div class="flex justify-between items-center py-0.5 border-b border-slate-800/60 pb-2">
                     <span class="text-slate-400">Ism-familiya:</span>
                     <span class="font-medium text-slate-200 flex items-center gap-2">
                         <span id="info-fullname">---</span>
-                        <button onclick="editFieldPrompt('full_name')" class="text-slate-400 hover:text-emerald-400">✏️</button>
+                        <button onclick="openModal('edit-fullname-modal')" class="text-slate-400 hover:text-emerald-400">✏️</button>
+                    </span>
+                </div>
+                <div class="flex justify-between items-center py-0.5 border-b border-slate-800/60 pb-2">
+                    <span class="text-slate-400">Asosiy telefon:</span>
+                    <span class="font-medium text-slate-200 flex items-center gap-2">
+                        <span id="info-phone">---</span>
+                    </span>
+                </div>
+                <div class="flex justify-between items-center py-0.5 border-b border-slate-800/60 pb-2">
+                    <span class="text-slate-400">Qo'shimcha telefon:</span>
+                    <span class="font-medium text-slate-200 flex items-center gap-2">
+                        <span id="info-secondary-phone">Kiritilmagan</span>
+                        <button onclick="openModal('edit-phone-modal')" title="SMS va qo'ng'iroqlar uchun" class="text-slate-400 hover:text-emerald-400">✏️</button>
                     </span>
                 </div>
                 <div class="flex justify-between items-center py-0.5 border-b border-slate-800/60 pb-2">
@@ -456,30 +1031,65 @@
                     </span>
                 </div>
                 <div class="flex justify-between items-center py-0.5 border-b border-slate-800/60 pb-2">
-                    <span class="text-slate-400">Telefon:</span>
-                    <span class="font-medium text-slate-200 flex items-center gap-2">
-                        <span id="info-phone">---</span>
-                        <button onclick="alert('Telefon raqamni faqat bot orqali yangi kontakt yuborib yangilash mumkin.')" class="text-slate-400 hover:text-emerald-400">✏️</button>
-                    </span>
-                </div>
-                <div class="flex justify-between items-center py-0.5 border-b border-slate-800/60 pb-2">
                     <span class="text-slate-400">Tug'ilgan kun:</span>
                     <span class="font-medium text-slate-200 flex items-center gap-2">
                         <span id="info-birthday">Tanlanmagan</span>
                         <button onclick="openModal('edit-birthday-modal')" class="text-slate-400 hover:text-emerald-400">✏️</button>
                     </span>
                 </div>
-                <div class="flex justify-between items-center py-0.5">
-                    <span class="text-slate-400">Ulangan qurilmalar:</span>
-                    <span class="font-medium text-slate-200 flex items-center gap-2">
-                        <span id="info-devices">Mobil qurilma</span>
-                        <button onclick="alert('Barcha boshqa sessiyalar tizimdan chiqarildi!')" title="Sessiyalarni tozalash" class="text-slate-400 hover:text-rose-400">✏️</button>
-                    </span>
+
+                <!-- Ulangan qurilmalar bloki -->
+                <div class="pt-1">
+                    <div class="flex justify-between items-center mb-1.5">
+                        <span class="text-slate-400">Ulangan qurilmalar:</span>
+                        <button onclick="disconnectAllOtherDevices()" class="text-[10px] text-rose-400 hover:underline">Boshqalarini uzish</button>
+                    </div>
+                    <div id="devices-container" class="space-y-1.5">
+                        <div class="bg-[#161F30] p-2 rounded-xl flex justify-between items-center text-[11px]">
+                            <div>
+                                <p class="text-white font-medium" id="device-current-name">Joriy qurilma</p>
+                                <p class="text-slate-400 text-[9px]" id="device-current-ip">127.0.0.1 • Faol</p>
+                            </div>
+                            <span class="text-[10px] text-emerald-400 font-semibold">Ushbu sessiya</span>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
 
-        <!-- 2. MENING HISOBIM -->
+        <!-- 2. NAZORATCHI BO'LIMI -->
+        <div class="mb-4">
+            <p class="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                <i data-lucide="shield-check" class="w-3.5 h-3.5 text-emerald-400"></i> Nazoratchi (Ota-ona / Vasiy)
+            </p>
+            <div class="bg-[#111827] border border-[#1F2937] rounded-2xl p-4 text-xs shadow-sm">
+                <!-- Agar nazoratchi bo'lmasa ko'rinadigan qism -->
+                <div id="supervisor-empty-state" class="text-center py-2 space-y-2">
+                    <p class="text-slate-400 text-xs">Hisobingizga hali nazoratchi biriktirilmagan.</p>
+                    <button onclick="openModal('add-supervisor-modal')" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl text-xs active:scale-95 transition-all cursor-pointer">
+                        ➕ Nazoratchi qo'shish
+                    </button>
+                </div>
+
+                <!-- Agar nazoratchi ulangan bo'lsa ko'rinadigan qism -->
+                <div id="supervisor-active-state" class="hidden space-y-2">
+                    <div class="flex justify-between items-center pb-2 border-b border-slate-800/60">
+                        <div>
+                            <span class="text-slate-400 text-[10px] block">Biriktirilgan nazoratchi:</span>
+                            <span id="supervisor-display-name" class="font-bold text-white text-sm">Dadam</span>
+                        </div>
+                        <span id="supervisor-status-badge" class="text-[10px] bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 px-2 py-0.5 rounded-lg">Faol</span>
+                    </div>
+                    <div class="text-[11px] text-slate-400 pt-1 space-y-1">
+                        <p>✓ Kunlik platforma vaqti yuboriladi</p>
+                        <p>✓ O'quv rejasi va dars qoldirish ogohlantirishlari beriladi</p>
+                        <p>✓ To'lov hisobnomasi va hisobotlar taqdim etiladi</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 3. MENING HISOBIM -->
         <div class="mb-4">
             <p class="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
                 <i data-lucide="wallet" class="w-3.5 h-3.5 text-emerald-400"></i> Mening hisobim
@@ -504,7 +1114,7 @@
                     <span class="text-xs text-slate-400 font-mono"><span id="referral-count">0</span>/10 ›</span>
                 </div>
 
-                <!-- HAFTALIK FAOLLIK DIAGRAMMASI -->
+                <!-- Haftalik faollik -->
                 <div class="pt-3 border-t border-slate-800/60">
                     <div class="bg-[#0D121F] border border-[#1A2333] rounded-2xl p-3.5 shadow-inner">
                         <div class="flex justify-between items-center">
@@ -514,24 +1124,8 @@
                             </div>
                             <i data-lucide="trending-up" class="w-4 h-4 text-emerald-400"></i>
                         </div>
-
-                        <!-- Chiziqli grafik -->
-                        <div class="my-3 px-1">
-                            <div class="flex flex-col gap-2.5 border-b border-slate-800/80 pb-1 text-[9px] text-slate-500 font-mono">
-                                <div class="border-b border-slate-800/40 pb-1">0</div>
-                                <div class="border-b border-slate-800/40 pb-1">0</div>
-                                <div class="border-b border-slate-800/40 pb-1">0</div>
-                            </div>
-                            <div class="flex justify-between text-[10px] text-slate-400 font-medium pt-1.5 px-1">
-                                <span>Ch</span><span>Pa</span><span>Ju</span><span>Sh</span><span>Ya</span><span>Du</span><span class="text-emerald-400 font-bold">Se</span>
-                            </div>
-                        </div>
-
-                        <div class="flex justify-between items-center pt-2 border-t border-slate-800/60 text-xs">
-                            <div class="flex items-center gap-1.5">
-                                <span class="w-2 h-2 rounded-full bg-emerald-400"></span>
-                                <span id="chart-user-name" class="font-medium text-slate-300">Jahongir Qadamov</span>
-                            </div>
+                        <div class="flex justify-between items-center pt-3 text-xs">
+                            <span id="chart-user-name" class="font-medium text-slate-300">O'quvchi</span>
                             <span class="font-bold text-emerald-400"><span id="chart-xp-label">0</span> XP</span>
                         </div>
                     </div>
@@ -539,7 +1133,7 @@
             </div>
         </div>
 
-        <!-- 3. BIZ BO'LIMI -->
+        <!-- 4. BIZ BO'LIMI -->
         <div class="mb-4">
             <p class="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
                 <i data-lucide="info" class="w-3.5 h-3.5 text-emerald-400"></i> Biz
@@ -568,6 +1162,175 @@
             </div>
         </div>
     </main>
+
+    <!-- 7-BO'LIM: OKTAGON (PVP JANG ZALI VA DIAGNOSTIKA) -->
+    <main id="tab-octagon" class="hidden flex-1 px-3 py-3 max-w-md mx-auto w-full space-y-3 pb-28 text-slate-200">
+        <!-- Sarlavha -->
+        <section class="bg-gradient-to-br from-[#1c1917]/90 to-[#0A0E17] border border-amber-500/30 rounded-2xl p-3.5 shadow-lg relative overflow-hidden">
+            <div class="absolute -right-6 -top-6 w-24 h-24 bg-amber-500/10 rounded-full blur-2xl pointer-events-none"></div>
+            <div class="flex items-center justify-between relative z-10">
+                <div class="flex items-center gap-2.5">
+                    <div class="w-10 h-10 rounded-xl bg-amber-500/15 border border-amber-500/30 text-amber-400 flex items-center justify-center">
+                        <i data-lucide="swords" class="w-5 h-5"></i>
+                    </div>
+                    <div>
+                        <h2 class="text-sm font-extrabold text-white tracking-wide uppercase">Oktagon</h2>
+                        <p class="text-[10px] text-slate-400">PvP jang zali · diagnostika</p>
+                    </div>
+                </div>
+                <div class="text-right">
+                    <p class="text-[9px] text-slate-500 uppercase tracking-wider">Reyting</p>
+                    <p class="text-sm font-black text-amber-400 font-mono">#<span id="octagon-my-rank">—</span></p>
+                </div>
+            </div>
+        </section>
+
+        <!-- Yuqori filtrlar: Viloyat / Fan / Umumiy reyting -->
+        <section class="bg-[#111827] border border-[#1F2937] rounded-2xl p-3 space-y-2.5">
+            <div class="flex items-center justify-between">
+                <h3 class="text-[11px] font-bold text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
+                    <i data-lucide="trophy" class="w-3.5 h-3.5 text-amber-400"></i> Peshqadamlar
+                </h3>
+                <button type="button" onclick="loadOctagonLeaderboard()" class="text-[10px] text-amber-400 font-semibold active:scale-95">Yangilash</button>
+            </div>
+            <div class="grid grid-cols-3 gap-2">
+                <select id="oct-filter-region" onchange="loadOctagonLeaderboard(); loadOctagonHistory();" class="bg-[#161F30] border border-[#283548] rounded-xl px-2 py-2 text-[10px] text-slate-200 outline-none focus:border-amber-500/50">
+                    <option value="all">Barcha hudud</option>
+                </select>
+                <select id="oct-filter-subject" onchange="loadOctagonLeaderboard(); loadOctagonHistory();" class="bg-[#161F30] border border-[#283548] rounded-xl px-2 py-2 text-[10px] text-slate-200 outline-none focus:border-amber-500/50">
+                    <option value="">Barcha fan</option>
+                    <option value="tarix">Tarix</option>
+                    <option value="huquq">Huquq</option>
+                    <option value="psixologiya">Psixologiya</option>
+                    <option value="ona tili">Ona tili</option>
+                </select>
+                <select id="oct-filter-level" onchange="loadOctagonHistory()" class="bg-[#161F30] border border-[#283548] rounded-xl px-2 py-2 text-[10px] text-slate-200 outline-none focus:border-amber-500/50">
+                    <option value="">Barcha daraja</option>
+                    <option value="oson">Oson</option>
+                    <option value="orta">O'rta</option>
+                    <option value="qiyin">Qiyin</option>
+                </select>
+            </div>
+            <div id="octagon-leaderboard" class="space-y-1.5 max-h-40 overflow-y-auto">
+                <p class="text-[11px] text-slate-500 text-center py-3">Reyting yuklanmoqda...</p>
+            </div>
+        </section>
+
+        <!-- Jang sozlamalari -->
+        <section class="bg-[#111827] border border-[#1F2937] rounded-2xl p-3 space-y-3">
+            <h3 class="text-[11px] font-bold text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
+                <i data-lucide="settings-2" class="w-3.5 h-3.5 text-emerald-400"></i> Jang sozlamalari
+            </h3>
+            <div class="grid grid-cols-2 gap-2">
+                <div>
+                    <label class="text-[9px] text-slate-500 mb-1 block">Fan</label>
+                    <select id="oct-battle-subject" class="w-full bg-[#161F30] border border-[#283548] rounded-xl px-2.5 py-2 text-xs text-white outline-none focus:border-amber-500/50">
+                        <option value="tarix">Tarix</option>
+                        <option value="huquq">Huquq</option>
+                        <option value="psixologiya">Psixologiya</option>
+                        <option value="ona tili">Ona tili</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="text-[9px] text-slate-500 mb-1 block">Daraja</label>
+                    <select id="oct-battle-level" class="w-full bg-[#161F30] border border-[#283548] rounded-xl px-2.5 py-2 text-xs text-white outline-none focus:border-amber-500/50">
+                        <option value="oson">Oson</option>
+                        <option value="orta" selected>O'rta</option>
+                        <option value="qiyin">Qiyin</option>
+                    </select>
+                </div>
+            </div>
+            <div>
+                <label class="text-[9px] text-slate-500 mb-1 block">Mavzu / modul</label>
+                <input id="oct-battle-topic" type="text" placeholder="Masalan: Amir Temur davlati" class="w-full bg-[#161F30] border border-[#283548] rounded-xl px-3 py-2.5 text-xs text-white outline-none focus:border-amber-500/50 placeholder:text-slate-600">
+            </div>
+
+            <!-- 3 ta harakat tugmasi -->
+            <div class="grid grid-cols-1 gap-2 pt-1">
+                <button type="button" onclick="generateDuelInviteLink()" class="w-full py-2.5 bg-gradient-to-r from-sky-600 to-sky-500 hover:from-sky-500 hover:to-sky-400 text-white text-[11px] font-bold rounded-xl active:scale-95 transition-all shadow flex items-center justify-center gap-2 cursor-pointer">
+                    <i data-lucide="send" class="w-3.5 h-3.5"></i> Telegram do'stga havola
+                </button>
+                <div class="grid grid-cols-2 gap-2">
+                    <button type="button" onclick="startDuelWithBot()" class="py-2.5 bg-[#161F30] hover:bg-[#1F2937] border border-[#283548] text-slate-200 text-[11px] font-bold rounded-xl active:scale-95 transition-all flex items-center justify-center gap-1.5 cursor-pointer">
+                        <i data-lucide="bot" class="w-3.5 h-3.5 text-violet-400"></i> Bot bilan
+                    </button>
+                    <button type="button" onclick="findRandomOnlineOpponent()" class="py-2.5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 text-[11px] font-bold rounded-xl active:scale-95 transition-all shadow flex items-center justify-center gap-1.5 cursor-pointer">
+                        <i data-lucide="radar" class="w-3.5 h-3.5"></i> Jonli raqib
+                    </button>
+                </div>
+            </div>
+            <p id="oct-invite-status" class="hidden text-[10px] text-center text-amber-300/90 font-medium"></p>
+        </section>
+
+        <!-- Janglar tarixi -->
+        <section class="bg-[#111827] border border-[#1F2937] rounded-2xl p-3 space-y-2.5">
+            <div class="flex items-center justify-between">
+                <h3 class="text-[11px] font-bold text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
+                    <i data-lucide="history" class="w-3.5 h-3.5 text-slate-400"></i> Janglar tarixi
+                </h3>
+                <button type="button" onclick="loadOctagonHistory()" class="text-[10px] text-slate-400 hover:text-amber-400 font-semibold">Yangilash</button>
+            </div>
+            <div id="octagon-history-list" class="space-y-2">
+                <p class="text-[11px] text-slate-500 text-center py-4">Tarix yuklanmoqda...</p>
+            </div>
+        </section>
+    </main>
+
+    <!-- Jang vaqtidagi suzuvchi stikerlar paneli -->
+    <div id="battle-reaction-bar" class="hidden fixed bottom-20 left-1/2 -translate-x-1/2 z-40 max-w-sm w-[92%] bg-[#111827]/95 backdrop-blur-xl border border-amber-500/30 rounded-2xl px-3 py-2.5 shadow-2xl shadow-black/50">
+        <div class="flex items-center justify-between mb-1.5 px-0.5">
+            <span class="text-[9px] font-bold text-amber-400 uppercase tracking-wider">Reaksiyalar</span>
+            <span id="oct-sticker-tier" class="text-[9px] text-slate-500 font-semibold">Free</span>
+        </div>
+        <div id="battle-reaction-buttons" class="flex gap-2 justify-center flex-wrap"></div>
+    </div>
+
+    <!-- Natija va kamchiliklar tahlili modali -->
+    <div id="battle-result-modal" class="fixed inset-0 z-50 hidden bg-black/80 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4">
+        <div class="bg-[#111827] border border-[#283548] rounded-t-3xl sm:rounded-2xl w-full max-w-md max-h-[88vh] flex flex-col overflow-hidden">
+            <div class="p-4 border-b border-[#283548] flex items-center justify-between shrink-0">
+                <div class="flex items-center gap-2">
+                    <span class="text-lg">⚔️</span>
+                    <h3 class="text-sm font-bold text-white">Jang natijasi</h3>
+                </div>
+                <button type="button" onclick="closeBattleResultModal()" class="w-8 h-8 rounded-full bg-[#1F2937] text-slate-400 hover:text-white flex items-center justify-center text-sm font-bold cursor-pointer">✕</button>
+            </div>
+            <div class="p-4 space-y-3 overflow-y-auto">
+                <div id="battle-result-summary" class="text-center space-y-1"></div>
+                <div class="bg-[#0A0E17] border border-[#1F2937] rounded-xl p-3 grid grid-cols-3 gap-2 text-center">
+                    <div>
+                        <p class="text-[9px] text-slate-500 uppercase">Ochkolar</p>
+                        <p id="br-my-score" class="text-base font-black text-amber-400 font-mono">0</p>
+                    </div>
+                    <div>
+                        <p class="text-[9px] text-slate-500 uppercase">To'g'ri</p>
+                        <p id="br-my-correct" class="text-base font-black text-emerald-400 font-mono">0</p>
+                    </div>
+                    <div>
+                        <p class="text-[9px] text-slate-500 uppercase">Noto'g'ri</p>
+                        <p id="br-my-wrong" class="text-base font-black text-rose-400 font-mono">0</p>
+                    </div>
+                </div>
+                <div>
+                    <h4 class="text-[11px] font-bold text-slate-300 uppercase tracking-wider mb-2">Kamchiliklar diagnostikasi</h4>
+                    <div class="overflow-x-auto rounded-xl border border-[#1F2937]">
+                        <table class="w-full text-[11px]">
+                            <thead class="bg-[#161F30] text-slate-400">
+                                <tr>
+                                    <th class="text-left px-2.5 py-2 font-semibold">Mavzu</th>
+                                    <th class="text-center px-2 py-2 font-semibold">Xato</th>
+                                    <th class="text-center px-2 py-2 font-semibold">%</th>
+                                    <th class="text-right px-2.5 py-2 font-semibold">Kurs</th>
+                                </tr>
+                            </thead>
+                            <tbody id="battle-gaps-tbody" class="divide-y divide-[#1F2937]"></tbody>
+                        </table>
+                    </div>
+                    <p id="battle-gaps-empty" class="hidden text-[11px] text-slate-500 text-center py-3">Aniq kamchilik topilmadi — ajoyib!</p>
+                </div>
+            </div>
+        </div>
+    </div>
 
     <!-- MINI APP ICHKI MODALLARI (DRAWER / BOTTOM SHEET) -->
     <!-- 1. Tranzaksiyalar tarixi -->
@@ -648,19 +1411,20 @@
                     <label class="text-slate-400 block mb-1">Viloyat:</label>
                     <select id="select-region" onchange="onRegionChange()" class="w-full bg-[#161F30] border border-[#283548] rounded-xl px-3 py-2 text-white outline-none">
                         <option value="">Viloyatni tanlang</option>
-                        <option value="Toshkent">Toshkent shahri</option>
-                        <option value="Xorazm">Xorazm viloyati</option>
-                        <option value="Samarqand">Samarqand viloyati</option>
-                        <option value="Farg'ona">Farg'ona viloyati</option>
-                        <option value="Andijon">Andijon viloyati</option>
-                        <option value="Namangan">Namangan viloyati</option>
-                        <option value="Buxoro">Buxoro viloyati</option>
-                        <option value="Qashqadaryo">Qashqadaryo viloyati</option>
-                        <option value="Surxondaryo">Surxondaryo viloyati</option>
-                        <option value="Jizzax">Jizzax viloyati</option>
-                        <option value="Sirdaryo">Sirdaryo viloyati</option>
-                        <option value="Navoiy">Navoiy viloyati</option>
-                        <option value="Qoraqalpog'iston">Qoraqalpog'iston Respublikasi</option>
+                        <option value="Toshkent shahri">Toshkent shahri</option>
+                        <option value="Qoraqalpog‘iston Respublikasi">Qoraqalpog‘iston Respublikasi</option>
+                        <option value="Andijon viloyati">Andijon viloyati</option>
+                        <option value="Buxoro viloyati">Buxoro viloyati</option>
+                        <option value="Farg‘ona viloyati">Farg‘ona viloyati</option>
+                        <option value="Jizzax viloyati">Jizzax viloyati</option>
+                        <option value="Xorazm viloyati">Xorazm viloyati</option>
+                        <option value="Namangan viloyati">Namangan viloyati</option>
+                        <option value="Navoiy viloyati">Navoiy viloyati</option>
+                        <option value="Qashqadaryo viloyati">Qashqadaryo viloyati</option>
+                        <option value="Samarqand viloyati">Samarqand viloyati</option>
+                        <option value="Sirdaryo viloyati">Sirdaryo viloyati</option>
+                        <option value="Surxondaryo viloyati">Surxondaryo viloyati</option>
+                        <option value="Toshkent viloyati">Toshkent viloyati</option>
                     </select>
                 </div>
                 <div>
@@ -688,6 +1452,85 @@
                 <button onclick="saveBirthdaySelection()" class="w-full py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl active:scale-95 cursor-pointer">
                     Saqlash
                 </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 6. Ism-familiyani tahrirlash modali (Bottom Sheet) -->
+    <div id="edit-fullname-modal" class="hidden fixed inset-0 bg-black/80 z-50 flex items-end justify-center backdrop-blur-sm">
+        <div class="bg-[#111827] border-t border-[#1F2937] w-full max-w-md rounded-t-3xl p-5">
+            <div class="flex justify-between items-center mb-3">
+                <h4 class="text-sm font-bold text-white flex items-center gap-2">
+                    <span>✏️</span> Ism-familiyangizni kiriting
+                </h4>
+                <button onclick="closeModal('edit-fullname-modal')" class="text-slate-400 p-1 text-sm hover:text-white">✕</button>
+            </div>
+            <div class="space-y-3 text-xs">
+                <div>
+                    <label class="text-slate-400 block mb-1">To'liq ism va familiya:</label>
+                    <input type="text" id="input-fullname" placeholder="Masalan: Ali Valiyev" class="w-full bg-[#161F30] border border-[#283548] rounded-xl px-3 py-2.5 text-white outline-none focus:border-emerald-500 transition-colors">
+                    <p id="fullname-error" class="hidden text-[10px] text-rose-400 mt-1">Iltimos, ism va familiyangizni to'liq kiriting (kamida 2 ta so'z)!</p>
+                </div>
+                <button onclick="saveFullNameSelection()" class="w-full py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl active:scale-95 transition-all cursor-pointer">
+                    Saqlash ✅
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Qo'shimcha telefon raqamini kiritish modali -->
+    <div id="edit-phone-modal" class="hidden fixed inset-0 bg-black/80 z-50 flex items-end justify-center backdrop-blur-sm">
+        <div class="bg-[#111827] border-t border-[#1F2937] w-full max-w-md rounded-t-3xl p-5">
+            <div class="flex justify-between items-center mb-3">
+                <h4 class="text-sm font-bold text-white flex items-center gap-2">
+                    <span>📞</span> Qo'shimcha telefon raqami
+                </h4>
+                <button onclick="closeModal('edit-phone-modal')" class="text-slate-400 p-1 text-sm hover:text-white">✕</button>
+            </div>
+            <div class="space-y-3 text-xs">
+                <div>
+                    <label class="text-slate-400 block mb-1">Telefon raqam (SMS yoki qo'ng'iroqlar uchun):</label>
+                    <input type="tel" id="input-secondary-phone" placeholder="+998901234567" class="w-full bg-[#161F30] border border-[#283548] rounded-xl px-3 py-2.5 text-white outline-none focus:border-emerald-500 transition-colors font-mono">
+                </div>
+                <button onclick="saveSecondaryPhone()" class="w-full py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl active:scale-95 transition-all cursor-pointer">
+                    Saqlash ✅
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Nazoratchi qo'shish modali (Taklif havolasi) -->
+    <div id="add-supervisor-modal" class="hidden fixed inset-0 bg-black/80 z-50 flex items-end justify-center backdrop-blur-sm">
+        <div class="bg-[#111827] border-t border-[#1F2937] w-full max-w-md rounded-t-3xl p-5">
+            <div class="flex justify-between items-center mb-3">
+                <h4 class="text-sm font-bold text-white flex items-center gap-2">
+                    <i data-lucide="shield-plus" class="w-4 h-4 text-emerald-400"></i> Nazoratchi qo'shish
+                </h4>
+                <button onclick="closeModal('add-supervisor-modal')" class="text-slate-400 p-1 text-sm hover:text-white">✕</button>
+            </div>
+            <div class="space-y-3 text-xs">
+                <div id="supervisor-input-group">
+                    <label class="text-slate-400 block mb-1">Nazoratchi sizga kim bo'ladi? (Kontakt nomi):</label>
+                    <input type="text" id="input-supervisor-name" placeholder="Masalan: Dadam, Onam, Tog'am" class="w-full bg-[#161F30] border border-[#283548] rounded-xl px-3 py-2.5 text-white outline-none focus:border-emerald-500 mb-2">
+                    <button onclick="generateSupervisorInviteLink()" class="w-full py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl active:scale-95 transition-all cursor-pointer">
+                        Taklif havolasini olish 🔗
+                    </button>
+                </div>
+
+                <div id="supervisor-link-group" class="hidden space-y-2 pt-1">
+                    <p class="text-slate-300 text-[11px]">Ushbu havolani nazoratchiga yuboring. U havolani bosib shartlarni qabul qilgach, tizimga ulanadi:</p>
+                    <div class="bg-[#161F30] border border-[#283548] p-2.5 rounded-xl font-mono text-emerald-400 text-xs break-all select-all" id="supervisor-generated-link">
+                        Havola tayyorlanmoqda...
+                    </div>
+                    <div class="grid grid-cols-2 gap-2 pt-1">
+                        <button onclick="copySupervisorLink()" class="py-2.5 bg-[#1F2937] hover:bg-slate-700 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 active:scale-95 cursor-pointer">
+                            📋 Nusxalash
+                        </button>
+                        <button onclick="shareSupervisorLink()" class="py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 active:scale-95 cursor-pointer">
+                            🚀 Telegramda yuborish
+                        </button>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
@@ -756,20 +1599,20 @@
             <span class="nav-label text-[10px] font-bold tracking-tight text-emerald-400">Asosiy</span>
         </button>
 
-        <!-- 2. Fanlar -->
-        <button onclick="switchTab('lessons')" id="nav-btn-lessons" class="flex flex-col items-center gap-1 transition-all active:scale-95 cursor-pointer py-1 px-3 rounded-2xl group">
+        <!-- 2. Kabinet -->
+        <button onclick="switchTab('cabinet')" id="nav-btn-cabinet" class="flex flex-col items-center gap-1 transition-all active:scale-95 cursor-pointer py-1 px-3 rounded-2xl group">
             <div class="nav-icon-box w-10 h-7 rounded-xl flex items-center justify-center transition-all bg-transparent border border-transparent text-slate-400 group-hover:text-slate-200">
-                <i data-lucide="graduation-cap" class="w-4 h-4 stroke-[2]"></i>
+                <i data-lucide="layout-dashboard" class="w-4 h-4 stroke-[2]"></i>
             </div>
-            <span class="nav-label text-[10px] font-semibold tracking-tight text-slate-400">Fanlar</span>
+            <span class="nav-label text-[10px] font-semibold tracking-tight text-slate-400">Kabinet</span>
         </button>
 
-        <!-- 3. Reyting -->
-        <button onclick="switchTab('rating')" id="nav-btn-rating" class="flex flex-col items-center gap-1 transition-all active:scale-95 cursor-pointer py-1 px-3 rounded-2xl group">
+        <!-- 3. Maqsad (Eski Reyting o'rniga) -->
+        <button onclick="switchTab('target')" id="nav-btn-target" class="flex flex-col items-center gap-1 transition-all active:scale-95 cursor-pointer py-1 px-3 rounded-2xl group">
             <div class="nav-icon-box w-10 h-7 rounded-xl flex items-center justify-center transition-all bg-transparent border border-transparent text-slate-400 group-hover:text-slate-200">
-                <i data-lucide="trophy" class="w-4 h-4 stroke-[2]"></i>
+                <i data-lucide="target" class="w-4 h-4 stroke-[2]"></i>
             </div>
-            <span class="nav-label text-[10px] font-semibold tracking-tight text-slate-400">Reyting</span>
+            <span class="nav-label text-[10px] font-semibold tracking-tight text-slate-400">Maqsad</span>
         </button>
 
         <!-- 4. Testlar -->
@@ -785,7 +1628,7 @@
             <div class="nav-icon-box w-10 h-7 rounded-xl flex items-center justify-center transition-all bg-transparent border border-transparent text-slate-400 group-hover:text-slate-200">
                 <i data-lucide="library-big" class="w-4 h-4 stroke-[2]"></i>
             </div>
-            <span class="nav-label text-[10px] font-semibold tracking-tight text-slate-400">Kitoblar</span>
+            <span class="nav-label text-[10px] font-semibold tracking-tight text-slate-400">Katalog</span>
         </button>
     </nav>
 
@@ -822,8 +1665,14 @@
     </div>
 
     <!-- MODULLI JAVASCRIPT FAYLLARI -->
-    <script src="/static/js/home.js"></script>
+    <script src="/static/js/home.js?v=test-tg-1"></script>
     <script src="/static/js/profile.js"></script>
+    <script src="/static/js/catalog.js?v=ona-tili-1"></script>
+    <script src="/static/js/target.js?v=20261020"></script>
+    <script src="/static/js/cabinet.js?v=header-back-1"></script>
+    <script src="/static/js/octagon.js?v=1"></script>
+    <script src="/static/js/subject_dashboard.js?v=1"></script>
+    <script src="/static/js/tests.js?v=20261021"></script>
 
     <!-- ASOSIY BOSHQARUV LOGIKASI -->
     <script>
@@ -846,91 +1695,124 @@
             }, 1000);
         }
 
-        function toggleHeaderLeftAction() {
-            if (currentTab === 'profile') {
-                switchTab('home');
+        window.headerBackContext = null;
+
+        function isCabinetCourseView() {
+            return window.headerBackContext === 'cabinet' && (currentTab === 'lessons' || currentTab === 'subject-hub');
+        }
+
+        function updateHeaderLeftButton() {
+            const profileWrap = document.getElementById('hdr-profile-info-wrap');
+            const backWrap = document.getElementById('hdr-home-return-wrap');
+            const backLabel = document.getElementById('hdr-back-label');
+            const iconBox = document.getElementById('hdr-back-icon-box');
+            if (!profileWrap || !backWrap) return;
+
+            const showBack = currentTab === 'profile' || currentTab === 'octagon' || currentTab === 'subject-hub' || isCabinetCourseView();
+
+            if (showBack) {
+                profileWrap.classList.add('hidden');
+                profileWrap.classList.remove('flex');
+                backWrap.classList.remove('hidden');
+                backWrap.classList.add('flex');
+                if (backLabel) {
+                    backLabel.innerText = (currentTab === 'profile' || currentTab === 'octagon') ? 'Bosh sahifa' : 'Ortga';
+                }
+                if (iconBox) {
+                    const iconName = (currentTab === 'profile' || currentTab === 'octagon') ? 'house' : 'arrow-left';
+                    iconBox.innerHTML = `<i data-lucide="${iconName}" class="w-4 h-4 stroke-[2.2]"></i>`;
+                }
+                if (window.lucide) lucide.createIcons();
             } else {
-                switchTab('profile');
+                profileWrap.classList.remove('hidden');
+                profileWrap.classList.add('flex');
+                backWrap.classList.add('hidden');
+                backWrap.classList.remove('flex');
             }
+        }
+
+        function toggleHeaderLeftAction() {
+            if (currentTab === 'profile' || currentTab === 'octagon') {
+                switchTab('home');
+                return;
+            }
+            if (currentTab === 'subject-hub' || isCabinetCourseView()) {
+                window.headerBackContext = null;
+                switchTab('cabinet');
+                return;
+            }
+            switchTab('profile');
         }
 
         // BO'LIMLARNI ALMASHTIRISH
-        function switchTab(tab) {
-            currentTab = tab;
+        function switchTab(tab, opts) {
+    opts = opts || {};
+    if (opts.backTo) {
+        window.headerBackContext = opts.backTo;
+    } else if (tab !== 'lessons' && tab !== 'profile' && tab !== 'subject-hub') {
+        window.headerBackContext = null;
+    }
+    currentTab = tab;
 
-            // 1. HAR BIR BO'LIMNI YASHIRISH
-            ['home', 'lessons', 'rating', 'tests', 'books', 'profile'].forEach(t => {
-                const el = document.getElementById(`tab-${t}`);
-                if (el) el.classList.add('hidden');
-            });
+    // 1. Yashirish
+    ['home', 'lessons', 'cabinet', 'target', 'tests', 'books', 'profile', 'octagon', 'subject-hub'].forEach(t => {
+    const el = document.getElementById(`tab-${t}`);
+    if (el) el.classList.add('hidden');
+    });
 
-            // 2. PASTKI NAVIGATSIYA TUGMALARINI MOSLASH
-            ['home', 'lessons', 'rating', 'tests', 'books'].forEach(t => {
-                const btn = document.getElementById(`nav-btn-${t}`);
-                if (!btn) return;
-                const iconBox = btn.querySelector('.nav-icon-box');
-                const label = btn.querySelector('.nav-label');
-                const icon = btn.querySelector('i');
+    // 2. Pastki menyu ro'yxati
+    ['home', 'cabinet', 'target', 'tests', 'books'].forEach(t => {
+    const btn = document.getElementById(`nav-btn-${t}`);
+        if (!btn) return;
+        const iconBox = btn.querySelector('.nav-icon-box');
+        const label = btn.querySelector('.nav-label');
+        const icon = btn.querySelector('i');
 
-                if (t === tab) {
-                    if (iconBox) iconBox.className = "nav-icon-box w-10 h-7 rounded-xl flex items-center justify-center transition-all bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 shadow-[0_0_12px_rgba(16,185,129,0.3)]";
-                    if (label) label.className = "nav-label text-[10px] font-bold tracking-tight text-emerald-400";
-                    if (icon) icon.setAttribute('class', 'w-4 h-4 stroke-[2.4]');
-                } else {
-                    if (iconBox) iconBox.className = "nav-icon-box w-10 h-7 rounded-xl flex items-center justify-center transition-all bg-transparent border border-transparent text-slate-400 group-hover:text-slate-200";
-                    if (label) label.className = "nav-label text-[10px] font-semibold tracking-tight text-slate-400";
-                    if (icon) icon.setAttribute('class', 'w-4 h-4 stroke-[2]');
-                }
-            });
-
-            // 3. HEADER CHAP QISMINI MOSLASH
-            const profileWrap = document.getElementById('hdr-profile-info-wrap');
-            const returnHomeWrap = document.getElementById('hdr-home-return-wrap');
-
-            if (tab === 'profile') {
-                profileWrap?.classList.add('hidden');
-                returnHomeWrap?.classList.remove('hidden');
-            } else {
-                profileWrap?.classList.remove('hidden');
-                returnHomeWrap?.classList.add('hidden');
-            }
-
-            // 4. TAYMERLAR KO'RINISHI
-            if (tab === 'tests') {
-                document.getElementById('session-timer-box')?.classList.add('hidden');
-                document.getElementById('test-timer-box')?.classList.remove('hidden');
-                if (!quizData.questions || quizData.questions.length === 0) {
-                    loadQuiz();
-                }
-            } else {
-                document.getElementById('session-timer-box')?.classList.remove('hidden');
-                document.getElementById('test-timer-box')?.classList.add('hidden');
-            }
-
-            // 5. TANLANGAN BO'LIMNIGINA KO'RSATISH
-            const targetTab = document.getElementById(`tab-${tab}`);
-            if (targetTab) targetTab.classList.remove('hidden');
-
-            // 6. BO'LIM MA'LUMOTLARINI YUKLASH
-            if (tab === 'home') {
-                if (typeof loadNews === 'function') loadNews();
-                if (typeof loadExamDeadlines === 'function') loadExamDeadlines();
-                if (typeof loadCoursePace === 'function') loadCoursePace();
-                if (typeof loadOctagonWidget === 'function') loadOctagonWidget();
-                if (typeof loadPromotions === 'function') loadPromotions();
-                if (typeof loadPlatformStats === 'function') loadPlatformStats();
-            } else if (tab === 'lessons') {
-                loadLessons(currentClass);
-            } else if (tab === 'profile') {
-                if (typeof fetchUserProfile === 'function') {
-                    fetchUserProfile();
-                }
-            }
-
-            setTimeout(() => {
-                if (window.lucide) lucide.createIcons();
-            }, 30);
+        const navActive = (t === tab) || (tab === 'subject-hub' && t === 'cabinet');
+        if (navActive) {
+            if (iconBox) iconBox.className = "nav-icon-box w-10 h-7 rounded-xl flex items-center justify-center transition-all bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 shadow-[0_0_12px_rgba(16,185,129,0.3)]";
+            if (label) label.className = "nav-label text-[10px] font-bold tracking-tight text-emerald-400";
+            if (icon) icon.setAttribute('class', 'w-4 h-4 stroke-[2.4]');
+        } else {
+            if (iconBox) iconBox.className = "nav-icon-box w-10 h-7 rounded-xl flex items-center justify-center transition-all bg-transparent border border-transparent text-slate-400 group-hover:text-slate-200";
+            if (label) label.className = "nav-label text-[10px] font-semibold tracking-tight text-slate-400";
+            if (icon) icon.setAttribute('class', 'w-4 h-4 stroke-[2]');
         }
+    });
+
+    // Qolgan header/timer boshqaruvi o'zgarishsiz qoladi...
+    const targetTab = document.getElementById(`tab-${tab}`);
+    if (targetTab) targetTab.classList.remove('hidden');
+
+    // 6. Bo'lim ma'lumotlarini yuklash
+    if (tab === 'home') {
+        if (typeof loadNews === 'function') loadNews();
+    } else if (tab === 'target') {
+        if (typeof initTargetSection === 'function') initTargetSection();
+    } else if (tab === 'lessons') {
+        loadLessons(currentClass);
+    } else if (tab === 'profile') {
+        if (typeof fetchUserProfile === 'function') fetchUserProfile();
+    } else if (tab === 'cabinet') {
+        if (typeof loadCabinetItems === 'function') loadCabinetItems();
+    } else if (tab === 'octagon') {
+        if (typeof initOctagonSection === 'function') initOctagonSection();
+    } else if (tab === 'subject-hub') {
+        if (typeof initSubjectHub === 'function') initSubjectHub(opts.subjectId || null);
+    } else if (tab === 'tests') {
+        if (typeof initTestsSection === 'function') initTestsSection();
+    }
+
+    if (tab !== 'tests' && typeof closeAllExamOverlays === 'function') {
+        closeAllExamOverlays();
+    }
+
+    updateHeaderLeftButton();
+
+    setTimeout(() => {
+        if (window.lucide) lucide.createIcons();
+    }, 30);
+}
 
         async function loadLessons(classId) {
             currentClass = classId;
@@ -987,135 +1869,6 @@
             vBox.classList.remove('hidden');
             player.scrollIntoView({ behavior: 'smooth' });
             player.play();
-        }
-
-        // Test mantig'i
-        let quizData = { questions: [] };
-        let currentIndex = 0;
-        let userAnswers = {};
-        let timerSeconds = 0;
-        let timerInterval = null;
-
-        async function loadQuiz() {
-            try {
-                const res = await fetch('/api/test-data');
-                quizData = await res.json();
-                timerSeconds = (quizData.duration_minutes || 15) * 60;
-                renderGrid();
-                renderQuestion(0);
-                startTimer();
-            } catch (err) {}
-        }
-
-        function renderGrid() {
-            const c = document.getElementById('grid-container');
-            if (!c) return;
-            c.innerHTML = '';
-            (quizData.questions || []).forEach((_, idx) => {
-                const btn = document.createElement('button');
-                btn.id = `grid-btn-${idx}`;
-                btn.innerText = idx + 1;
-                btn.className = "w-8 h-8 text-xs font-semibold rounded-lg border border-[#1F2937] bg-[#161F30] text-slate-300 cursor-pointer";
-                btn.onclick = () => renderQuestion(idx);
-                c.appendChild(btn);
-            });
-            updateGridStyles();
-        }
-
-        function renderQuestion(index) {
-            currentIndex = index;
-            const q = quizData.questions[index];
-            const total = quizData.questions.length;
-            document.getElementById('question-number').innerText = `Savol ${index + 1} / ${total}`;
-            document.getElementById('question-text').innerText = q.text;
-
-            const optC = document.getElementById('options-container');
-            optC.innerHTML = '';
-            const labels = ['A', 'B', 'C', 'D'];
-            (q.options || []).forEach((opt, optIdx) => {
-                const isSelected = userAnswers[index] === optIdx;
-                const btn = document.createElement('button');
-                btn.className = `w-full text-left p-3 rounded-xl border text-xs sm:text-sm font-medium flex items-center gap-3 transition-all cursor-pointer ${
-                    isSelected ? 'bg-emerald-500/10 border-emerald-500 text-emerald-300 font-semibold shadow-sm' : 'bg-[#111827] border-[#1F2937] text-slate-300 hover:bg-[#161F30]'
-                }`;
-                btn.innerHTML = `
-                    <span class="w-6 h-6 rounded-lg flex items-center justify-center text-xs font-bold border ${isSelected ? 'border-emerald-400 bg-emerald-500 text-slate-950' : 'border-[#1F2937] bg-[#161F30] text-slate-400'}">${labels[optIdx]}</span>
-                    <span class="flex-1">${opt}</span>
-                `;
-                btn.onclick = () => { userAnswers[index] = optIdx; renderQuestion(index); };
-                optC.appendChild(btn);
-            });
-
-            document.getElementById('prev-btn').disabled = (index === 0);
-            document.getElementById('next-btn').disabled = (index === total - 1);
-            updateGridStyles();
-        }
-
-        function updateGridStyles() {
-            (quizData.questions || []).forEach((_, idx) => {
-                const btn = document.getElementById(`grid-btn-${idx}`);
-                if (!btn) return;
-                if (idx === currentIndex) {
-                    btn.className = "w-8 h-8 text-xs font-bold rounded-lg border-2 border-emerald-400 bg-emerald-500/20 text-emerald-300";
-                } else if (userAnswers.hasOwnProperty(idx)) {
-                    btn.className = "w-8 h-8 text-xs font-semibold rounded-lg border border-emerald-500/80 bg-emerald-500/20 text-emerald-300";
-                } else {
-                    btn.className = "w-8 h-8 text-xs font-semibold rounded-lg border border-[#1F2937] bg-[#161F30] text-slate-400";
-                }
-            });
-        }
-
-        function nextQuestion() {
-            if (currentIndex < quizData.questions.length - 1) {
-                renderQuestion(currentIndex + 1);
-            }
-        }
-
-        function prevQuestion() {
-            if (currentIndex > 0) {
-                renderQuestion(currentIndex - 1);
-            }
-        }
-
-        function startTimer() {
-            clearInterval(timerInterval);
-            timerInterval = setInterval(() => {
-                if (timerSeconds <= 0) { clearInterval(timerInterval); finishQuiz(true); return; }
-                timerSeconds--;
-                const m = Math.floor(timerSeconds / 60).toString().padStart(2, '0');
-                const s = (timerSeconds % 60).toString().padStart(2, '0');
-                const tEl = document.getElementById('timer');
-                if (tEl) tEl.innerText = `${m}:${s}`;
-            }, 1000);
-        }
-
-        function finishQuizPrompt() {
-            const answeredCount = Object.keys(userAnswers).length;
-            const total = quizData.questions.length;
-            if (answeredCount < total) {
-                if (confirm(`Siz hamma savolga javob bermadingiz (${answeredCount}/${total}). Yakunlaysizmi?`)) finishQuiz(false);
-            } else {
-                finishQuiz(false);
-            }
-        }
-
-        function finishQuiz(isTimeout) {
-            clearInterval(timerInterval);
-            let correct = 0;
-            quizData.questions.forEach((q, idx) => { if (userAnswers[idx] === q.correct) correct++; });
-            const percent = Math.round((correct / quizData.questions.length) * 100);
-
-            document.getElementById('tab-tests').innerHTML = `
-                <div class="py-12 flex flex-col items-center justify-center text-center">
-                    <div class="w-20 h-20 bg-emerald-500/10 text-emerald-400 rounded-2xl flex items-center justify-center text-4xl mb-4 border border-emerald-500/30">🏆</div>
-                    <h2 class="text-base font-bold text-white mb-1">Test yakunlandi!</h2>
-                    <div class="bg-[#111827] border border-[#1F2937] p-5 rounded-2xl w-full max-w-xs my-4 shadow-md">
-                        <p class="text-3xl font-extrabold text-emerald-400 mb-1">${percent}%</p>
-                        <p class="text-xs text-slate-300">To'g'ri javoblar: <span class="text-emerald-400 font-bold">${correct}</span> / ${quizData.questions.length}</p>
-                    </div>
-                    <button onclick="location.reload()" class="w-full max-w-xs py-2.5 bg-[#161F30] hover:bg-[#1F2937] border border-[#283548] text-white rounded-xl text-xs font-semibold active:scale-95 transition-all cursor-pointer">Qayta topshirish</button>
-                </div>
-            `;
         }
 
         // Sahifa to'liq yuklanganda

@@ -1,5 +1,5 @@
 from datetime import datetime, date
-from sqlalchemy import (Column, Integer, BigInteger, String, Boolean, Float, Text, ForeignKey, DateTime, Date)
+from sqlalchemy import (Column, Integer, BigInteger, String, Boolean, Float, Text, ForeignKey, DateTime, Date, UniqueConstraint)
 from sqlalchemy.orm import declarative_base, relationship
 
 
@@ -429,13 +429,106 @@ class UserOctagonProfile(Base):
     __tablename__ = 'user_octagon_profiles'
 
     id = Column(Integer, primary_key=True)
-    user_id = Column(BigInteger, unique=True, nullable=False) # Telegram ID
+    user_id = Column(BigInteger, unique=True, nullable=False, index=True)  # Telegram ID
     current_course = Column(String, default="7-sinf Tarix")   # Hozir o'qiyotgan kursi
+    subject_focus = Column(String, default="tarix", index=True)  # Faol fan
+    region = Column(String, nullable=True, index=True)        # Reyting filtri uchun hudud
     rank_position = Column(Integer, default=12)              # Shu kurs bo'yicha o'rni
     total_battles = Column(Integer, default=0)               # Umumiy janglar soni
     victories = Column(Integer, default=0)                   # G'alabalar soni
     rating_points = Column(Integer, default=1000)            # Reyting balli
+    subscription_tier = Column(String, default="free")       # free | pro | premium (stikerlar)
+    last_seen_at = Column(DateTime, nullable=True)           # Onlayn holat (heartbeat)
     updated_at = Column(DateTime, default=datetime.utcnow)
+
+    created_battles = relationship(
+        "OctagonBattle",
+        foreign_keys="OctagonBattle.creator_id",
+        primaryjoin="UserOctagonProfile.user_id == OctagonBattle.creator_id",
+        viewonly=True,
+    )
+    joined_battles = relationship(
+        "OctagonBattle",
+        foreign_keys="OctagonBattle.opponent_id",
+        primaryjoin="UserOctagonProfile.user_id == OctagonBattle.opponent_id",
+        viewonly=True,
+    )
+
+
+# ==========================================================
+# OKTAGON JANG XONALARI (DUEL / BOT / JONLI PVP)
+# ==========================================================
+class OctagonBattle(Base):
+    __tablename__ = 'octagon_battles'
+
+    id = Column(Integer, primary_key=True)
+    room_code = Column(String, unique=True, nullable=False, index=True)
+    creator_id = Column(BigInteger, nullable=False, index=True)
+    opponent_id = Column(BigInteger, nullable=True, index=True)
+    is_bot = Column(Boolean, default=False)
+
+    subject = Column(String, default="tarix", index=True)
+    level = Column(String, default="orta", index=True)       # oson | orta | qiyin
+    topic = Column(String, nullable=True)
+
+    # waiting | active | finished | expired | cancelled
+    status = Column(String, default="waiting", index=True)
+    expires_at = Column(DateTime, nullable=False)            # Taklif muddati (60 sekund)
+
+    creator_score = Column(Integer, default=0)
+    opponent_score = Column(Integer, default=0)
+    creator_correct = Column(Integer, default=0)
+    creator_wrong = Column(Integer, default=0)
+    opponent_correct = Column(Integer, default=0)
+    opponent_wrong = Column(Integer, default=0)
+    winner_id = Column(BigInteger, nullable=True)            # None = durang; bot g'alabasi: 0
+
+    created_at = Column(DateTime, default=datetime.utcnow)
+    started_at = Column(DateTime, nullable=True)
+    finished_at = Column(DateTime, nullable=True)
+
+    analyses = relationship(
+        "OctagonBattleAnalysis",
+        back_populates="battle",
+        cascade="all, delete-orphan",
+    )
+    reactions = relationship(
+        "OctagonBattleReaction",
+        back_populates="battle",
+        cascade="all, delete-orphan",
+    )
+
+
+class OctagonBattleAnalysis(Base):
+    __tablename__ = 'octagon_battle_analyses'
+
+    id = Column(Integer, primary_key=True)
+    battle_id = Column(Integer, ForeignKey('octagon_battles.id'), nullable=False, index=True)
+    user_id = Column(BigInteger, nullable=False, index=True)
+
+    topic_name = Column(String, nullable=False)              # Xato qilingan mavzu
+    questions_total = Column(Integer, default=0)
+    mistakes_count = Column(Integer, default=0)
+    mastery_percent = Column(Float, default=0.0)             # O'zlashtirish foizi
+
+    recommended_course_id = Column(Integer, nullable=True)
+    recommended_course_title = Column(String, nullable=True)
+    recommended_course_link = Column(String, nullable=True)  # Mini App ichki havola / tab
+
+    battle = relationship("OctagonBattle", back_populates="analyses")
+
+
+class OctagonBattleReaction(Base):
+    __tablename__ = 'octagon_battle_reactions'
+
+    id = Column(Integer, primary_key=True)
+    battle_id = Column(Integer, ForeignKey('octagon_battles.id'), nullable=False, index=True)
+    user_id = Column(BigInteger, nullable=False, index=True)
+    emoji = Column(String, nullable=False)
+    is_premium = Column(Boolean, default=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    battle = relationship("OctagonBattle", back_populates="reactions")
 
 # ==========================================================
 # REKLAMA VA AKSIYALAR MODELI (PROMOTIONS / BUNDLES)
@@ -478,7 +571,7 @@ class Product(Base):
     subject = Column(String, nullable=False, index=True)  # 'tarix', 'huquq', 'psixologiya'
     category = Column(String, nullable=False,
                       index=True)  # 'ms', 'attestatsiya', 'bmba_asosiy', 'kitoblar', 'paketlar', va h.k.
-    item_type = Column(String, default="course")  # 'course', 'book', 'bundle'
+    item_type = Column(String, default="course")  # 'course', 'book', 'bundle', 'module'
 
     # Narx va chegirmalar (Coin hisobida)
     price_coin = Column(Integer, nullable=False)  # Amaldagi narxi (masalan: 120)
@@ -489,6 +582,11 @@ class Product(Base):
     buyers_count = Column(Integer, default=0)  # Sotib olganlar soni
     image_url = Column(String, nullable=True)  # Muqova rasmi
     is_active = Column(Boolean, default=True)
+
+    # Modul sifatida alohida sotish (to'liq kursdan mustaqil)
+    is_module = Column(Boolean, default=False)
+    parent_product_id = Column(Integer, ForeignKey("products.id"), nullable=True)
+    subject_id = Column(Integer, nullable=True, index=True)  # Subject Hub bog'lanishi
 
 
 class UserCourseAccess(Base):
@@ -521,18 +619,26 @@ class TargetDirection(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     institution_id = Column(Integer, ForeignKey("target_institutions.id"), nullable=False)
-    title = Column(String, nullable=False, index=True)  # "Tarix (yo'nalishlar bo'yicha)"
-    subject_main = Column(String, nullable=False, index=True)  # Asosiy fan: "Tarix", "Huquqshunoslik", "Matematika"
-    subject_secondary = Column(String, nullable=True)  # 2-fan: "Geografiya", "Chet tili"
-    education_lang = Column(String, default="O'zbek")  # Ta'lim tili
+    title = Column(String, nullable=False, index=True)  # Yo'nalish nomi
+    cipher = Column(String, nullable=True, index=True)  # Yo'nalish shifri
+    edu_form = Column(String, nullable=True)  # Ta'lim shakli: Kunduzgi, Kechki, Masofaviy
+    edu_lang = Column(String, nullable=True)  # Ta'lim tili
+    education_lang = Column(String, default="O'zbek")  # Eski maydon (edu_lang bilan bir xil)
+
+    subject_main = Column(String, nullable=False, index=True)  # 1-fan (asosiy)
+    subject_second = Column(String, nullable=True)  # 2-fan
+    subject_secondary = Column(String, nullable=True)  # Eski maydon (subject_second bilan bir xil)
+    mandatory_subjects = Column(String, nullable=True)  # Majburiy fanlar
+    subject_block = Column(String, nullable=True, index=True)  # "1-fan - 2-fan - MB"
 
     # Imtihon ballari va kvota statistikasi
-    grant_score = Column(Float, default=0.0)  # Davlat granti o'tish bali
-    contract_score = Column(Float, default=0.0)  # Kontrakt o'tish bali
-    quota = Column(Integer, default=50)  # Qabul kvotasi
+    grant_score = Column(Float, default=0.0)
+    contract_score = Column(Float, default=0.0)
+    grant_ball = Column(Float, default=0.0)  # grant_score bilan bir xil qiymat
+    contract_ball = Column(Float, default=0.0)  # contract_score bilan bir xil qiymat
+    quota = Column(Integer, default=0)
 
-    # Namunaviy imtihon topshirish uchun test havolasi / ID
-    mock_quiz_id = Column(Integer, default=1)  # Testlar modulidagi bog'langan test ID si
+    mock_quiz_id = Column(Integer, default=1)
 
     institution = relationship("TargetInstitution", back_populates="directions")
 
@@ -601,3 +707,261 @@ class SupervisorInvoice(Base):
     target_student_id = Column(BigInteger, ForeignKey('users.telegram_id'), nullable=True, index=True)
     status = Column(String, default="pending", index=True)
     created_at = Column(DateTime, default=datetime.utcnow)
+
+
+# ==========================================================
+# FAN TIZIMI VA O'QUV PANELI (SUBJECT HUB)
+# ==========================================================
+class SubjectCatalog(Base):
+    """Platformadagi fanlar katalogi (Subject Hub asosi)."""
+    __tablename__ = 'subject_catalog'
+
+    id = Column(Integer, primary_key=True, index=True)
+    code = Column(String, unique=True, nullable=False, index=True)  # tarix, huquq
+    title = Column(String, nullable=False)
+    description = Column(Text, nullable=True)
+    image_url = Column(String, nullable=True)
+    community_chat_id = Column(BigInteger, nullable=True)  # Telegram community guruh
+    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class SubjectModule(Base):
+    """Fanning alohida sotiladigan moduli (masalan: 6-sinf O'zbekiston tarixi)."""
+    __tablename__ = 'subject_modules'
+
+    id = Column(Integer, primary_key=True, index=True)
+    subject_id = Column(Integer, ForeignKey('subject_catalog.id'), nullable=False, index=True)
+    product_id = Column(Integer, ForeignKey('products.id'), nullable=True)  # Katalog bog'lanishi
+    title = Column(String, nullable=False)
+    description = Column(Text, nullable=True)
+    grade_level = Column(String, nullable=True)  # "6-sinf", "MS"
+    order_num = Column(Integer, default=0)
+    price_coin = Column(Integer, default=0)
+    old_price_coin = Column(Integer, default=0)
+    image_url = Column(String, nullable=True)
+    is_standalone = Column(Boolean, default=True)  # To'liq kursdan tashqari sotiladi
+    is_active = Column(Boolean, default=True)
+
+
+class SubjectWiki(Base):
+    """Fanga oid bilimlar bazasi (atama, shaxs, sana, qoida, nazariya)."""
+    __tablename__ = 'subject_wiki'
+
+    id = Column(Integer, primary_key=True, index=True)
+    subject_id = Column(Integer, ForeignKey('subject_catalog.id'), nullable=False, index=True)
+    term = Column(String, nullable=False, index=True)
+    definition = Column(Text, nullable=False)
+    source_book = Column(String, nullable=True)  # Darslik / ma'lumotnoma
+    grade_level = Column(String, nullable=True)  # "7-sinf", "Bob 3"
+    topic_title = Column(String, nullable=True)  # Mavzu / bob
+    concept_type = Column(String, default="atama", index=True)  # atama|shaxs|sana|qoida|nazariya
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class SubjectSchedule(Base):
+    """Tematik-taqvimiy dars jadvali (mundarija va marshrut)."""
+    __tablename__ = 'subject_schedules'
+
+    id = Column(Integer, primary_key=True, index=True)
+    subject_id = Column(Integer, ForeignKey('subject_catalog.id'), nullable=False, index=True)
+    module_id = Column(Integer, ForeignKey('subject_modules.id'), nullable=True, index=True)
+    order_num = Column(Integer, default=0)
+    topic_title = Column(String, nullable=False)
+    planned_date = Column(Date, nullable=True)
+    video_url = Column(String, nullable=True)
+    test_score_avg = Column(Float, nullable=True)  # O'tgan mavzu test o'rtachasi (demo/seed)
+
+
+class SubjectMistakeBank(Base):
+    """Fan bo'yicha xatolar banki (Mistake Vault)."""
+    __tablename__ = 'subject_mistake_bank'
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(BigInteger, nullable=False, index=True)  # Telegram ID
+    subject_id = Column(Integer, ForeignKey('subject_catalog.id'), nullable=False, index=True)
+    question_id = Column(Integer, nullable=False, index=True)
+    question_text = Column(Text, nullable=True)
+    options_json = Column(Text, nullable=True)  # JSON massiv
+    correct_answer = Column(String, nullable=True)
+    user_wrong_answer = Column(String, nullable=True)
+    explanation = Column(Text, nullable=True)
+    mistake_count = Column(Integer, default=1)
+    is_resolved = Column(Boolean, default=False, index=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class SubjectCommunityPost(Base):
+    """Fan hamjamiyati forumi (#savol, #manba, #tushunmadim)."""
+    __tablename__ = 'subject_community_posts'
+
+    id = Column(Integer, primary_key=True, index=True)
+    subject_id = Column(Integer, ForeignKey('subject_catalog.id'), nullable=False, index=True)
+    user_id = Column(BigInteger, nullable=False, index=True)
+    user_name = Column(String, nullable=True)
+    hashtags = Column(String, nullable=True)  # "#savol #manba"
+    content = Column(Text, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class SubjectDiagnosticReport(Base):
+    """Test diagnostikasi: videosharh, manbalar, kuchli/ojiz tahlil."""
+    __tablename__ = 'subject_diagnostic_reports'
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(BigInteger, nullable=False, index=True)
+    subject_id = Column(Integer, ForeignKey('subject_catalog.id'), nullable=False, index=True)
+    quiz_id = Column(Integer, nullable=False, index=True)
+    quiz_title = Column(String, nullable=True)
+    video_review_url = Column(String, nullable=True)
+    analysis_text = Column(Text, nullable=True)
+    strengths_text = Column(Text, nullable=True)
+    weaknesses_text = Column(Text, nullable=True)
+    sources_json = Column(Text, nullable=True)  # [{"title":"...","url":"..."}]
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class SubjectBook(Base):
+    """Elektron darslik / qo'llanma (faqat in-app viewer)."""
+    __tablename__ = 'subject_books'
+
+    id = Column(Integer, primary_key=True, index=True)
+    subject_id = Column(Integer, ForeignKey('subject_catalog.id'), nullable=False, index=True)
+    module_id = Column(Integer, ForeignKey('subject_modules.id'), nullable=True)
+    title = Column(String, nullable=False)
+    book_type = Column(String, default="darslik")  # darslik|qollanma|malumotnoma|savolnoma
+    cover_url = Column(String, nullable=True)
+    viewer_url = Column(String, nullable=True)  # In-app ochiladigan manba
+    is_downloadable = Column(Boolean, default=False)  # Har doim False (bloklangan)
+    is_active = Column(Boolean, default=True)
+
+
+class SubjectQuizLink(Base):
+    """Bob / kitob / fan bo'yicha testlar majmuasi (Testlar bo'limiga yo'naltiradi)."""
+    __tablename__ = 'subject_quiz_links'
+
+    id = Column(Integer, primary_key=True, index=True)
+    subject_id = Column(Integer, ForeignKey('subject_catalog.id'), nullable=False, index=True)
+    module_id = Column(Integer, ForeignKey('subject_modules.id'), nullable=True)
+    title = Column(String, nullable=False)
+    scope = Column(String, default="bob")  # bob|kitob|fan|modul
+    quiz_id = Column(Integer, nullable=True)  # Testlar modulidagi ID
+    is_paid = Column(Boolean, default=False)
+    price_coin = Column(Integer, default=0)
+    is_active = Column(Boolean, default=True)
+
+
+class UserSubjectEnrollment(Base):
+    """O'quvchining fan bo'yicha yozilishi, statusi va sur'ati."""
+    __tablename__ = 'user_subject_enrollments'
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(BigInteger, nullable=False, index=True)  # Telegram ID
+    subject_id = Column(Integer, ForeignKey('subject_catalog.id'), nullable=False, index=True)
+    status = Column(String, default="active", index=True)  # active|completed|paused
+    rank_label = Column(String, default="Shogird")  # Shogird|Bilimdon|Ustoz|Grossmeyster
+    actual_progress = Column(Integer, default=0)  # 0-100
+    expected_progress = Column(Integer, default=0)  # 0-100 reja
+    current_schedule_id = Column(Integer, nullable=True)  # Jadvaldagi joriy nuqta
+    last_accessed_at = Column(DateTime, default=datetime.utcnow)
+    completed_at = Column(DateTime, nullable=True)
+
+
+# ==========================================================
+# TESTLAR BO'LIMI (IMTIHON KARTALARI, BAHOLASH, TOPSHIRIQLAR)
+# ==========================================================
+class ExamQuiz(Base):
+    """Fan va imtihon turi bo'yicha e'lon qilingan test."""
+    __tablename__ = "exam_quizzes"
+
+    id = Column(Integer, primary_key=True, index=True)
+    title = Column(String, nullable=False)
+    subject = Column(String, nullable=False, index=True)  # tarix | huquq | psixologiya | ona_tili
+    exam_type = Column(String, nullable=False, index=True)
+    price = Column(Integer, default=0)  # so'm; 0 = bepul
+    link = Column(String, nullable=True)  # to'liq / uzun havola
+    pdf_url = Column(String, nullable=True)  # rasmiy DTM test varaqasi
+    answer_sheet_url = Column(String, nullable=True)  # javoblar varaqasi (titul)
+    analysis_text = Column(Text, nullable=True)  # admin umumiy tahlil matni
+    duration_minutes = Column(Integer, default=20)
+    announced_at = Column(DateTime, default=datetime.utcnow)
+    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    command_path = Column(String, index=True, nullable=True)  # Botdagi bo'lim (/ms/tarix, /kurs/1/namunaviy)
+    visible_at = Column(DateTime, nullable=True)  # Botda va ro'yxatda e'lon chiqish vaqti
+    starts_at = Column(DateTime, nullable=True)  # Test yechish ruxsati ochiladigan vaqt
+    base_price = Column(Integer, default=0)  # Asosiy narx (0 bo'lsa tekin)
+    free_for_courses = Column(String, default="")  # Kurs egalariga bepul ("101,102")
+    share_discount_percent = Column(Integer, default=0)  # Referal ulashishdagi chegirma %
+    full_analysis_video = Column(String, nullable=True)  # Barcha savollar tahlilining umumiy videosi
+
+    questions = relationship("ExamQuestion", back_populates="quiz", cascade="all, delete-orphan")
+    ratings = relationship("ExamRating", back_populates="quiz", cascade="all, delete-orphan")
+    submissions = relationship("ExamSubmission", back_populates="quiz", cascade="all, delete-orphan")
+
+
+class ExamQuestion(Base):
+    """Test savoli: mavzu, yo'nalish, qiyinlik va kitob manbalari."""
+    __tablename__ = "exam_questions"
+
+    id = Column(Integer, primary_key=True, index=True)
+    quiz_id = Column(Integer, ForeignKey("exam_quizzes.id"), nullable=False, index=True)
+    order_num = Column(Integer, default=1)
+    question_text = Column(Text, nullable=False)
+    option_a = Column(String, nullable=False)
+    option_b = Column(String, nullable=False)
+    option_c = Column(String, nullable=False)
+    option_d = Column(String, nullable=False)
+    correct_option = Column(Integer, nullable=False)  # 0=A, 1=B, 2=C, 3=D
+    topic = Column(String, nullable=True)  # mavzu
+    direction = Column(String, nullable=True)  # yo'nalish
+    difficulty = Column(String, default="orta")  # oson | orta | qiyin
+    book_links_json = Column(Text, nullable=True)  # {"A": "kitob, bet", ...}
+    analysis_text = Column(Text, nullable=True)
+    image_top = Column(String, nullable=True)  # Savol matnidan oldin chiqadigan rasm
+    image_bottom = Column(String, nullable=True)  # Savol matnidan keyin chiqadigan rasm
+    difficulty_beta = Column(Float, default=2.0)  # Rasch qiyinchilik parametri (1.1–3.2)
+    option_sources = Column(Text, nullable=True)  # {"A": "7-sinf Tarix, 42-bet", ...}
+    solution_text = Column(Text, nullable=True)  # Yozma uslubiy sharh va yechish yo'li
+    video_solution_url = Column(String, nullable=True)  # Shu savolning video tahlil havolasi
+
+    quiz = relationship("ExamQuiz", back_populates="questions")
+
+
+class ExamRating(Base):
+    """Foydalanuvchining 1-5 yulduz bahosi (har testda bitta ovoz)."""
+    __tablename__ = "exam_ratings"
+    __table_args__ = (
+        UniqueConstraint("quiz_id", "user_id", name="uq_exam_rating_user"),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    quiz_id = Column(Integer, ForeignKey("exam_quizzes.id"), nullable=False, index=True)
+    user_id = Column(BigInteger, nullable=False, index=True)
+    stars = Column(Integer, nullable=False)  # 1..5
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    quiz = relationship("ExamQuiz", back_populates="ratings")
+
+
+class ExamSubmission(Base):
+    """Elektron yoki skaner orqali topshirilgan javoblar va ball."""
+    __tablename__ = "exam_submissions"
+
+    id = Column(Integer, primary_key=True, index=True)
+    quiz_id = Column(Integer, ForeignKey("exam_quizzes.id"), nullable=False, index=True)
+    user_id = Column(BigInteger, nullable=False, index=True)
+    full_name = Column(String, nullable=True)
+    region = Column(String, nullable=True, index=True)
+    district = Column(String, nullable=True, index=True)
+    score = Column(Integer, default=0)  # to'g'ri javoblar soni
+    total_questions = Column(Integer, default=0)
+    percent = Column(Float, default=0.0)
+    ability_theta = Column(Float, nullable=True)  # Rasch qobiliyat balli
+    answers_json = Column(Text, nullable=True)  # {"question_id": option_index}
+    mode = Column(String, default="elektron")  # elektron | qogoz | skaner
+    level_label = Column(String, default="Boshlang'ich")  # Boshlang'ich | Bilimdon | Ustoz
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    quiz = relationship("ExamQuiz", back_populates="submissions")

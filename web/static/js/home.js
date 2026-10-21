@@ -1,10 +1,18 @@
 // web/static/js/home.js
 let currentOpenNewsId = null;
 
+// Brauzerda Telegram foydalanuvchisi bo'lmasa ishlatiladigan sinov ID
+const BROWSER_TEST_TELEGRAM_ID = 123456789;
+
 // Foydalanuvchi Telegram ID sini aniqlash
 function getCurrentUserId() {
     const tgUser = window.Telegram?.WebApp?.initDataUnsafe?.user;
     return (tgUser && tgUser.id) ? tgUser.id : 84920194;
+}
+
+function getRequestTelegramId() {
+    const tgId = window.Telegram?.WebApp?.initDataUnsafe?.user?.id;
+    return tgId || BROWSER_TEST_TELEGRAM_ID;
 }
 
 // 1. Yangiliklar kartochkalarini yuklash va render qilish (Xira fonli suzuvchi kartochka)
@@ -379,7 +387,7 @@ const NOTIF_SOURCE_CONFIG = {
  */
 async function loadNotifications() {
     try {
-        const tgId = window.Telegram?.WebApp?.initDataUnsafe?.user?.id || '';
+        const tgId = getRequestTelegramId();
         const res = await fetch(`/api/notifications?telegram_id=${tgId}`);
         if (!res.ok) return;
         const data = await res.json();
@@ -498,7 +506,7 @@ async function loadCoursePace() {
     if (!container) return;
 
     try {
-        const tgId = window.Telegram?.WebApp?.initDataUnsafe?.user?.id || '';
+        const tgId = getRequestTelegramId();
         const res = await fetch(`/api/user/course-pace?telegram_id=${tgId}`);
         if (!res.ok) return;
         const data = await res.json();
@@ -571,7 +579,7 @@ if (typeof document !== 'undefined') {
 // ==========================================================
 async function loadOctagonWidget() {
     try {
-        const tgId = window.Telegram?.WebApp?.initDataUnsafe?.user?.id || '';
+        const tgId = getRequestTelegramId();
         const res = await fetch(`/api/octagon/user-rank?telegram_id=${tgId}`);
         if (!res.ok) return;
         const data = await res.json();
@@ -591,11 +599,9 @@ async function loadOctagonWidget() {
 }
 
 function startOctagonBattle() {
-    // Agar umumiy reyting/oktagon turlariga o'tish lozim bo'lsa:
     if (typeof switchTab === 'function') {
-        switchTab('rating'); // Hozirgi Reyting/Oktagon tabiga o'tkazadi
+        switchTab('octagon');
     }
-    // Telegram haptic feedback (agar mavjud bo'lsa)
     if (window.Telegram?.WebApp?.HapticFeedback) {
         window.Telegram.WebApp.HapticFeedback.impactOccurred('medium');
     }

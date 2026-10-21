@@ -17,8 +17,6 @@ async def import_news_excel(message: Message, bot: Bot):
     if not message.document.file_name.endswith(('.xlsx', '.xls')):
         return
 
-    status_msg = await message.answer("📥 Excel fayl qabul qilindi, yangiliklar import qilinmoqda...")
-
     os.makedirs("downloads", exist_ok=True)
     file_path = f"downloads/{message.document.file_name}"
 
@@ -27,6 +25,18 @@ async def import_news_excel(message: Message, bot: Bot):
     await bot.download_file(file.file_path, file_path)
 
     try:
+        # Test importi alohida handlerda. Bu yerda yangilik sifatida yutib yubormaymiz.
+        try:
+            import openpyxl
+            wb = openpyxl.load_workbook(file_path, read_only=True, data_only=True)
+            sheet_names = {str(name).strip().upper() for name in wb.sheetnames}
+            wb.close()
+            if "CONFIG" in sheet_names and "QUESTIONS" in sheet_names:
+                return
+        except Exception:
+            pass
+
+        status_msg = await message.answer("📥 Excel fayl qabul qilindi, yangiliklar import qilinmoqda...")
         df = pd.read_excel(file_path)
         count = 0
 
