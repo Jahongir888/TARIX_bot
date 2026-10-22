@@ -11,6 +11,8 @@ const examState = {
     paperKind: "test",
     regionsMap: null,
     analysis: null,
+    essayPages: [],
+    lastEssayResult: null,
 };
 
 function examTgId() {
@@ -216,11 +218,15 @@ function renderExamCard(quiz) {
                 <p class="text-[11px] leading-relaxed text-emerald-300 break-all">${examEsc(quiz.link)}</p>
             </button>`
         : "";
+    const essayBadge = isEssayQuiz(quiz)
+        ? '<p class="text-[10px] font-bold text-amber-300 mt-1.5">✍️ Esse · Rasch 75 ball</p>'
+        : "";
     return `
         <article class="bg-[#111827] border border-[#1F2937] rounded-2xl p-4 shadow-sm">
             <div class="flex items-start justify-between gap-3">
                 <div class="min-w-0">
                     <h3 class="text-sm font-bold text-white leading-snug">${examEsc(quiz.title)}</h3>
+                    ${essayBadge}
                     <p class="text-[11px] text-slate-300 mt-2">👤 ${quiz.participants || 0} qatnashuvchi</p>
                     <p class="text-[11px] text-slate-500 mt-0.5">${examEsc(quiz.announced_label || "")}</p>
                 </div>
@@ -281,12 +287,27 @@ function quizById(quizId) {
     return examState.quizzes.find((item) => item.id === quizId) || null;
 }
 
+function isEssayQuiz(quiz) {
+    if (!quiz) return false;
+    if (quiz.is_essay) return true;
+    const path = String(quiz.command_path || "").toLowerCase();
+    if (path.includes("essay") || path.includes("esse")) return true;
+    const title = String(quiz.title || "").toLowerCase();
+    return title.includes("to'y-hasham") || title.includes("toy-hasham");
+}
+
 function openExamModes(quizId) {
     const quiz = quizById(quizId);
     if (quiz && quiz.access === "scheduled") return;
     examState.activeQuizId = quizId;
     const title = document.getElementById("exam-mode-title");
     if (title) title.textContent = quiz ? quiz.title : "Test";
+    const hint = document.getElementById("exam-mode-scanner-hint");
+    if (hint) {
+        hint.textContent = isEssayQuiz(quiz)
+            ? "Titul va 'To'y-hasham' esse sahifalarini ko'p sahifali yuklash."
+            : "Kamerada javoblar varaqasini rasmga oling.";
+    }
     examShow("exam-mode-modal");
 }
 
@@ -297,6 +318,11 @@ function closeExamModeModal() {
 async function startElectronicExam() {
     const quizId = examState.activeQuizId;
     if (!quizId) return;
+    const quiz = quizById(quizId);
+    if (isEssayQuiz(quiz)) {
+        alert("Bu imtihon esse formatida. '3. Skaner' orqali qo'lyozma rasmlarini yuklang.");
+        return;
+    }
     closeExamModeModal();
     try {
         const res = await fetch(`/api/exams/questions/${quizId}`);
@@ -563,6 +589,11 @@ function setExamPaperKind(kind) {
 async function openExamScanner() {
     const quizId = examState.activeQuizId;
     if (!quizId) return;
+    const quiz = quizById(quizId);
+    if (isEssayQuiz(quiz)) {
+        openExamEssayScanner();
+        return;
+    }
     closeExamModeModal();
     examSetHide("exam-scan-still", true);
     examSetHide("exam-scan-fallback", true);
@@ -574,6 +605,7 @@ async function openExamScanner() {
     if (capture) {
         capture.textContent = "Rasmga olish";
         capture.onclick = captureExamSheet;
+        capture.disabled = false;
     }
     examShow("exam-scan-modal");
     stopExamCamera();
@@ -595,6 +627,144 @@ async function openExamScanner() {
     } catch (err) {
         if (status) status.textContent = "Kameraga ruxsat berilmadi. Sinov varaqasini yuborishingiz mumkin.";
         examSetHide("exam-scan-fallback", false);
+    }
+}
+
+function openExamEssayScanner() {
+    closeExamModeModal();
+    examState.essayPages = [];
+    examState.lastEssayResult = null;
+    const input = document.getElementById("exam-essay-file-input");
+    if (input) input.value = "";
+    renderExamEssayPages();
+    const status = document.getElementById("exam-essay-scan-status");
+    if (status) status.textContent = "Titul va esse sahifalarini yuklang.";
+    const submit = document.getElementById("exam-essay-submit");
+    if (submit) {
+        submit.disabled = true;
+        submit.textContent = "Tekshirishga yuborish";
+        submit.onclick = submitExamEssayPages;
+    }
+    examShow("exam-essay-scan-modal");
+}
+
+function closeExamEssayScanner() {
+    examHide("exam-essay-scan-modal");
+}
+
+function renderExamEssayPages() {
+    const box = document.getElementById("exam-essay-pages");
+    const submit = document.getElementById("exam-essay-submit");
+    if (!box) return;
+    const pages = examState.essayPages || [];
+    if (!pages.length) {
+        box.innerHTML = '<p class="col-span-3 text-[11px] text-slate-500 text-center py-2">Hali sahifa yuklanmagan</p>';
+    } else {
+        box.innerHTML = pages.map((page, index) => `
+            <div class="relative rounded-xl overflow-hidden border border-[#283548] bg-black aspect-[3/4]">
+                <img src="${page}" alt="Sahifa ${index + 1}" class="w-full h-full object-cover">
+                <button type="button" onclick="removeExamEssayPage(${index})" class="absolute top-1 right-1 w-6 h-6 rounded-lg bg-rose-600/90 text-white text-[10px] font-bold cursor-pointer">✕</button>
+                <span class="absolute bottom-1 left-1 text-[9px] font-bold px-1.5 py-0.5 rounded bg-black/70 text-emerald-200">${index === 0 ? "Titul/1" : (index + 1)}</span>
+            </div>
+        `).join("");
+    }
+    if (submit) submit.disabled = pages.length === 0;
+}
+
+function removeExamEssayPage(index) {
+    examState.essayPages.splice(index, 1);
+    renderExamEssayPages();
+}
+
+function onExamEssayFilesSelected(event) {
+    const files = Array.from(event.target?.files || []);
+    if (!files.length) return;
+    const status = document.getElementById("exam-essay-scan-status");
+    let pending = files.length;
+    files.forEach((file) => {
+        const reader = new FileReader();
+        reader.onload = () => {
+            if (typeof reader.result === "string") {
+                examState.essayPages.push(reader.result);
+            }
+            pending -= 1;
+            if (pending <= 0) {
+                renderExamEssayPages();
+                if (status) status.textContent = `${examState.essayPages.length} sahifa tayyor. Tekshirishga yuborishingiz mumkin.`;
+            }
+        };
+        reader.onerror = () => {
+            pending -= 1;
+            if (pending <= 0) renderExamEssayPages();
+        };
+        reader.readAsDataURL(file);
+    });
+    event.target.value = "";
+}
+
+async function submitExamEssayPages() {
+    const quizId = examState.activeQuizId;
+    const pages = examState.essayPages || [];
+    const status = document.getElementById("exam-essay-scan-status");
+    const submit = document.getElementById("exam-essay-submit");
+    if (!quizId || !pages.length) return;
+    if (status) status.textContent = "Gemini Vision AI esse tekshirmoqda...";
+    if (submit) {
+        submit.disabled = true;
+        submit.textContent = "Tekshirilmoqda...";
+    }
+    try {
+        const res = await fetch("/api/exams/submit-multipage-essay", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                quiz_id: quizId,
+                telegram_id: examTgId(),
+                images: pages,
+            }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.detail || "Esse tekshirilmadi");
+        examState.lastEssayResult = data;
+        examState.analysis = {
+            kind: "essay_rasch",
+            is_essay: true,
+            has_submission: true,
+            rash_score: data.rash_score,
+            raw_score: data.raw_score,
+            level: data.level,
+            certificate: data.certificate,
+            criteria: data.criteria || [],
+            spelling_errors: data.spelling_errors || [],
+            feedback: data.feedback || "",
+            analysis_text: data.analysis_text || "",
+            diagnostics: data.criteria || [],
+            score: data.score,
+            total: data.total,
+            percent: data.percent,
+            theta: data.theta,
+            max_rash: 75,
+            max_raw: 20,
+        };
+        if (status) {
+            status.innerHTML = `📊 Rasch: <b class="text-emerald-300">${examEsc(data.rash_score)} / 75</b> · Daraja: <b class="text-amber-300">${examEsc(data.level)}</b><br>${examEsc(data.rank_label || "")}`;
+        }
+        if (submit) {
+            submit.disabled = false;
+            submit.textContent = "Diagnostikani ochish";
+            submit.onclick = () => {
+                closeExamEssayScanner();
+                openExamDiagnostics();
+            };
+        }
+        loadExamCards();
+    } catch (err) {
+        if (status) status.textContent = err.message || "Esse tekshirishda xatolik yuz berdi.";
+        if (submit) {
+            submit.disabled = false;
+            submit.textContent = "Tekshirishga yuborish";
+            submit.onclick = submitExamEssayPages;
+        }
     }
 }
 
@@ -899,6 +1069,12 @@ async function openExamAnalysisModal(quizId) {
         if (score) {
             if (data.locked) {
                 score.textContent = data.lock_message || "Tahlil hali ochilmagan";
+            } else if (data.is_essay || data.kind === "essay_rasch") {
+                if (data.has_submission) {
+                    score.textContent = `Rasch: ${data.rash_score != null ? data.rash_score : data.score} / 75 · Daraja: ${data.level || "—"}`;
+                } else {
+                    score.textContent = "Esse hali topshirilmagan. Skaner orqali qo'lyozma yuklang.";
+                }
             } else if (data.has_submission) {
                 const thetaBit = data.theta != null ? ` · θ ${Number(data.theta).toFixed(2)}` : "";
                 score.textContent = `So'nggi natija: ${data.score}/${data.total} · ${data.percent}%${thetaBit} · ${data.level}`;
@@ -907,10 +1083,19 @@ async function openExamAnalysisModal(quizId) {
             }
         }
         const note = document.getElementById("exam-analysis-note");
-        if (note) note.textContent = data.locked ? "" : (data.analysis_text || "");
+        if (note) {
+            if (data.locked) note.textContent = "";
+            else if (data.is_essay || data.kind === "essay_rasch") note.textContent = data.feedback || data.analysis_text || "";
+            else note.textContent = data.analysis_text || "";
+        }
         if (!list) return;
         if (data.locked) {
             list.innerHTML = `<p class="text-xs text-amber-200 text-center py-8 leading-relaxed">${examEsc(data.lock_message || "Tahlil test boshlangach ochiladi.")}</p>`;
+            return;
+        }
+        if (data.is_essay || data.kind === "essay_rasch") {
+            list.innerHTML = renderEssayAnalysisSummary(data);
+            if (window.lucide) lucide.createIcons();
             return;
         }
         const fullVideo = data.full_analysis_video
@@ -1018,6 +1203,47 @@ function closeExamAnalysis() {
     examHide("exam-analysis-modal");
 }
 
+function renderEssayAnalysisSummary(data) {
+    const rash = data.rash_score != null ? data.rash_score : data.score;
+    const level = data.level || "—";
+    const criteria = data.criteria || data.diagnostics || [];
+    const errors = data.spelling_errors || [];
+    return `
+        <div class="rounded-2xl border border-amber-500/40 bg-gradient-to-br from-amber-500/15 to-emerald-500/10 p-4 text-center">
+            <p class="text-sm font-extrabold text-amber-200">📊 Rasch balli: ${examEsc(rash)} / 75 ball (Daraja: ${examEsc(level)})</p>
+            <p class="text-[11px] text-slate-300 mt-1">Xom ball: ${examEsc(data.raw_score != null ? data.raw_score : "—")} / 20${data.certificate === false ? " · Sertifikat berilmaydi" : ""}</p>
+        </div>
+        <div class="mt-3 space-y-2">
+            ${criteria.map((item) => {
+                const ok = item.passed || (Number(item.score) >= Number(item.max) * 0.6);
+                return `
+                <div class="rounded-xl border ${ok ? "border-emerald-500/40 bg-emerald-500/5" : "border-rose-500/40 bg-rose-500/5"} px-3 py-2">
+                    <div class="flex items-center justify-between gap-2">
+                        <p class="text-[11px] font-bold text-slate-100">${examEsc(item.name)}</p>
+                        <p class="text-[11px] font-extrabold ${ok ? "text-emerald-300" : "text-rose-300"}">${examEsc(item.score)} / ${examEsc(item.max)}</p>
+                    </div>
+                    ${item.comment ? `<p class="text-[10px] text-slate-400 mt-1 leading-relaxed">${examEsc(item.comment)}</p>` : ""}
+                    <p class="text-[9px] mt-1 ${ok ? "text-emerald-400" : "text-rose-400"}">${ok ? "✓ Shart bajarilgan" : "✗ Shart yetarli emas"}</p>
+                </div>`;
+            }).join("") || '<p class="text-[11px] text-slate-500 text-center py-4">Mezonlar hali yo\'q</p>'}
+        </div>
+        ${errors.length ? `
+            <div class="mt-3 space-y-1.5">
+                <p class="text-[10px] font-bold uppercase tracking-wider text-slate-400">Aniqlangan xatolar</p>
+                ${errors.map((err) => `
+                    <div class="rounded-xl border border-[#1F2937] bg-[#0A0E17] px-3 py-2 text-[11px]">
+                        <p><span class="text-rose-300 line-through font-semibold">${examEsc(err.wrong)}</span>
+                        <span class="text-slate-500 mx-1">→</span>
+                        <span class="text-emerald-300 font-semibold">${examEsc(err.correct)}</span></p>
+                        ${err.explanation ? `<p class="text-[10px] text-slate-400 mt-0.5">${examEsc(err.explanation)}</p>` : ""}
+                    </div>
+                `).join("")}
+            </div>
+        ` : '<p class="mt-3 text-[11px] text-emerald-300 text-center">Imlo xatolari aniqlanmadi.</p>'}
+        ${data.feedback || data.analysis_text ? `<p class="mt-3 text-[11px] text-slate-300 leading-relaxed">${examEsc(data.feedback || data.analysis_text)}</p>` : ""}
+    `;
+}
+
 function openExamDiagnostics() {
     const data = examState.analysis;
     const body = document.getElementById("exam-diag-body");
@@ -1026,6 +1252,8 @@ function openExamDiagnostics() {
         body.innerHTML = '<p class="text-xs text-slate-400 text-center py-6">Avval tahlilni oching.</p>';
     } else if (!data.has_submission) {
         body.innerHTML = '<p class="text-xs text-slate-300 text-center py-6 leading-relaxed">Diagnostika sizning javoblaringiz saqlangach ochiladi. Testni elektron yoki skaner rejimida topshiring.</p>';
+    } else if (data.is_essay || data.kind === "essay_rasch") {
+        body.innerHTML = renderEssayAnalysisSummary(data);
     } else {
         const rows = data.diagnostics || [];
         body.innerHTML = `

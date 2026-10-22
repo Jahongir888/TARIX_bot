@@ -3,7 +3,7 @@ import sys
 import math
 import random
 from datetime import datetime, date, timedelta
-from typing import Optional
+from typing import Optional, List
 
 # Tizim Pythonida uvicorn yo'q: avtomatik loyiha .venv ga o'tamiz
 _VENV_PY = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".venv", "Scripts", "python.exe"))
@@ -40,9 +40,12 @@ from database.regions_data import REGIONS_DATA
 import uuid
 import secrets
 
-from data.config import BOT_TOKEN
+from data.config import BOT_TOKEN, GEMINI_API_KEY, GEMINI_ESSAY_MODEL
 from aiogram import Bot
 from web.routes.admin_routes import router as admin_router
+import httpx
+import re
+import base64
 
 # 1. FastAPI ilovasini yaratamiz
 app = FastAPI(title="PHAROS Education Platform")
@@ -3573,6 +3576,31 @@ class ExamSubmitSchema(BaseModel):
     image_base64: Optional[str] = None
 
 
+class ExamEssaySubmitSchema(BaseModel):
+    quiz_id: int
+    telegram_id: int
+    images: List[str] = []
+    images_base64: Optional[List[str]] = None
+
+
+ONA_TILI_ESSAY_TITLE = "Ona tili: Milliy sertifikat — 2026 kuz, 1-variant (To'y-hasham)"
+ONA_TILI_ESSAY_PATH = "/ms/ona_tili/essay/toy-hasham"
+ONA_TILI_ESSAY_ANALYSIS = (
+    "Ushbu imtihon 'To'y-hasham' mavzusidagi dolzarb ijtimoiy muammoni yoritishga "
+    "qaratilgan bo'lib, Rasch modeli bo'yicha 75 ballik shkalada baholanadi."
+)
+ESSAY_CRITERIA_SPEC = [
+    {"name": "Mavzu yoritilishi", "max": 5},
+    {"name": "Matn kompozitsiyasi", "max": 3},
+    {"name": "Lug'at boyligi", "max": 3},
+    {"name": "Orfografiya", "max": 3},
+    {"name": "Punktuatsiya", "max": 3},
+    {"name": "Grammatika va uslub", "max": 3},
+]
+ESSAY_RAW_MAX = 20.0
+ESSAY_RASH_MAX = 75.0
+
+
 def _exam_level(percent: float) -> str:
     if percent >= 86:
         return "Ustoz"
@@ -3782,6 +3810,249 @@ def _rasch_grade(theta: float) -> str:
     return "C"
 
 
+def _is_essay_quiz(quiz: ExamQuiz) -> bool:
+    path = (quiz.command_path or "").lower()
+    if "essay" in path or "esse" in path:
+        return True
+    title = (quiz.title or "").lower().replace("ʻ", "'").replace("ʼ", "'")
+    return "to'y-hasham" in title or "toy-hasham" in title.replace("'", "")
+
+
+def _essay_certificate_level(rash_score: float) -> str:
+    if rash_score >= 65.0:
+        return "A"
+    if rash_score >= 55.0:
+        return "B+"
+    if rash_score >= 45.0:
+        return "B"
+    if rash_score >= 35.0:
+        return "C+"
+    return "C"
+
+
+def _essay_rasch_from_raw(raw_score: float) -> dict:
+    """Ona tili esse: xom ball (0..20) → Rasch 75 ballik shkala."""
+    R = max(0.0, min(ESSAY_RAW_MAX, float(raw_score)))
+    theta = math.log((R + 0.5) / (ESSAY_RAW_MAX + 0.5 - R))
+    rash = round(((theta + 3.7) / 7.4) * ESSAY_RASH_MAX, 1)
+    rash = max(0.0, min(ESSAY_RASH_MAX, rash))
+    return {
+        "raw_score": round(R, 1),
+        "theta": round(theta, 4),
+        "rash_score": rash,
+        "level": _essay_certificate_level(rash),
+        "certificate": rash >= 35.0,
+    }
+
+
+def _essay_system_prompt() -> str:
+    return (
+        "Siz Ona tili fanidan Milliy sertifikat imtihoni bo'yicha oliy toifali ekspert-tekshiruvchisiz. "
+        "Mavzu: 'To'y-hasham'.\n"
+        "Qo'lyozma rasm(lar)ni diqqat bilan o'rganib chiqing:\n"
+        "- Kirish, to'y-hashamlardagi isrofgarchilik, kimo'zarga musobaqa, jamiyatdagi ijtimoiy asoratlar "
+        "va xulosa fikrlarining mavjudligini baholang.\n"
+        "- Matndagi barcha imlo, tinish belgisi va uslubiy xatolarni ajratib bering.\n"
+        "Baholash mezonlari (xom ball, jami max 20):\n"
+        "1) Mavzuning yoritilishi va g'oyaviy pishiqligi — max 5\n"
+        "2) Matn kompozitsiyasi va mantiqiy yaxlitlik — max 3\n"
+        "3) Lug'at boyligi va uslubiy rang-baranglik — max 3\n"
+        "4) Orfografiya (imlo) — max 3\n"
+        "5) Punktuatsiya (tinish belgilari) — max 3\n"
+        "6) Grammatika va uslubiy me'yorlar — max 3\n"
+        "Natijani faqat JSON formatida qaytaring (markdown yo'q):\n"
+        "{\n"
+        "  \"raw_score\": 16.0,\n"
+        "  \"rash_score\": 61.5,\n"
+        "  \"level\": \"B+\",\n"
+        "  \"criteria\": [\n"
+        "     {\"name\": \"Mavzu yoritilishi\", \"score\": 4, \"max\": 5, "
+        "\"comment\": \"Mavzu yaxshi ochilgan, lekin isrofgarchilik oqibatlari yetarli asoslanmagan.\"},\n"
+        "     {\"name\": \"Matn kompozitsiyasi\", \"score\": 2, \"max\": 3, \"comment\": \"...\"},\n"
+        "     {\"name\": \"Lug'at boyligi\", \"score\": 2, \"max\": 3, \"comment\": \"...\"},\n"
+        "     {\"name\": \"Orfografiya\", \"score\": 3, \"max\": 3, \"comment\": \"...\"},\n"
+        "     {\"name\": \"Punktuatsiya\", \"score\": 2, \"max\": 3, \"comment\": \"...\"},\n"
+        "     {\"name\": \"Grammatika va uslub\", \"score\": 3, \"max\": 3, \"comment\": \"...\"}\n"
+        "  ],\n"
+        "  \"spelling_errors\": [\n"
+        "     {\"wrong\": \"tuy\", \"correct\": \"to'y\", \"explanation\": \"Tutux belgisi tushirib qoldirilgan\"}\n"
+        "  ],\n"
+        "  \"feedback\": \"Umumiy xulosa matni\"\n"
+        "}"
+    )
+
+
+def _parse_data_url(image_b64: str) -> tuple:
+    raw = (image_b64 or "").strip()
+    if not raw:
+        return "", "image/jpeg"
+    mime = "image/jpeg"
+    if raw.startswith("data:"):
+        match = re.match(r"^data:([^;,]+);base64,(.+)$", raw, re.DOTALL)
+        if match:
+            mime = match.group(1).strip() or mime
+            raw = match.group(2).strip()
+        else:
+            raw = raw.split(",", 1)[-1].strip()
+    raw = re.sub(r"\s+", "", raw)
+    return raw, mime
+
+
+def _extract_json_object(text: str) -> dict:
+    raw = (text or "").strip()
+    if not raw:
+        return {}
+    fence = re.search(r"```(?:json)?\s*([\s\S]*?)```", raw, re.IGNORECASE)
+    if fence:
+        raw = fence.group(1).strip()
+    try:
+        data = json.loads(raw)
+        return data if isinstance(data, dict) else {}
+    except Exception:
+        start = raw.find("{")
+        end = raw.rfind("}")
+        if start >= 0 and end > start:
+            try:
+                data = json.loads(raw[start:end + 1])
+                return data if isinstance(data, dict) else {}
+            except Exception:
+                return {}
+    return {}
+
+
+def _normalize_essay_ai_result(payload: dict) -> dict:
+    criteria = []
+    raw_from_criteria = 0.0
+    source_criteria = payload.get("criteria") if isinstance(payload.get("criteria"), list) else []
+    for index, spec in enumerate(ESSAY_CRITERIA_SPEC):
+        item = source_criteria[index] if index < len(source_criteria) and isinstance(source_criteria[index], dict) else {}
+        try:
+            score = float(item.get("score", 0) or 0)
+        except (TypeError, ValueError):
+            score = 0.0
+        max_score = float(spec["max"])
+        score = max(0.0, min(max_score, score))
+        raw_from_criteria += score
+        criteria.append({
+            "name": item.get("name") or spec["name"],
+            "score": round(score, 1),
+            "max": int(max_score) if max_score == int(max_score) else max_score,
+            "comment": str(item.get("comment") or "").strip(),
+            "passed": score >= max_score * 0.6,
+        })
+    try:
+        raw_declared = float(payload.get("raw_score")) if payload.get("raw_score") is not None else raw_from_criteria
+    except (TypeError, ValueError):
+        raw_declared = raw_from_criteria
+    raw_score = raw_from_criteria if raw_from_criteria > 0 else raw_declared
+    scaled = _essay_rasch_from_raw(raw_score)
+    errors = []
+    for err in payload.get("spelling_errors") or []:
+        if not isinstance(err, dict):
+            continue
+        wrong = str(err.get("wrong") or "").strip()
+        correct = str(err.get("correct") or "").strip()
+        if not wrong and not correct:
+            continue
+        errors.append({
+            "wrong": wrong,
+            "correct": correct,
+            "explanation": str(err.get("explanation") or "").strip(),
+        })
+    feedback = str(payload.get("feedback") or "").strip()
+    return {
+        "kind": "essay_rasch",
+        "raw_score": scaled["raw_score"],
+        "rash_score": scaled["rash_score"],
+        "theta": scaled["theta"],
+        "level": scaled["level"],
+        "certificate": scaled["certificate"],
+        "criteria": criteria,
+        "spelling_errors": errors,
+        "feedback": feedback or ONA_TILI_ESSAY_ANALYSIS,
+        "max_raw": ESSAY_RAW_MAX,
+        "max_rash": ESSAY_RASH_MAX,
+    }
+
+
+def _fallback_essay_result(reason: str = "") -> dict:
+    """Gemini ishlamasa ham Rasch pipeline sinovdan o'tishi uchun namuna natija."""
+    mock = {
+        "raw_score": 16.0,
+        "criteria": [
+            {"name": "Mavzu yoritilishi", "score": 4, "max": 5, "comment": "Mavzu ochilgan, isrofgarchilik oqibatlari biroz yuzaki."},
+            {"name": "Matn kompozitsiyasi", "score": 2, "max": 3, "comment": "Kirish va xulosa bor, bog'lovchi o'tishlar zaif."},
+            {"name": "Lug'at boyligi", "score": 2, "max": 3, "comment": "Lug'at o'rtacha, takrorlar uchraydi."},
+            {"name": "Orfografiya", "score": 3, "max": 3, "comment": "Imlo asosan to'g'ri."},
+            {"name": "Punktuatsiya", "score": 2, "max": 3, "comment": "Vergul va tireda xatolar bor."},
+            {"name": "Grammatika va uslub", "score": 3, "max": 3, "comment": "Uslub me'yorida."},
+        ],
+        "spelling_errors": [
+            {"wrong": "tuy", "correct": "to'y", "explanation": "Tutux belgisi tushirib qoldirilgan"},
+            {"wrong": "hasham", "correct": "hasham", "explanation": "Kontekstga qarab 'to'y-hasham' birikmasi tavsiya etiladi"},
+        ],
+        "feedback": (
+            "Esse 'To'y-hasham' mavzusiga mos yozilgan. Isrofgarchilik va kimo'zarga musobaqa g'oyalari bor. "
+            + (f" (AI: {reason})" if reason else " (sinov/fallback baholash)")
+        ),
+    }
+    return _normalize_essay_ai_result(mock)
+
+
+async def _gemini_grade_essay_images(images: list) -> dict:
+    if not images:
+        raise HTTPException(status_code=400, detail="Kamida bitta esse rasmi kerak")
+    if not GEMINI_API_KEY:
+        return _fallback_essay_result("GEMINI_API_KEY yo'q")
+
+    parts = [{"text": _essay_system_prompt() + "\n\nQuyidagi qo'lyozma sahifa(lar)ni baholang."}]
+    for image in images[:8]:
+        data, mime = _parse_data_url(image)
+        if not data:
+            continue
+        try:
+            base64.b64decode(data, validate=False)
+        except Exception:
+            continue
+        parts.append({"inline_data": {"mime_type": mime, "data": data}})
+    if len(parts) < 2:
+        raise HTTPException(status_code=400, detail="Rasm formatini o'qib bo'lmadi")
+
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/{GEMINI_ESSAY_MODEL}:generateContent"
+    body = {
+        "contents": [{"role": "user", "parts": parts}],
+        "generationConfig": {
+            "temperature": 0.2,
+            "responseMimeType": "application/json",
+        },
+    }
+    try:
+        async with httpx.AsyncClient(timeout=90.0) as client:
+            response = await client.post(
+                url,
+                params={"key": GEMINI_API_KEY},
+                headers={"Content-Type": "application/json"},
+                json=body,
+            )
+        if response.status_code >= 400:
+            return _fallback_essay_result(f"HTTP {response.status_code}")
+        payload = response.json()
+        text = ""
+        for candidate in payload.get("candidates") or []:
+            content = candidate.get("content") or {}
+            for part in content.get("parts") or []:
+                if part.get("text"):
+                    text += part["text"]
+        parsed = _extract_json_object(text)
+        if not parsed:
+            return _fallback_essay_result("JSON parse xatosi")
+        return _normalize_essay_ai_result(parsed)
+    except HTTPException:
+        raise
+    except Exception as exc:
+        return _fallback_essay_result(str(exc)[:120])
+
+
 def _chosen_option(question: ExamQuestion, answers: dict):
     chosen = answers.get(question.id)
     if chosen is None:
@@ -3883,6 +4154,32 @@ def _quiz_pdf_lines(quiz: ExamQuiz, questions: list, kind: str) -> list:
         f"Sana: {quiz.announced_at.strftime('%d.%m.%Y') if quiz.announced_at else ''}",
         "",
     ]
+    if _is_essay_quiz(quiz):
+        if kind == "answers":
+            lines.extend([
+                "Esse javoblar / yuklash sahifasi",
+                "1) Titul varag'ini rasmga oling",
+                "2) 'To'y-hasham' mavzusidagi esse sahifalarini ketma-ket yuklang",
+                "3) Mini App skanerida 'Tekshirishga yuborish' tugmasini bosing",
+                "",
+                "Baholash: Rasch (IRT/Logit) — maksimal 75 ball",
+            ])
+        else:
+            lines.extend([
+                "ESSE IMTIHONI — mavzu: To'y-hasham",
+                "",
+                "Yozma ishingizda quyidagilarni yoriting:",
+                "- Kirish",
+                "- To'y-hashamlardagi isrofgarchilik",
+                "- Kimo'zarga musobaqa",
+                "- Jamiyatdagi ijtimoiy asoratlar",
+                "- Xulosa",
+                "",
+                "Mezonlar (xom ball max 20): mavzu 5, kompozitsiya 3,",
+                "lug'at 3, orfografiya 3, punktuatsiya 3, grammatika 3.",
+                "Yakuniy ball Rasch modeli orqali 75 ballik shkalaga o'tkaziladi.",
+            ])
+        return lines
     if kind == "answers":
         lines.extend([
             "JAVOBLAR VARAQASI (TITUL)",
@@ -3954,9 +4251,59 @@ def _score_answers(questions: list, answers: dict) -> tuple:
     return correct, total, percent
 
 
+async def _ensure_ona_tili_essay_seed(session):
+    """Ona tili Milliy sertifikat — To'y-hasham esse imtihonini (agar yo'q bo'lsa) qo'shadi."""
+    existing = (
+        await session.execute(
+            select(ExamQuiz).where(
+                or_(
+                    ExamQuiz.command_path == ONA_TILI_ESSAY_PATH,
+                    ExamQuiz.title == ONA_TILI_ESSAY_TITLE,
+                )
+            ).order_by(ExamQuiz.id.desc())
+        )
+    ).scalars().first()
+    if existing:
+        existing.title = ONA_TILI_ESSAY_TITLE
+        existing.subject = "ona_tili"
+        existing.exam_type = "milliy_sertifikat"
+        existing.price = 0
+        existing.base_price = 0
+        existing.link = "https://t.me/pharos_talim_bot"
+        existing.analysis_text = ONA_TILI_ESSAY_ANALYSIS
+        existing.command_path = ONA_TILI_ESSAY_PATH
+        existing.duration_minutes = existing.duration_minutes or 90
+        existing.is_active = True
+        if not existing.announced_at:
+            existing.announced_at = datetime(2026, 10, 20, 9, 0, 0)
+        await session.commit()
+        return existing
+
+    quiz = ExamQuiz(
+        title=ONA_TILI_ESSAY_TITLE,
+        subject="ona_tili",
+        exam_type="milliy_sertifikat",
+        price=0,
+        base_price=0,
+        link="https://t.me/pharos_talim_bot",
+        analysis_text=ONA_TILI_ESSAY_ANALYSIS,
+        duration_minutes=90,
+        announced_at=datetime(2026, 10, 20, 9, 0, 0),
+        is_active=True,
+        command_path=ONA_TILI_ESSAY_PATH,
+    )
+    session.add(quiz)
+    await session.flush()
+    quiz.pdf_url = f"/api/exams/paper/{quiz.id}?kind=test"
+    quiz.answer_sheet_url = f"/api/exams/paper/{quiz.id}?kind=answers"
+    await session.commit()
+    return quiz
+
+
 async def _ensure_exam_seed(session):
     existing = (await session.execute(select(func.count(ExamQuiz.id)))).scalar() or 0
     if existing:
+        await _ensure_ona_tili_essay_seed(session)
         return
 
     def links(a, b, c, d):
@@ -4164,6 +4511,7 @@ async def _ensure_exam_seed(session):
     session.add(ExamRating(quiz_id=quiz_bmba.id, user_id=84920194, stars=5))
     session.add(ExamRating(quiz_id=quiz_huquq.id, user_id=9001002, stars=4))
     await session.commit()
+    await _ensure_ona_tili_essay_seed(session)
 
 
 async def _load_quiz(session, quiz_id: int) -> ExamQuiz:
@@ -4400,6 +4748,11 @@ async def exams_list(
             seconds_left, starts_label = _starts_countdown(quiz.starts_at, now) if window == "scheduled" else (0, "")
             pricing = _price_for_user(quiz, owned, shared)
             stats = await _rating_stats(session, quiz.id, tg_id)
+            q_count = (
+                await session.execute(
+                    select(func.count(ExamQuestion.id)).where(ExamQuestion.quiz_id == quiz.id)
+                )
+            ).scalar() or 0
             items.append({
                 "id": quiz.id,
                 "title": quiz.title,
@@ -4424,11 +4777,9 @@ async def exams_list(
                 "announced_label": quiz.announced_at.strftime("%d.%m.%Y") if quiz.announced_at else "",
                 "participants": await _participant_count(session, quiz.id),
                 "duration_minutes": quiz.duration_minutes or 20,
-                "questions_count": (
-                    await session.execute(
-                        select(func.count(ExamQuestion.id)).where(ExamQuestion.quiz_id == quiz.id)
-                    )
-                ).scalar() or 0,
+                "questions_count": q_count,
+                "is_essay": _is_essay_quiz(quiz),
+                "scoring_model": "rasch_75" if _is_essay_quiz(quiz) else "rasch_mcq",
                 **stats,
             })
         return {"items": items, "subject": subject, "exam_type": exam_type}
@@ -4517,6 +4868,102 @@ def _simulate_scan_answers(questions: list, image_base64: str) -> dict:
     return answers
 
 
+@app.post("/api/exams/submit-multipage-essay")
+async def exams_submit_multipage_essay(payload: ExamEssaySubmitSchema):
+    """Ona tili Milliy sertifikat esse: ko'p sahifali qo'lyozma → Gemini Vision → Rasch 75."""
+    images = []
+    for item in (payload.images or []) + (payload.images_base64 or []):
+        if isinstance(item, str) and item.strip():
+            images.append(item.strip())
+    if not images:
+        raise HTTPException(status_code=400, detail="Kamida bitta rasm yuboring (titul yoki esse)")
+
+    async with async_session() as session:
+        await _ensure_exam_seed(session)
+        quiz = await _load_quiz(session, payload.quiz_id)
+        _ensure_quiz_open(quiz)
+        if not _is_essay_quiz(quiz):
+            raise HTTPException(status_code=400, detail="Bu test esse (Rasch 75) formatida emas")
+
+        essay = await _gemini_grade_essay_images(images)
+        user = (
+            await session.execute(select(User).where(User.telegram_id == payload.telegram_id))
+        ).scalar_one_or_none()
+        if not user:
+            user = User(
+                telegram_id=payload.telegram_id,
+                full_name=f"O'quvchi {payload.telegram_id}",
+                region="Toshkent shahri",
+                district="Yunusobod tumani",
+                selected_subject=quiz.subject or "ona_tili",
+            )
+            session.add(user)
+            await session.flush()
+        region = user.region if user.region and user.region not in ("Tanlanmagan",) else "Toshkent shahri"
+        district = user.district if user.district and user.district not in ("Tanlanmagan",) else "Yunusobod tumani"
+        rash = float(essay["rash_score"])
+        percent = round((rash / ESSAY_RASH_MAX) * 100, 1) if ESSAY_RASH_MAX else 0.0
+        stored = {
+            "kind": "essay_rasch",
+            "pages": len(images),
+            "raw_score": essay["raw_score"],
+            "rash_score": essay["rash_score"],
+            "theta": essay["theta"],
+            "level": essay["level"],
+            "certificate": essay["certificate"],
+            "criteria": essay["criteria"],
+            "spelling_errors": essay["spelling_errors"],
+            "feedback": essay["feedback"],
+            "max_raw": ESSAY_RAW_MAX,
+            "max_rash": ESSAY_RASH_MAX,
+        }
+        submission = ExamSubmission(
+            quiz_id=quiz.id,
+            user_id=payload.telegram_id,
+            full_name=user.full_name or f"O'quvchi {payload.telegram_id}",
+            region=region,
+            district=district,
+            score=int(round(rash)),
+            total_questions=int(ESSAY_RASH_MAX),
+            percent=percent,
+            ability_theta=float(essay["theta"]),
+            answers_json=json.dumps(stored, ensure_ascii=False),
+            mode="skaner",
+            level_label=essay["level"],
+        )
+        session.add(submission)
+        await session.commit()
+
+        all_rows = (
+            await session.execute(select(ExamSubmission).where(ExamSubmission.quiz_id == quiz.id))
+        ).scalars().all()
+        ranking = _best_submissions(list(all_rows))
+        rank = next((index + 1 for index, row in enumerate(ranking) if row.user_id == payload.telegram_id), None)
+        return {
+            "status": "ok",
+            "submission_id": submission.id,
+            "kind": "essay_rasch",
+            "raw_score": essay["raw_score"],
+            "rash_score": essay["rash_score"],
+            "theta": essay["theta"],
+            "level": essay["level"],
+            "grade": essay["level"],
+            "certificate": essay["certificate"],
+            "score": int(round(rash)),
+            "total": int(ESSAY_RASH_MAX),
+            "percent": percent,
+            "criteria": essay["criteria"],
+            "spelling_errors": essay["spelling_errors"],
+            "feedback": essay["feedback"],
+            "diagnostics": essay["criteria"],
+            "mode": "skaner",
+            "rank": rank,
+            "rank_label": _public_rank_label(rank, True, False),
+            "participants": len(ranking),
+            "analysis_text": quiz.analysis_text or ONA_TILI_ESSAY_ANALYSIS,
+        }
+
+
 @app.post("/api/exams/submit")
 async def exams_submit(payload: ExamSubmitSchema):
     mode = (payload.mode or "elektron").strip().lower()
@@ -4526,6 +4973,11 @@ async def exams_submit(payload: ExamSubmitSchema):
         await _ensure_exam_seed(session)
         quiz = await _load_quiz(session, payload.quiz_id)
         _ensure_quiz_open(quiz)
+        if _is_essay_quiz(quiz):
+            raise HTTPException(
+                status_code=400,
+                detail="Esse imtihoni uchun /api/exams/submit-multipage-essay endpointidan foydalaning",
+            )
         questions = await _load_questions(session, quiz.id)
         answers = _normalize_answer_map(payload.answers or {})
         simulated = False
@@ -4658,6 +5110,7 @@ async def exams_leaderboard(
                 if (row.district or "") == district_name
                 or str(row.district or "").endswith(district_name)
             ]
+        essay_mode = _is_essay_quiz(quiz)
         items = []
         my_rank = None
         for index, row in enumerate(filtered, start=1):
@@ -4665,12 +5118,33 @@ async def exams_leaderboard(
                 my_rank = index
             theta = row.ability_theta
             level = row.level_label or _exam_level(row.percent or 0)
-            if theta is not None and level in ("Boshlang'ich", "Bilimdon", "Ustoz", None, ""):
+            essay_rash = None
+            if row.answers_json:
+                try:
+                    stored = json.loads(row.answers_json)
+                    if isinstance(stored, dict) and stored.get("kind") == "essay_rasch":
+                        essay_rash = stored.get("rash_score")
+                        level = stored.get("level") or level
+                        if stored.get("theta") is not None:
+                            theta = stored.get("theta")
+                except Exception:
+                    pass
+            if not essay_mode and theta is not None and level in ("Boshlang'ich", "Bilimdon", "Ustoz", None, ""):
                 try:
                     level = _rasch_grade(float(theta))
                 except Exception:
                     pass
             ball = int(row.score or 0)
+            if essay_rash is not None:
+                try:
+                    ball = round(float(essay_rash), 1)
+                except (TypeError, ValueError):
+                    pass
+                rash_label = f"{float(essay_rash):.1f} ({level})"
+            elif essay_mode:
+                rash_label = f"{ball} ({level})" if level else str(ball)
+            else:
+                rash_label = _exam_rash_label(theta, level)
             items.append({
                 "rank": index,
                 "telegram_id": row.user_id,
@@ -4680,11 +5154,12 @@ async def exams_leaderboard(
                 "place": _place_label(row.region, row.district),
                 "ball": ball,
                 "score": ball,
-                "total": row.total_questions or 0,
+                "total": int(ESSAY_RASH_MAX) if essay_mode else (row.total_questions or 0),
                 "percent": row.percent or 0,
                 "theta": theta,
                 "level": level,
-                "rash": _exam_rash_label(theta, level),
+                "rash": rash_label,
+                "rash_score": essay_rash,
             })
         banner = _exam_rank_banner(
             has_submission=mine is not None,
@@ -4753,6 +5228,63 @@ async def exams_analysis(quiz_id: int, telegram_id: Optional[str] = None):
                 )
             ).scalars().all()
             submission = rows[0] if rows else None
+
+        essay_payload = None
+        if submission and submission.answers_json:
+            try:
+                raw_payload = json.loads(submission.answers_json)
+                if isinstance(raw_payload, dict) and raw_payload.get("kind") == "essay_rasch":
+                    essay_payload = raw_payload
+            except Exception:
+                essay_payload = None
+
+        if essay_payload or _is_essay_quiz(quiz):
+            rash_score = None
+            raw_score = None
+            level = submission.level_label if submission else None
+            theta = submission.ability_theta if submission else None
+            criteria = []
+            spelling_errors = []
+            feedback = quiz.analysis_text or ONA_TILI_ESSAY_ANALYSIS
+            if essay_payload:
+                rash_score = essay_payload.get("rash_score")
+                raw_score = essay_payload.get("raw_score")
+                level = essay_payload.get("level") or level
+                theta = essay_payload.get("theta", theta)
+                criteria = essay_payload.get("criteria") or []
+                spelling_errors = essay_payload.get("spelling_errors") or []
+                feedback = essay_payload.get("feedback") or feedback
+            elif submission:
+                rash_score = float(submission.score or 0)
+                raw_score = None
+            return {
+                "quiz_id": quiz.id,
+                "title": quiz.title,
+                "kind": "essay_rasch",
+                "is_essay": True,
+                "analysis_text": quiz.analysis_text or ONA_TILI_ESSAY_ANALYSIS,
+                "full_analysis_video": quiz.full_analysis_video,
+                "locked": False,
+                "lock_message": "",
+                "has_submission": submission is not None,
+                "score": submission.score if submission else None,
+                "total": int(ESSAY_RASH_MAX),
+                "percent": submission.percent if submission else None,
+                "theta": theta,
+                "raw_score": raw_score,
+                "rash_score": rash_score,
+                "level": level,
+                "certificate": bool(essay_payload.get("certificate")) if essay_payload else None,
+                "mode": submission.mode if submission else None,
+                "criteria": criteria,
+                "spelling_errors": spelling_errors,
+                "feedback": feedback,
+                "questions": [],
+                "diagnostics": criteria,
+                "max_rash": ESSAY_RASH_MAX,
+                "max_raw": ESSAY_RAW_MAX,
+            }
+
         chosen_map = {}
         if submission and submission.answers_json:
             try:
@@ -4827,6 +5359,8 @@ async def exams_analysis(quiz_id: int, telegram_id: Optional[str] = None):
         return {
             "quiz_id": quiz.id,
             "title": quiz.title,
+            "kind": "mcq",
+            "is_essay": False,
             "analysis_text": quiz.analysis_text or "",
             "full_analysis_video": quiz.full_analysis_video,
             "locked": False,

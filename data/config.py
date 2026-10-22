@@ -17,3 +17,7 @@ WEBAPP_URL = os.getenv("WEBAPP_URL", "https://pharos-talim.uz").rstrip("/")
 
 # Brauzer admin kirishi: oddiy token (hash yo'q). Default: admin123
 ADMIN_PANEL_TOKEN = (os.getenv("ADMIN_PANEL_TOKEN") or "admin123").strip()
+
+# Gemini Flash Vision (esse qo'lyozma tekshiruvi)
+GEMINI_API_KEY = (os.getenv("GEMINI_API_KEY") or "").strip()
+GEMINI_ESSAY_MODEL = (os.getenv("GEMINI_ESSAY_MODEL") or "gemini-flash-latest").strip()
