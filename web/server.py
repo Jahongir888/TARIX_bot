@@ -42,6 +42,7 @@ import secrets
 
 from data.config import BOT_TOKEN
 from aiogram import Bot
+from web.routes.admin_routes import router as admin_router
 
 # 1. FastAPI ilovasini yaratamiz
 app = FastAPI(title="PHAROS Education Platform")
@@ -54,6 +55,9 @@ static_path = os.path.join(os.path.dirname(__file__), "static")
 if not os.path.exists(static_path):
     os.makedirs(static_path)
 app.mount("/static", StaticFiles(directory=static_path), name="static")
+
+# Admin panel marshrutlari (GET /admin + /api/admin/*)
+app.include_router(admin_router)
 
 # index.html shabloniga mutlaq manzil
 CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -389,8 +393,8 @@ async def get_user_profile(
             "knowledge_level": knowledge_level,
             "target": getattr(user, 'target', None) or "Abituriyent",
             "selected_subject": getattr(user, 'selected_subject', None) or "tarix",
-            "balance": user.balance if user.balance is not None else 0,
-            "coins": user.coins if user.coins is not None else 0,
+            "balance": int(user.balance if user.balance is not None else (user.coins or 0) or 0),
+            "coins": int(user.balance if user.balance is not None else (user.coins or 0) or 0),
             "is_paid": bool(getattr(user, 'is_paid', False)),
             "status_abc": getattr(user, 'status_abc', "CCC") or "CCC",
             "device_count": len(devices),
@@ -535,21 +539,29 @@ async def accept_oferta(telegram_id: int):
             raise HTTPException(status_code=404, detail="Foydalanuvchi topilmadi")
 
         if getattr(user, 'oferta_accepted', False):
-            return {"status": "warning", "message": "Oferta bonusi allaqachon berilgan!", "coins": user.coins}
+            bal = int(user.balance if user.balance is not None else (user.coins or 0) or 0)
+            return {"status": "warning", "message": "Oferta bonusi allaqachon berilgan!", "balance": bal, "coins": bal}
 
         user.oferta_accepted = True
-        user.coins = (user.coins or 0) + 20
+        bonus = 20000
+        user.balance = int(user.balance or 0) + bonus
+        user.coins = int(user.balance or 0)
 
         tx = CoinTransaction(
             user_id=telegram_id,
-            amount=20,
+            amount=bonus,
             tx_type="oferta",
-            description="Oferta shartnomasini imzolaganlik uchun bonus"
+            description="Oferta shartnomasini imzolaganlik uchun bonus (so'm)"
         )
         session.add(tx)
         await session.commit()
 
-        return {"status": "success", "message": "Oferta qabul qilindi! +20 Coin hisobingizga qo'shildi", "coins": user.coins}
+        return {
+            "status": "success",
+            "message": "Oferta qabul qilindi! +20 000 so'm hisobingizga qo'shildi",
+            "balance": int(user.balance or 0),
+            "coins": int(user.balance or 0),
+        }
 
 
 # 9. PLATFORMA FAOLLIGINI QAYD ETISH
@@ -845,7 +857,7 @@ def _sample_notifications():
                 "id": 3,
                 "source": "tolov",
                 "title": "Hisob to'ldirildi",
-                "message": "Hisobingizga muvaffaqiyatli +20 Coin qo'shildi.",
+                "message": "Hisobingizga muvaffaqiyatli +20 000 so'm qo'shildi.",
                 "target_tab": "profile",
                 "is_read": False,
                 "created_at": "Kecha"
@@ -1064,8 +1076,8 @@ async def get_catalog_products(subject: Optional[str] = None, category: Optional
             "short_desc": "Barcha davrlar xronologiyasi va qiyin testlar tahlili.",
             "subject": "tarix",
             "category": "ms",
-            "price_coin": 150,
-            "old_price_coin": 250,
+            "price_coin": 150000,
+            "old_price_coin": 250000,
             "rating": 4.9,
             "buyers_count": 420,
             "image_url": "https://images.unsplash.com/photo-1461360370896-922624d12aa1?w=300&q=80"
@@ -1076,7 +1088,7 @@ async def get_catalog_products(subject: Optional[str] = None, category: Optional
             "short_desc": "Oliy va 1-toifa uchun rasmiy testlar va metodik qo'llanma.",
             "subject": "tarix",
             "category": "attestatsiya",
-            "price_coin": 180,
+            "price_coin": 180000,
             "old_price_coin": 0,
             "rating": 5.0,
             "buyers_count": 280,
@@ -1088,8 +1100,8 @@ async def get_catalog_products(subject: Optional[str] = None, category: Optional
             "short_desc": "Darsliklardagi barcha atama va sanalar jamlangan bosma kitob.",
             "subject": "tarix",
             "category": "kitoblar",
-            "price_coin": 45,
-            "old_price_coin": 70,
+            "price_coin": 45000,
+            "old_price_coin": 70000,
             "rating": 4.8,
             "buyers_count": 510,
             "image_url": "https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?w=300&q=80"
@@ -1100,8 +1112,8 @@ async def get_catalog_products(subject: Optional[str] = None, category: Optional
             "short_desc": "Konstitutsiya va kodekslar asosidagi yangi testlar bazasi.",
             "subject": "huquq",
             "category": "bmba_asosiy",
-            "price_coin": 130,
-            "old_price_coin": 190,
+            "price_coin": 130000,
+            "old_price_coin": 190000,
             "rating": 4.9,
             "buyers_count": 310,
             "image_url": "https://images.unsplash.com/photo-1589829545856-d10d557cf95f?w=300&q=80"
@@ -1112,8 +1124,8 @@ async def get_catalog_products(subject: Optional[str] = None, category: Optional
             "short_desc": "Intellekt, barqarorlik va kasbiy yaroqlilik testlari tayyorgarligi.",
             "subject": "psixologiya",
             "category": "otm",
-            "price_coin": 100,
-            "old_price_coin": 160,
+            "price_coin": 100000,
+            "old_price_coin": 160000,
             "rating": 4.9,
             "buyers_count": 195,
             "image_url": "https://images.unsplash.com/photo-1507679799987-c73779587ccf?w=300&q=80"
@@ -1131,23 +1143,24 @@ async def get_catalog_products(subject: Optional[str] = None, category: Optional
 
 @app.post("/api/catalog/buy")
 async def buy_catalog_product(req: PurchaseRequest):
-    user_mock_coins = 50
-    product_price = 150
+    user_mock_balance = 50000
+    product_price = 150000
 
-    if user_mock_coins < product_price:
-        needed = product_price - user_mock_coins
+    if user_mock_balance < product_price:
+        needed = product_price - user_mock_balance
         return {
             "success": False,
             "status": "insufficient_funds",
             "needed_coins": needed,
-            "current_balance": user_mock_coins,
-            "message": f"Balansingizda coin yetarli emas! Yana {needed} coin xarid qilishingiz kerak."
+            "needed_amount": needed,
+            "current_balance": user_mock_balance,
+            "message": f"Balansingizda mablag' yetarli emas! Yana {needed:,} so'm kerak.".replace(",", " "),
         }
 
     return {
         "success": True,
         "status": "success",
-        "new_balance": user_mock_coins - product_price,
+        "new_balance": user_mock_balance - product_price,
         "message": "Xarid muvaffaqiyatli amalga oshirildi! Kurs 'Kabinet' bo'limiga qo'shildi."
     }
 
@@ -4233,6 +4246,131 @@ def _public_rank_label(rank: Optional[int], has_submission: bool, filtered_out: 
     return f"Siz {rank}-o'rindasiz"
 
 
+def _exam_rash_label(theta, level: Optional[str] = None) -> str:
+    if theta is None:
+        return "—"
+    try:
+        value = f"{float(theta):.2f}"
+        grade = (level or "").strip()
+        if not grade or grade in ("Boshlang'ich", "Bilimdon", "Ustoz"):
+            grade = _rasch_grade(float(theta))
+        return f"{value} ({grade})"
+    except (TypeError, ValueError):
+        return "—"
+
+
+def _exam_rank_banner(
+    *,
+    has_submission: bool,
+    mine,
+    my_rank: Optional[int],
+    region_name: str,
+    district_name: str,
+    user_region: str,
+    user_district: str,
+) -> dict:
+    ball = int(mine.score or 0) if mine else None
+    theta = mine.ability_theta if mine else None
+    level = (mine.level_label if mine else None) or None
+    if theta is not None and (not level or level in ("Boshlang'ich", "Bilimdon", "Ustoz")):
+        try:
+            level = _rasch_grade(float(theta))
+        except Exception:
+            pass
+    rash = _exam_rash_label(theta, level)
+
+    if not has_submission:
+        return {
+            "scope": "none",
+            "belongs": False,
+            "my_rank": None,
+            "ball": None,
+            "theta": None,
+            "level": None,
+            "rash": None,
+            "my_label": "Siz hali bu testda ishtirok etmadingiz",
+        }
+
+    if district_name:
+        belongs = bool(user_district) and (
+            user_district == district_name
+            or user_district.endswith(district_name)
+            or district_name in user_district
+        )
+        if not belongs:
+            return {
+                "scope": "foreign",
+                "belongs": False,
+                "my_rank": None,
+                "ball": ball,
+                "theta": theta,
+                "level": level,
+                "rash": rash,
+                "my_label": "Siz bu hududga tegishli emassiz",
+            }
+        return {
+            "scope": "district",
+            "belongs": True,
+            "my_rank": my_rank,
+            "ball": ball,
+            "theta": theta,
+            "level": level,
+            "rash": rash,
+            "my_label": (
+                f"Siz tuman reytingida: {my_rank}-o'rindasiz · {ball} ball"
+                + (f" · RASH {rash}" if theta is not None else "")
+                if my_rank else "Siz ushbu tuman filtrida topilmadingiz"
+            ),
+        }
+
+    if region_name:
+        belongs = bool(user_region) and (
+            user_region == region_name
+            or user_region.startswith(region_name)
+            or region_name in user_region
+        )
+        if not belongs:
+            return {
+                "scope": "foreign",
+                "belongs": False,
+                "my_rank": None,
+                "ball": ball,
+                "theta": theta,
+                "level": level,
+                "rash": rash,
+                "my_label": "Siz bu hududga tegishli emassiz",
+            }
+        return {
+            "scope": "region",
+            "belongs": True,
+            "my_rank": my_rank,
+            "ball": ball,
+            "theta": theta,
+            "level": level,
+            "rash": rash,
+            "my_label": (
+                f"Siz viloyat reytingida: {my_rank}-o'rindasiz · {ball} ball"
+                + (f" · RASH {rash}" if theta is not None else "")
+                if my_rank else "Siz ushbu viloyat filtrida topilmadingiz"
+            ),
+        }
+
+    return {
+        "scope": "global",
+        "belongs": True,
+        "my_rank": my_rank,
+        "ball": ball,
+        "theta": theta,
+        "level": level,
+        "rash": rash,
+        "my_label": (
+            f"Siz umumiy reytingda: {my_rank}-o'rindasiz · {ball} ball"
+            + (f" · RASH {rash}" if theta is not None else "")
+            if my_rank else "Siz hali bu testda ishtirok etmadingiz"
+        ),
+    }
+
+
 @app.get("/api/exams/list")
 async def exams_list(
     subject: str = "tarix",
@@ -4500,18 +4638,39 @@ async def exams_leaderboard(
         ).scalars().all()
         best = _best_submissions(list(rows))
         mine = next((row for row in best if tg_id and row.user_id == tg_id), None)
+        user_region = (mine.region if mine else "") or ""
+        user_district = (mine.district if mine else "") or ""
+        if tg_id and (not user_region or not user_district):
+            profile = (
+                await session.execute(select(User).where(User.telegram_id == tg_id))
+            ).scalar_one_or_none()
+            if profile:
+                user_region = user_region or (profile.region or "")
+                user_district = user_district or (profile.district or "")
         region_name = (region or "").strip()
         district_name = (district or "").strip()
         filtered = best
         if region_name:
             filtered = [row for row in filtered if (row.region or "") == region_name]
         if district_name:
-            filtered = [row for row in filtered if (row.district or "") == district_name]
+            filtered = [
+                row for row in filtered
+                if (row.district or "") == district_name
+                or str(row.district or "").endswith(district_name)
+            ]
         items = []
         my_rank = None
         for index, row in enumerate(filtered, start=1):
             if tg_id and row.user_id == tg_id:
                 my_rank = index
+            theta = row.ability_theta
+            level = row.level_label or _exam_level(row.percent or 0)
+            if theta is not None and level in ("Boshlang'ich", "Bilimdon", "Ustoz", None, ""):
+                try:
+                    level = _rasch_grade(float(theta))
+                except Exception:
+                    pass
+            ball = int(row.score or 0)
             items.append({
                 "rank": index,
                 "telegram_id": row.user_id,
@@ -4519,18 +4678,36 @@ async def exams_leaderboard(
                 "region": row.region or "—",
                 "district": row.district or "—",
                 "place": _place_label(row.region, row.district),
-                "score": row.score or 0,
+                "ball": ball,
+                "score": ball,
                 "total": row.total_questions or 0,
                 "percent": row.percent or 0,
-                "theta": row.ability_theta,
-                "level": row.level_label or _exam_level(row.percent or 0),
+                "theta": theta,
+                "level": level,
+                "rash": _exam_rash_label(theta, level),
             })
-        filtered_out = bool(mine) and my_rank is None
+        banner = _exam_rank_banner(
+            has_submission=mine is not None,
+            mine=mine,
+            my_rank=my_rank,
+            region_name=region_name,
+            district_name=district_name,
+            user_region=user_region,
+            user_district=user_district,
+        )
         return {
             "quiz_id": quiz.id,
             "title": quiz.title,
-            "my_rank": my_rank,
-            "my_label": _public_rank_label(my_rank, mine is not None, filtered_out),
+            "my_rank": banner["my_rank"],
+            "my_label": banner["my_label"],
+            "my_ball": banner["ball"],
+            "my_theta": banner["theta"],
+            "my_level": banner["level"],
+            "my_rash": banner["rash"],
+            "my_scope": banner["scope"],
+            "belongs_to_filter": banner["belongs"],
+            "user_region": user_region or None,
+            "user_district": user_district or None,
             "has_submission": mine is not None,
             "regions_map": REGIONS_DATA,
             "items": items,
