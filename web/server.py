@@ -43,9 +43,16 @@ import secrets
 from data.config import BOT_TOKEN, GEMINI_API_KEY, GEMINI_ESSAY_MODEL
 from aiogram import Bot
 from web.routes.admin_routes import router as admin_router
-import httpx
+import asyncio
 import re
 import base64
+import urllib.error
+import urllib.request
+
+try:
+    import httpx as _httpx
+except ImportError:  # serverda paket bo'lmasa ham Mini App ishlashi uchun
+    _httpx = None
 
 # 1. FastAPI ilovasini yaratamiz
 app = FastAPI(title="PHAROS Education Platform")
@@ -4018,7 +4025,10 @@ async def _gemini_grade_essay_images(images: list) -> dict:
     if len(parts) < 2:
         raise HTTPException(status_code=400, detail="Rasm formatini o'qib bo'lmadi")
 
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/{GEMINI_ESSAY_MODEL}:generateContent"
+    url = (
+        f"https://generativelanguage.googleapis.com/v1beta/models/"
+        f"{GEMINI_ESSAY_MODEL}:generateContent?key={GEMINI_API_KEY}"
+    )
     body = {
         "contents": [{"role": "user", "parts": parts}],
         "generationConfig": {
@@ -4027,16 +4037,9 @@ async def _gemini_grade_essay_images(images: list) -> dict:
         },
     }
     try:
-        async with httpx.AsyncClient(timeout=90.0) as client:
-            response = await client.post(
-                url,
-                params={"key": GEMINI_API_KEY},
-                headers={"Content-Type": "application/json"},
-                json=body,
-            )
-        if response.status_code >= 400:
-            return _fallback_essay_result(f"HTTP {response.status_code}")
-        payload = response.json()
+        status_code, payload = await _gemini_http_post_json(url, body)
+        if status_code >= 400:
+            return _fallback_essay_result(f"HTTP {status_code}")
         text = ""
         for candidate in payload.get("candidates") or []:
             content = candidate.get("content") or {}
@@ -4051,6 +4054,43 @@ async def _gemini_grade_essay_images(images: list) -> dict:
         raise
     except Exception as exc:
         return _fallback_essay_result(str(exc)[:120])
+
+
+async def _gemini_http_post_json(url: str, body: dict) -> tuple:
+    """httpx bo'lsa undan, bo'lmasa stdlib urllib orqali Gemini ga POST."""
+    if _httpx is not None:
+        async with _httpx.AsyncClient(timeout=90.0) as client:
+            response = await client.post(
+                url,
+                headers={"Content-Type": "application/json"},
+                json=body,
+            )
+            try:
+                payload = response.json()
+            except Exception:
+                payload = {}
+            return response.status_code, payload if isinstance(payload, dict) else {}
+
+    def _sync_post():
+        raw = json.dumps(body).encode("utf-8")
+        req = urllib.request.Request(
+            url,
+            data=raw,
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        try:
+            with urllib.request.urlopen(req, timeout=90) as resp:
+                data = json.loads(resp.read().decode("utf-8") or "{}")
+                return resp.status, data if isinstance(data, dict) else {}
+        except urllib.error.HTTPError as err:
+            try:
+                data = json.loads(err.read().decode("utf-8") or "{}")
+            except Exception:
+                data = {}
+            return err.code, data if isinstance(data, dict) else {}
+
+    return await asyncio.to_thread(_sync_post)
 
 
 def _chosen_option(question: ExamQuestion, answers: dict):
