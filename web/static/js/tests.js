@@ -211,7 +211,10 @@ function renderExamCard(quiz) {
         ? `<button type="button" disabled data-exam-until="${until}" class="w-full px-2 py-2.5 bg-[#161F30] border border-amber-500/40 text-[11px] leading-tight font-bold rounded-xl text-amber-200 cursor-not-allowed">Boshlanishiga: ${examEsc(quiz.starts_in_label || "")} qoldi</button>`
         : `<button type="button" onclick="openExamModes(${quiz.id})" class="w-full px-2 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-[11px] leading-tight font-bold rounded-xl text-white cursor-pointer">Testni ishlash va tekshirish</button>`;
     const link = quiz.link
-        ? `<a href="${examEsc(quiz.link)}" target="_blank" rel="noopener" class="block mt-3 text-center text-[11px] leading-relaxed text-emerald-300 underline break-all">${examEsc(quiz.link)}</a>`
+        ? `<button type="button" onclick="openExamShareSheet(${quiz.id})" class="mt-3 w-full text-left border border-[#283548] bg-[#0A0E17] hover:border-emerald-500/50 hover:bg-[#0F1623] rounded-xl p-2.5 transition-colors cursor-pointer active:scale-[0.99]">
+                <p class="text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">Havola · ulashish</p>
+                <p class="text-[11px] leading-relaxed text-emerald-300 break-all">${examEsc(quiz.link)}</p>
+            </button>`
         : "";
     return `
         <article class="bg-[#111827] border border-[#1F2937] rounded-2xl p-4 shadow-sm">
@@ -701,12 +704,88 @@ async function openExamLeaderboard(quizId) {
     const quiz = quizById(quizId);
     const title = document.getElementById("exam-board-title");
     if (title) title.textContent = quiz ? quiz.title : "Reyting";
+    const badge = document.getElementById("exam-board-myrank");
+    if (badge) {
+        badge.textContent = "Reyting yuklanmoqda...";
+        badge.className = "mt-3 text-center text-xs font-extrabold text-amber-200 bg-amber-500/10 border border-amber-500/30 rounded-xl py-2.5 px-3 leading-relaxed";
+    }
     examShow("exam-board-modal");
+    if (window.lucide) lucide.createIcons();
     await loadExamLeaderboard();
 }
 
 function closeExamLeaderboard() {
     examHide("exam-board-modal");
+}
+
+function openExamShareSheet(quizId) {
+    const quiz = quizById(quizId);
+    if (!quiz || !quiz.link) return;
+    examState.shareQuizId = quizId;
+    examState.shareLink = quiz.link;
+    const title = document.getElementById("exam-share-title");
+    const linkEl = document.getElementById("exam-share-link");
+    if (title) title.textContent = quiz.title || "Test";
+    if (linkEl) linkEl.textContent = quiz.link;
+    examShow("exam-share-sheet");
+}
+
+function closeExamShareSheet() {
+    examHide("exam-share-sheet");
+}
+
+function shareExamViaTelegram() {
+    const link = examState.shareLink;
+    if (!link) return;
+    const quiz = quizById(examState.shareQuizId);
+    const text = quiz ? `${quiz.title} — PHAROS test` : "PHAROS test";
+    const shareUrl = `https://t.me/share/url?url=${encodeURIComponent(link)}&text=${encodeURIComponent(text)}`;
+    const tg = window.Telegram?.WebApp;
+    if (tg && typeof tg.openTelegramLink === "function") {
+        tg.openTelegramLink(shareUrl);
+    } else {
+        window.open(shareUrl, "_blank");
+    }
+}
+
+async function copyExamShareLink() {
+    const link = examState.shareLink;
+    if (!link) return;
+    try {
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            await navigator.clipboard.writeText(link);
+        } else {
+            const input = document.createElement("textarea");
+            input.value = link;
+            document.body.appendChild(input);
+            input.select();
+            document.execCommand("copy");
+            document.body.removeChild(input);
+        }
+        alert("Havola nusxalandi!");
+    } catch (err) {
+        alert("Nusxa olishda xatolik. Havolani qo'lda belgilang.");
+    }
+}
+
+function examRankRowClass(rank) {
+    if (rank === 1) {
+        return "border-amber-500/40 bg-gradient-to-r from-amber-500/10 to-transparent";
+    }
+    if (rank === 2) {
+        return "border-slate-300/40 bg-gradient-to-r from-slate-300/10 to-transparent";
+    }
+    if (rank === 3) {
+        return "border-amber-700/40 bg-gradient-to-r from-amber-700/10 to-transparent";
+    }
+    return "border-[#1F2937] bg-[#111827]";
+}
+
+function examRankBadge(rank) {
+    if (rank === 1) return "🥇";
+    if (rank === 2) return "🥈";
+    if (rank === 3) return "🥉";
+    return String(rank);
 }
 
 function fillRegionSelect(map) {
@@ -761,26 +840,43 @@ async function loadExamLeaderboard() {
             fillRegionSelect(data.regions_map);
             refillDistrictSelect();
         }
-        if (badge) badge.textContent = data.my_label || "Siz hali bu testda ishtirok etmadingiz";
+        if (badge) {
+            const foreign = data.my_scope === "foreign";
+            if (foreign) {
+                badge.textContent = data.my_label || "Siz bu hududga tegishli emassiz";
+                badge.className = "mt-3 text-center text-xs font-semibold text-slate-400 bg-[#0A0E17] border border-[#1F2937] rounded-xl py-2.5 px-3 leading-relaxed";
+            } else {
+                badge.textContent = data.my_label || "Siz hali bu testda ishtirok etmadingiz";
+                badge.className = "mt-3 text-center text-xs font-extrabold text-amber-200 bg-amber-500/10 border border-amber-500/30 rounded-xl py-2.5 px-3 leading-relaxed";
+            }
+        }
         const items = data.items || [];
         if (!items.length) {
             list.innerHTML = '<p class="text-xs text-slate-500 text-center py-8">Bu filtr bo\'yicha natijalar yo\'q.</p>';
             return;
         }
-        list.innerHTML = items.map((item) => `
-            <div class="bg-[#0A0E17] border border-[#1F2937] rounded-2xl px-3 py-2.5 flex items-center gap-2">
-                <div class="w-8 text-center font-extrabold text-amber-300 text-sm">${item.rank}</div>
-                <div class="flex-1 min-w-0">
+        list.innerHTML = items.map((item) => {
+            const ball = item.ball != null ? item.ball : item.score;
+            const rash = item.rash || (item.theta != null
+                ? `${Number(item.theta).toFixed(2)}${item.level ? ` (${item.level})` : ""}`
+                : "—");
+            return `
+            <div class="rounded-2xl border px-2.5 py-2.5 grid grid-cols-[2rem_1fr_3.5rem_4.5rem] gap-1 items-center ${examRankRowClass(item.rank)}">
+                <div class="text-center font-extrabold text-sm ${item.rank <= 3 ? "text-amber-300" : "text-slate-400"}">${examRankBadge(item.rank)}</div>
+                <div class="min-w-0">
                     <button type="button" onclick="openExamStudent(${item.telegram_id}, ${quizId})" class="text-left text-xs font-bold text-emerald-300 underline truncate block cursor-pointer">${examEsc(item.full_name)}</button>
                     <p class="text-[10px] text-slate-400 truncate">${examEsc(item.place)}</p>
                 </div>
-                <div class="text-right shrink-0">
-                    <p class="text-xs font-extrabold text-white">${item.score}/${item.total}</p>
-                    ${item.theta != null ? `<p class="text-[9px] text-slate-400">θ ${Number(item.theta).toFixed(2)}</p>` : ""}
-                    <span class="inline-block mt-0.5 text-[9px] font-bold px-1.5 py-0.5 rounded-md border ${examLevelClass(item.level)}">${examEsc(item.level)}</span>
+                <div class="text-right">
+                    <p class="text-xs font-extrabold text-white">${ball != null ? ball : "—"}</p>
+                    <p class="text-[9px] text-slate-500">ball</p>
                 </div>
-            </div>
-        `).join("");
+                <div class="text-right">
+                    <p class="text-[11px] font-extrabold text-emerald-300 leading-tight">${examEsc(rash)}</p>
+                    <p class="text-[9px] text-slate-500">RASH</p>
+                </div>
+            </div>`;
+        }).join("");
     } catch (err) {
         list.innerHTML = '<p class="text-xs text-rose-400 text-center py-6">Reytingni yuklashda xatolik.</p>';
     }
@@ -1015,7 +1111,7 @@ function closeExamStudent() {
 }
 
 function closeAllExamOverlays() {
-    ["exam-mode-modal", "exam-play-layer", "exam-paper-modal", "exam-scan-modal", "exam-board-modal", "exam-analysis-modal", "exam-diag-modal", "exam-student-modal", "exam-zoom-modal", "exam-video-modal"].forEach(examHide);
+    ["exam-mode-modal", "exam-play-layer", "exam-paper-modal", "exam-scan-modal", "exam-board-modal", "exam-analysis-modal", "exam-diag-modal", "exam-student-modal", "exam-zoom-modal", "exam-video-modal", "exam-share-sheet"].forEach(examHide);
     stopExamCountdown();
     stopExamCamera();
     const videoSlot = document.getElementById("exam-video-slot");

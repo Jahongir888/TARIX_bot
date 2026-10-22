@@ -148,8 +148,8 @@ async function loadCatalogProducts() {
 
                         <!-- Narx (Hozirgi va chizilgan) -->
                         <div class="flex items-baseline gap-1.5 my-1">
-                            <span class="text-xs font-black text-emerald-400 font-mono">${p.price_coin} coin</span>
-                            ${p.old_price_coin > p.price_coin ? `<span class="text-[9px] text-slate-500 line-through font-mono">${p.old_price_coin} coin</span>` : ''}
+                            <span class="text-xs font-black text-emerald-400 font-mono">${Number(p.price_coin || 0).toLocaleString('uz-UZ')} so'm</span>
+                            ${p.old_price_coin > p.price_coin ? `<span class="text-[9px] text-slate-500 line-through font-mono">${Number(p.old_price_coin || 0).toLocaleString('uz-UZ')} so'm</span>` : ''}
                         </div>
 
                         <!-- 1-2 ta tavsiflovchi jumla -->
@@ -186,8 +186,9 @@ function openProductDetailModal(id, title) {
 // 6. "Sotib olish" tugmasi mantig'i
 async function handleProductBuy(productId, priceCoin, title) {
     const tgId = window.Telegram?.WebApp?.initDataUnsafe?.user?.id || 12345678;
+    const priceLabel = Number(priceCoin || 0).toLocaleString('uz-UZ');
 
-    if (!confirm(`«${title}» mahsulotini ${priceCoin} coin evaziga xarid qilasizmi?`)) {
+    if (!confirm(`«${title}» mahsulotini ${priceLabel} so'm evaziga xarid qilasizmi?`)) {
         return;
     }
 
@@ -201,11 +202,12 @@ async function handleProductBuy(productId, priceCoin, title) {
 
         if (data.success) {
             alert(data.message);
-            // Headerdagi coin balansini yangilash
-            const hdrCoin = document.getElementById('hdr-coins');
-            if (hdrCoin) hdrCoin.innerText = data.new_balance;
+            const hdrBalance = document.getElementById('hdr-balance') || document.getElementById('hdr-coins');
+            if (hdrBalance) hdrBalance.innerText = Number(data.new_balance || 0).toLocaleString('uz-UZ');
         } else {
-            alert(`⚠️ Balansingizda mablag' yetarli emas!\n\nUshbu kurs uchun yana ${data.needed_coins} coin xarid qilishingiz zarur.\n(Joriy balansingiz: ${data.current_balance} coin).`);
+            const need = Number(data.needed_amount != null ? data.needed_amount : data.needed_coins) || 0;
+            const current = Number(data.current_balance) || 0;
+            alert(`⚠️ Balansingizda mablag' yetarli emas!\n\nUshbu kurs uchun yana ${need.toLocaleString('uz-UZ')} so'm kerak.\n(Joriy balansingiz: ${current.toLocaleString('uz-UZ')} so'm).`);
         }
     } catch (err) {
         alert("Server bilan aloqa uzildi. Iltimos qayta urinib ko'ring.");

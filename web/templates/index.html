@@ -43,7 +43,7 @@
                     <span id="hdr-name" class="text-xs font-bold text-white truncate max-w-[95px] mb-0.5">O'quvchi</span>
                     <span id="hdr-status" class="text-[9px] font-semibold text-emerald-400 leading-none mb-0.5">Bilimdon</span>
                     <span class="text-[9px] font-bold text-amber-400 flex items-center gap-0.5 leading-none">
-                        <span>🪙</span> <span id="hdr-coins" class="font-mono">0</span> <span class="text-[8px] text-slate-400">coin</span>
+                        <span id="hdr-balance" class="font-mono">0</span> <span class="text-[8px] text-slate-400">so'm</span>
                     </span>
                 </div>
             </div>
@@ -840,28 +840,50 @@
         </div>
     </div>
 
-    <!-- TEST: reyting -->
-    <div id="exam-board-modal" class="ph-modal fixed inset-0 z-[84] bg-black/75 backdrop-blur-sm items-end sm:items-center justify-center p-2">
-        <div class="bg-[#111827] border border-[#1F2937] w-full max-w-md max-h-[92vh] rounded-3xl flex flex-col overflow-hidden shadow-2xl">
-            <div class="px-4 pt-4 pb-2 border-b border-[#1F2937]">
-                <div class="flex items-start justify-between gap-2">
-                    <div class="min-w-0">
-                        <p class="text-[10px] uppercase tracking-wider text-emerald-400 font-bold">Natija va reyting</p>
-                        <h3 id="exam-board-title" class="text-sm font-extrabold text-white leading-tight"></h3>
-                    </div>
-                    <button type="button" onclick="closeExamLeaderboard()" class="shrink-0 w-8 h-8 rounded-xl bg-[#161F30] border border-[#283548] text-slate-300 text-sm cursor-pointer">✕</button>
-                </div>
-                <div id="exam-board-myrank" class="mt-2 text-center text-sm font-extrabold text-amber-300 bg-amber-500/10 border border-amber-500/30 rounded-xl py-2">Siz —</div>
-                <div class="grid grid-cols-2 gap-2 mt-3 pb-2">
-                    <select id="exam-board-region" onchange="onExamBoardRegionChange()" class="bg-[#0A0E17] border border-[#1F2937] text-[11px] text-slate-100 rounded-xl px-2 py-2 focus:outline-none focus:border-emerald-500">
-                        <option value="">Barcha viloyatlar</option>
-                    </select>
-                    <select id="exam-board-district" onchange="loadExamLeaderboard()" class="bg-[#0A0E17] border border-[#1F2937] text-[11px] text-slate-100 rounded-xl px-2 py-2 focus:outline-none focus:border-emerald-500">
-                        <option value="">Barcha tumanlar</option>
-                    </select>
+    <!-- TEST: reyting (to'liq ekran) -->
+    <div id="exam-board-modal" class="ph-modal fixed inset-0 z-[90] bg-[#0A0E17] flex-col">
+        <div class="px-3 pt-3 pb-2 border-b border-[#1F2937] bg-[#111827]/95 shrink-0">
+            <div class="flex items-center gap-2">
+                <button type="button" onclick="closeExamLeaderboard()" class="shrink-0 w-9 h-9 rounded-xl bg-[#161F30] border border-[#283548] text-slate-200 flex items-center justify-center cursor-pointer" aria-label="Ortga">
+                    <i data-lucide="arrow-left" class="w-4 h-4"></i>
+                </button>
+                <div class="min-w-0 flex-1">
+                    <p class="text-[10px] uppercase tracking-wider text-emerald-400 font-bold">Natija va reyting</p>
+                    <h3 id="exam-board-title" class="text-sm font-extrabold text-white leading-tight truncate"></h3>
                 </div>
             </div>
-            <div id="exam-board-list" class="flex-1 overflow-y-auto px-3 py-3 space-y-2"></div>
+            <div class="grid grid-cols-2 gap-2 mt-3">
+                <select id="exam-board-region" onchange="onExamBoardRegionChange()" class="bg-[#0A0E17] border border-[#1F2937] text-[11px] text-slate-100 rounded-xl px-2 py-2.5 focus:outline-none focus:border-emerald-500">
+                    <option value="">Barcha viloyatlar</option>
+                </select>
+                <select id="exam-board-district" onchange="loadExamLeaderboard()" class="bg-[#0A0E17] border border-[#1F2937] text-[11px] text-slate-100 rounded-xl px-2 py-2.5 focus:outline-none focus:border-emerald-500">
+                    <option value="">Barcha tumanlar</option>
+                </select>
+            </div>
+            <div id="exam-board-myrank" class="mt-3 text-center text-xs font-extrabold text-amber-200 bg-amber-500/10 border border-amber-500/30 rounded-xl py-2.5 px-3 leading-relaxed">Siz —</div>
+            <div class="mt-3 grid grid-cols-[2rem_1fr_3.5rem_4.5rem] gap-1 px-1 text-[9px] font-bold uppercase tracking-wider text-slate-500">
+                <span>№</span>
+                <span>Ism / joy</span>
+                <span class="text-right">Ball</span>
+                <span class="text-right">RASH</span>
+            </div>
+        </div>
+        <div id="exam-board-list" class="flex-1 overflow-y-auto px-3 py-3 space-y-2 pb-8"></div>
+    </div>
+
+    <!-- TEST: ulashish bottom sheet -->
+    <div id="exam-share-sheet" class="ph-modal fixed inset-0 z-[95] bg-black/70 backdrop-blur-sm items-end justify-center" onclick="if(event.target===this)closeExamShareSheet()">
+        <div class="bg-[#111827] border-t border-[#1F2937] w-full max-w-md rounded-t-3xl p-4 shadow-2xl translate-y-0">
+            <div class="w-10 h-1 rounded-full bg-slate-600 mx-auto mb-3"></div>
+            <p class="text-[10px] uppercase tracking-wider text-emerald-400 font-bold">Ulashish</p>
+            <h3 id="exam-share-title" class="text-sm font-extrabold text-white mt-0.5 leading-tight"></h3>
+            <p id="exam-share-link" class="mt-2 text-[11px] text-emerald-300 break-all bg-[#0A0E17] border border-[#283548] rounded-xl p-2.5"></p>
+            <div class="mt-3 space-y-2">
+                <button type="button" onclick="shareExamViaTelegram()" class="w-full py-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-xs font-extrabold text-white cursor-pointer">Telegram orqali ulashish</button>
+                <button type="button" onclick="copyExamShareLink()" class="w-full py-3 rounded-xl bg-[#161F30] border border-[#283548] text-xs font-bold text-slate-100 cursor-pointer">Havoladan nusxa olish</button>
+            </div>
+            <p class="mt-3 text-[11px] text-slate-400 leading-relaxed text-center">Do'stga yuborish va chegirma olish — havolani ulashing, referal chegirma avtomatik hisoblanadi.</p>
+            <button type="button" onclick="closeExamShareSheet()" class="mt-3 w-full py-2.5 text-[11px] font-semibold text-slate-400 cursor-pointer">Yopish</button>
         </div>
     </div>
 
@@ -1098,7 +1120,7 @@
                 <div class="flex justify-between items-center pb-2 border-b border-slate-800/60">
                     <div>
                         <p class="text-slate-400 text-[11px]">Hamyon balansi:</p>
-                        <p class="text-base font-bold text-emerald-400 mt-0.5"><span id="coin-balance">0</span> Coin</p>
+                        <p class="text-base font-bold text-emerald-400 mt-0.5"><span id="coin-balance">0</span> so'm</p>
                     </div>
                     <button onclick="alert('Hisobni to\'ldirish uchun bot orqali to\'lov chekini yuboring.')" class="px-3 py-1.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold rounded-xl text-xs shadow active:scale-95 transition-all cursor-pointer">
                         + To'ldirish
@@ -1110,7 +1132,7 @@
                     <span class="text-slate-500 text-sm">›</span>
                 </div>
                 <div class="flex justify-between items-center py-1 cursor-pointer hover:text-emerald-400 transition-colors" onclick="openModal('referral-modal')">
-                    <span class="text-slate-300">👥 Do'stlarni taklif qilish <span class="text-emerald-400 font-semibold">(+1 coin)</span></span>
+                    <span class="text-slate-300">👥 Do'stlarni taklif qilish <span class="text-emerald-400 font-semibold">(+1 000 so'm)</span></span>
                     <span class="text-xs text-slate-400 font-mono"><span id="referral-count">0</span>/10 ›</span>
                 </div>
 
@@ -1144,7 +1166,7 @@
                     <span class="text-slate-500">›</span>
                 </div>
                 <div class="flex justify-between items-center py-1 border-t border-slate-800/60 pt-2 cursor-pointer hover:text-emerald-400 transition-colors" onclick="claimOfertaBonus()">
-                    <span>📜 Oferta shartnomasi <span id="oferta-bonus-tag" class="text-emerald-400 font-semibold">(+20 coin)</span></span>
+                    <span>📜 Oferta shartnomasi <span id="oferta-bonus-tag" class="text-emerald-400 font-semibold">(+20 000 so'm)</span></span>
                     <span class="text-slate-500">›</span>
                 </div>
                 <div class="flex justify-between items-center py-1 border-t border-slate-800/60 pt-2 cursor-pointer hover:text-emerald-400 transition-colors" onclick="openManualModal()">
@@ -1353,7 +1375,7 @@
                 <h4 class="text-sm font-bold text-white">👥 Do'stlarni taklif qilish</h4>
                 <button onclick="closeModal('referral-modal')" class="text-slate-400 p-1 text-sm">✕</button>
             </div>
-            <p class="text-xs text-slate-300 leading-relaxed mb-4">Har bir taklif qilingan do'stingiz uchun hisobingizga +1 Coin qo'shiladi (Maksimum 10 ta).</p>
+            <p class="text-xs text-slate-300 leading-relaxed mb-4">Har bir taklif qilingan do'stingiz uchun hisobingizga +1 000 so'm qo'shiladi (Maksimum 10 ta).</p>
             <div class="bg-[#161F30] border border-[#283548] p-2.5 rounded-xl flex items-center justify-between text-xs font-mono text-emerald-400 mb-4 select-all">
                 <span id="referral-link-text">https://t.me/pharos_talim_bot?start=ref84920194</span>
             </div>
@@ -1672,7 +1694,7 @@
     <script src="/static/js/cabinet.js?v=header-back-1"></script>
     <script src="/static/js/octagon.js?v=1"></script>
     <script src="/static/js/subject_dashboard.js?v=1"></script>
-    <script src="/static/js/tests.js?v=20261021"></script>
+    <script src="/static/js/tests.js?v=20261021b"></script>
 
     <!-- ASOSIY BOSHQARUV LOGIKASI -->
     <script>

@@ -195,8 +195,10 @@ function renderUserProfile(u) {
     // Nazoratchi bloki
     renderSupervisor(u.supervisor);
 
-    // Hamyon va faollik
-    setElText("coin-balance", u.coins || 0, "0");
+    // Hamyon va faollik (so'm)
+    const wallet = Number(u.balance != null ? u.balance : u.coins) || 0;
+    const balanceEl = document.getElementById("coin-balance");
+    if (balanceEl) balanceEl.innerText = wallet.toLocaleString("uz-UZ");
     setElText("referral-count", u.invited_friends || 0, "0");
 
     const refLink = document.getElementById("referral-link-text");
@@ -488,7 +490,7 @@ function renderTransactions(txs) {
                     <span class="text-[10px] text-slate-500">${t.date}</span>
                 </div>
                 <span class="font-bold font-mono ${isPlus ? 'text-emerald-400' : 'text-rose-400'}">
-                    ${isPlus ? '+' : ''}${t.amount} Coin
+                    ${isPlus ? '+' : ''}${Number(t.amount || 0).toLocaleString('uz-UZ')} so'm
                 </span>
             </div>
         `;
@@ -542,9 +544,10 @@ function updateHeaderProfileWidgets(data) {
         statusEl.innerText = data.knowledge_level || data.target || "Mehmon";
     }
 
-    const coinsEl = document.getElementById('hdr-coins');
-    if (coinsEl) {
-        coinsEl.innerText = data.coins || 0;
+    const balanceEl = document.getElementById('hdr-balance') || document.getElementById('hdr-coins');
+    if (balanceEl) {
+        const wallet = Number(data.balance != null ? data.balance : data.coins) || 0;
+        balanceEl.innerText = wallet.toLocaleString('uz-UZ');
     }
 
     const avatarBox = document.getElementById("hdr-avatar-box");

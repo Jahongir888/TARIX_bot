@@ -694,7 +694,7 @@ async function shLoadModules() {
                     <p class="text-[10px] text-slate-400 line-clamp-2 mt-0.5">${_shEscape(m.description || '')}</p>
                     <div class="flex items-center justify-between mt-2">
                         <span class="text-[10px] text-slate-500">${_shEscape(m.grade_level || '')}</span>
-                        <span class="text-[11px] font-bold text-amber-400 font-mono">${m.price_coin} coin</span>
+                        <span class="text-[11px] font-bold text-amber-400 font-mono">${Number(m.price_coin || 0).toLocaleString('uz-UZ')} so'm</span>
                     </div>
                     ${!m.owned && m.is_standalone ? `
                         <button type="button" onclick="typeof switchTab==='function'&&switchTab('books')"
@@ -745,7 +745,7 @@ async function shLoadQuizzes(filter) {
                 <div class="min-w-0">
                     <h4 class="text-xs font-bold text-white truncate">${_shEscape(q.title)}</h4>
                     <p class="text-[10px] text-slate-400 mt-0.5">
-                        ${_shEscape(q.scope)} · ${q.is_paid ? (q.price_coin + ' coin') : 'Bepul'}
+                        ${_shEscape(q.scope)} · ${q.is_paid ? (Number(q.price_coin || 0).toLocaleString('uz-UZ') + ' so\'m') : 'Bepul'}
                     </p>
                 </div>
                 <button type="button" onclick="shGoToQuiz(${q.quiz_id || 1})"
