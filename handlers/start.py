@@ -12,17 +12,40 @@ from keyboards.reply import (
     get_regions_keyboard,
     get_districts_keyboard,
     targets_keyboard,
-    main_menu
+    get_main_menu,
 )
 from database.regions_data import REGIONS_DATA
 from database.db import async_session
 from database.models import User, OctagonBattle
+from data.config import ADMINS, WEBAPP_URL
 
 router = Router()
 
-# Mini App URL (ngrok / production da .env orqali yangilanishi mumkin)
-import os
-WEBAPP_URL = os.getenv("WEBAPP_URL", "https://pharos-talim.uz")
+_ADMIN_IDS = set(ADMINS or []) | {1206236612}
+
+
+def _menu_for(user_id: int):
+    return get_main_menu(user_id)
+
+
+async def _send_admin_panel_hint(message: Message):
+    """Adminlarga WebApp panel va brauzer token eslatmasi."""
+    if message.from_user.id not in _ADMIN_IDS:
+        return
+    kb = InlineKeyboardMarkup(inline_keyboard=[[
+        InlineKeyboardButton(
+            text="⚙️ Admin Boshqaruv Paneli",
+            web_app=WebAppInfo(url=f"{WEBAPP_URL}/admin"),
+        )
+    ]])
+    await message.answer(
+        "🛡 <b>Admin rejim</b>\n"
+        "Tezkor tahrirlash va statistika uchun panelni oching.\n"
+        "Katta Excel import: <code>/import_quiz</code>, <code>/add_news</code>\n\n"
+        f"Brauzer: <code>{WEBAPP_URL}/admin?token=…</code>",
+        reply_markup=kb,
+        parse_mode="HTML",
+    )
 
 
 async def _handle_octagon_start(message: Message, room_code: str) -> bool:
@@ -49,7 +72,7 @@ async def _handle_octagon_start(message: Message, room_code: str) -> bool:
         if not battle:
             await message.answer(
                 "❌ Oktagon jang xonasi topilmadi yoki havola noto'g'ri.",
-                reply_markup=main_menu if user else ReplyKeyboardRemove(),
+                reply_markup=_menu_for(message.from_user.id) if user else ReplyKeyboardRemove(),
             )
             return True
 
@@ -65,7 +88,10 @@ async def _handle_octagon_start(message: Message, room_code: str) -> bool:
                 "active": "⚔️ Jang allaqachon boshlangan.",
                 "finished": "✅ Bu jang yakunlangan.",
             }.get(battle.status, "Havola endi faol emas.")
-            await message.answer(status_msg, reply_markup=main_menu if user else ReplyKeyboardRemove())
+            await message.answer(
+                status_msg,
+                reply_markup=_menu_for(message.from_user.id) if user else ReplyKeyboardRemove(),
+            )
             return True
 
         seconds_left = max(0, int((battle.expires_at - now).total_seconds()))
@@ -93,7 +119,7 @@ async def _handle_octagon_start(message: Message, room_code: str) -> bool:
         )
         if user:
             await message.answer(text, reply_markup=kb, parse_mode="HTML")
-            await message.answer("Asosiy menyu:", reply_markup=main_menu)
+            await message.answer("Asosiy menyu:", reply_markup=_menu_for(message.from_user.id))
         else:
             await message.answer(text, reply_markup=ReplyKeyboardRemove(), parse_mode="HTML")
         return True
@@ -132,9 +158,10 @@ async def cmd_start(message: Message, state: FSMContext, command: CommandObject 
         await message.answer(
             f"Assalomu alaykum, <b>{existing.full_name or message.from_user.full_name}</b>!\n"
             f"PHAROS platformasiga xush kelibsiz.",
-            reply_markup=main_menu,
+            reply_markup=_menu_for(message.from_user.id),
             parse_mode="HTML",
         )
+        await _send_admin_panel_hint(message)
         return
 
     await message.answer(
@@ -277,9 +304,10 @@ async def get_target(message: Message, state: FSMContext):
         f"📍 <b>Manzil:</b> {data.get('district')}\n"
         f"🎯 <b>Maqsad:</b> {data.get('target')}\n\n"
         f"Quyidagi menyudan kerakli bo'limni tanlang:",
-        reply_markup=main_menu,
+        reply_markup=_menu_for(message.from_user.id),
         parse_mode="HTML"
     )
+    await _send_admin_panel_hint(message)
     await state.clear()
 
 
@@ -325,10 +353,24 @@ async def go_back(message: Message, state: FSMContext):
         )
     else:
         await state.clear()
-        await message.answer("Siz asosiy bosh menyudasiz:", reply_markup=main_menu)
+        await message.answer(
+            "Siz asosiy bosh menyudasiz:",
+            reply_markup=_menu_for(message.from_user.id),
+        )
 
 
 @router.message(F.text == "🏠 Bosh menyu")
 async def back_to_main_menu(message: Message, state: FSMContext):
     await state.clear()
-    await message.answer("Siz asosiy bosh menyudasiz:", reply_markup=main_menu)
+    await message.answer(
+        "Siz asosiy bosh menyudasiz:",
+        reply_markup=_menu_for(message.from_user.id),
+    )
+
+
+@router.message(F.text.in_({"/admin", "⚙️ Admin Boshqaruv Paneli"}))
+async def open_admin_panel(message: Message):
+    if message.from_user.id not in _ADMIN_IDS:
+        await message.answer("⛔ Bu bo'lim faqat adminlar uchun.")
+        return
+    await _send_admin_panel_hint(message)

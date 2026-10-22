@@ -16,7 +16,10 @@ from handlers import start, payment
 async def set_default_commands(bot: Bot):
     commands = [
         BotCommand(command="start", description="Botni ishga tushirish"),
-        BotCommand(command="help", description="Yordam va qo'llanma")
+        BotCommand(command="help", description="Yordam va qo'llanma"),
+        BotCommand(command="import_quiz", description="[Admin] Test Excel import"),
+        BotCommand(command="add_news", description="[Admin] Yangilik Excel import"),
+        BotCommand(command="admin", description="[Admin] Veb boshqaruv paneli"),
     ]
     await bot.set_my_commands(commands)
 

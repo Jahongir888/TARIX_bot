@@ -16,7 +16,7 @@ from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton, WebAppInfo
 from sqlalchemy import delete, select
 
-from data.config import ADMINS
+from data.config import ADMINS, WEBAPP_URL
 from database.db import async_session
 from database.models import ExamQuiz, ExamQuestion
 
@@ -24,8 +24,6 @@ admin_quiz_router = Router()
 
 # admin_news dagi admin bilan bir xil zaxira, .env dagi ADMINS ustun.
 QUIZ_ADMINS = list(dict.fromkeys([*(ADMINS or []), 1206236612]))
-
-WEBAPP_URL = os.getenv("WEBAPP_URL", "https://pharos-talim.uz")
 
 SUBJECT_ALIASES = {
     "tarix": "tarix",
@@ -533,7 +531,7 @@ async def open_quiz_section(message: Message, state: FSMContext):
     if current:
         raise SkipHandler()
     raw = (message.text or "").split()[0].split("@")[0].strip()
-    if raw in {"/start", "/help", "/import_quiz"}:
+    if raw in {"/start", "/help", "/import_quiz", "/add_news", "/admin"}:
         raise SkipHandler()
     now = datetime.now()
     async with async_session() as session:

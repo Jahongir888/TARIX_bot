@@ -4,7 +4,7 @@ from aiogram.fsm.context import FSMContext
 from sqlalchemy import select
 
 from states.register import PaymentState
-from keyboards.reply import main_menu, cancel_payment
+from keyboards.reply import get_main_menu, cancel_payment
 from database.db import async_session
 from database.models import User
 from data.config import ADMINS
@@ -29,7 +29,10 @@ async def start_payment(message: Message, state: FSMContext):
 @router.message(PaymentState.receipt, F.text == "❌ Bekor qilish")
 async def cancel_receipt(message: Message, state: FSMContext):
     await state.clear()
-    await message.answer("To'lov jarayoni bekor qilindi.", reply_markup=main_menu)
+    await message.answer(
+        "To'lov jarayoni bekor qilindi.",
+        reply_markup=get_main_menu(message.from_user.id),
+    )
 
 # 2. O'quvchi chek rasmini yuborganda adminga tasdiqlash uchun yo'naltirish
 @router.message(PaymentState.receipt, F.photo)
@@ -69,7 +72,7 @@ async def process_receipt(message: Message, state: FSMContext):
     await message.answer(
         "✅ To'lov chekingiz adminga yuborildi!\n"
         "Administrator chekni tekshirib, hisobingizni to'ldirishi bilan sizga bildirishnoma keladi.",
-        reply_markup=main_menu
+        reply_markup=get_main_menu(message.from_user.id),
     )
     await state.clear()
 

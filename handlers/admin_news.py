@@ -1,87 +1,163 @@
+"""Admin Excel orqali yangiliklar importi (/add_news)."""
 import os
+
 import pandas as pd
 from aiogram import Router, F, Bot
+from aiogram.dispatcher.event.bases import SkipHandler
+from aiogram.filters import Command, StateFilter
+from aiogram.fsm.context import FSMContext
+from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import Message
+
+from data.config import ADMINS
 from database.db import async_session
 from database.models import News
 
 admin_news_router = Router()
 
-# O'zingizning Telegram ID'ingizni kiriting (masalan: [1206236612])
-ADMIN_IDS = [1206236612]
+NEWS_ADMINS = list(dict.fromkeys([*(ADMINS or []), 1206236612]))
 
 
-@admin_news_router.message(F.document, F.from_user.id.in_(ADMIN_IDS))
-async def import_news_excel(message: Message, bot: Bot):
-    # Faqat excel fayllarni tekshiramiz
-    if not message.document.file_name.endswith(('.xlsx', '.xls')):
-        return
+class ImportNewsState(StatesGroup):
+    waiting_file = State()
 
+
+def _is_excel_name(name: str) -> bool:
+    lower = (name or "").lower()
+    return lower.endswith(".xlsx") or lower.endswith(".xls")
+
+
+def _is_quiz_workbook(path: str) -> bool:
+    """Test importi bilan chalkashmaslik: CONFIG+QUESTIONS bo'lsa — yangilik emas."""
+    try:
+        import openpyxl
+        wb = openpyxl.load_workbook(path, read_only=True, data_only=True)
+        sheet_names = {str(name).strip().upper() for name in wb.sheetnames}
+        wb.close()
+        return "CONFIG" in sheet_names and "QUESTIONS" in sheet_names
+    except Exception:
+        return False
+
+
+async def _download_document(message: Message, bot: Bot) -> str:
     os.makedirs("downloads", exist_ok=True)
-    file_path = f"downloads/{message.document.file_name}"
-
-    # Faylni yuklab olamiz
+    filename = message.document.file_name or "news.xlsx"
+    safe_name = os.path.basename(filename)
+    file_path = os.path.join("downloads", safe_name)
     file = await bot.get_file(message.document.file_id)
     await bot.download_file(file.file_path, file_path)
+    return file_path
 
-    try:
-        # Test importi alohida handlerda. Bu yerda yangilik sifatida yutib yubormaymiz.
+
+async def _import_news_workbook(file_path: str, bot: Bot) -> int:
+    df = pd.read_excel(file_path)
+    count = 0
+    async with async_session() as session:
         try:
-            import openpyxl
-            wb = openpyxl.load_workbook(file_path, read_only=True, data_only=True)
-            sheet_names = {str(name).strip().upper() for name in wb.sheetnames}
-            wb.close()
-            if "CONFIG" in sheet_names and "QUESTIONS" in sheet_names:
-                return
-        except Exception:
-            pass
-
-        status_msg = await message.answer("📥 Excel fayl qabul qilindi, yangiliklar import qilinmoqda...")
-        df = pd.read_excel(file_path)
-        count = 0
-
-        async with async_session() as session:
             for _, row in df.iterrows():
-                # Ustunlar bo'sh emasligini tekshiramiz
-                if pd.isna(row.get('title')) or pd.isna(row.get('content')):
+                if pd.isna(row.get("title")) or pd.isna(row.get("content")):
                     continue
-
                 new_item = News(
-                    title=str(row['title']).strip(),
-                    hashtags=str(row.get('hashtags', '')).strip(),
-                    category=str(row.get('category', 'umumiy')).strip(),
-                    summary=str(row.get('summary', '')).strip() if pd.notna(row.get('summary')) else None,
-                    content=str(row['content']).strip(),
-                    image_url=str(row.get('image_url', '')).strip(),
-                    source_url=str(row.get('source_url', '')).strip() if pd.notna(row.get('source_url')) else None,
-                    source_name=str(row.get('source_name', 'Manba')).strip(),
-                    discussion_chat_id=int(row['discussion_chat_id']) if pd.notna(
-                        row.get('discussion_chat_id')) else None
+                    title=str(row["title"]).strip(),
+                    hashtags=str(row.get("hashtags", "")).strip(),
+                    category=str(row.get("category", "umumiy")).strip(),
+                    summary=str(row.get("summary", "")).strip() if pd.notna(row.get("summary")) else None,
+                    content=str(row["content"]).strip(),
+                    image_url=str(row.get("image_url", "")).strip(),
+                    source_url=str(row.get("source_url", "")).strip() if pd.notna(row.get("source_url")) else None,
+                    source_name=str(row.get("source_name", "Manba")).strip(),
+                    discussion_chat_id=int(row["discussion_chat_id"]) if pd.notna(
+                        row.get("discussion_chat_id")
+                    ) else None,
                 )
                 session.add(new_item)
                 await session.flush()
 
-                # Agar yo'nalish guruhi ID'si berilgan bo'lsa, o'sha yerga avtomatik post tashlaymiz
                 if new_item.discussion_chat_id:
                     try:
                         sent = await bot.send_photo(
                             chat_id=new_item.discussion_chat_id,
                             photo=new_item.image_url,
-                            caption=f"📢 <b>{new_item.title}</b>\n\n{new_item.summary or ''}\n\n{new_item.hashtags}",
-                            parse_mode="HTML"
+                            caption=(
+                                f"📢 <b>{new_item.title}</b>\n\n"
+                                f"{new_item.summary or ''}\n\n{new_item.hashtags}"
+                            ),
+                            parse_mode="HTML",
                         )
                         new_item.telegram_post_msg_id = sent.message_id
                     except Exception as err:
                         print(f"Guruhga post chiqarishda xatolik: {err}")
 
                 count += 1
-
             await session.commit()
+        except Exception:
+            await session.rollback()
+            raise
+    return count
 
-        await status_msg.edit_text(f"✅ Muvaffaqiyatli <b>{count}</b> ta yangilik bazaga kiritildi!", parse_mode="HTML")
 
+@admin_news_router.message(Command("add_news"), F.from_user.id.in_(NEWS_ADMINS))
+async def cmd_add_news(message: Message, state: FSMContext):
+    await state.set_state(ImportNewsState.waiting_file)
+    await message.answer(
+        "📰 Yangiliklar Excelini yuboring.\n\n"
+        "Ustunlar: <b>title</b>, <b>content</b> (majburiy);\n"
+        "ixtiyoriy: hashtags, category, summary, image_url, "
+        "source_url, source_name, discussion_chat_id.\n\n"
+        "Bekor qilish: /start",
+        parse_mode="HTML",
+    )
+
+
+@admin_news_router.message(ImportNewsState.waiting_file, F.document, F.from_user.id.in_(NEWS_ADMINS))
+async def add_news_waiting_file(message: Message, bot: Bot, state: FSMContext):
+    if not _is_excel_name(message.document.file_name or ""):
+        await message.answer("❌ .xlsx yoki .xls fayl yuboring.")
+        return
+    status = await message.answer("📥 Yangiliklar import qilinmoqda...")
+    file_path = await _download_document(message, bot)
+    try:
+        if _is_quiz_workbook(file_path):
+            await status.edit_text(
+                "❌ Bu test shabloni (CONFIG/QUESTIONS). "
+                "Yangilik uchun boshqa Excel yuboring yoki /import_quiz ishlating."
+            )
+            return
+        count = await _import_news_workbook(file_path, bot)
+        await state.clear()
+        await status.edit_text(
+            f"✅ Muvaffaqiyatli <b>{count}</b> ta yangilik bazaga kiritildi!",
+            parse_mode="HTML",
+        )
     except Exception as e:
-        await status_msg.edit_text(f"❌ Xatolik yuz berdi: {str(e)}")
+        await status.edit_text(f"❌ Xatolik: {e}")
+    finally:
+        if os.path.exists(file_path):
+            os.remove(file_path)
+
+
+@admin_news_router.message(StateFilter(None), F.document, F.from_user.id.in_(NEWS_ADMINS))
+async def import_news_excel(message: Message, bot: Bot):
+    """Hujjat yuborilganda (quiz bo'lmasa) avtomatik yangilik importi."""
+    if not _is_excel_name(message.document.file_name or ""):
+        return
+
+    file_path = await _download_document(message, bot)
+    try:
+        if _is_quiz_workbook(file_path):
+            # Test importi admin_quiz_import da ishlaydi
+            raise SkipHandler()
+
+        status_msg = await message.answer("📥 Excel fayl qabul qilindi, yangiliklar import qilinmoqda...")
+        count = await _import_news_workbook(file_path, bot)
+        await status_msg.edit_text(
+            f"✅ Muvaffaqiyatli <b>{count}</b> ta yangilik bazaga kiritildi!",
+            parse_mode="HTML",
+        )
+    except SkipHandler:
+        raise
+    except Exception as e:
+        await message.answer(f"❌ Xatolik yuz berdi: {str(e)}")
     finally:
         if os.path.exists(file_path):
             os.remove(file_path)

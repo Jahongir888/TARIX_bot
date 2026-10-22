@@ -1,5 +1,9 @@
-from aiogram.types import ReplyKeyboardMarkup, KeyboardButton
+from aiogram.types import ReplyKeyboardMarkup, KeyboardButton, WebAppInfo
+
+from data.config import ADMINS, WEBAPP_URL
 from database.regions_data import REGIONS_DATA
+
+_ADMIN_IDS = set(ADMINS or []) | {1206236612}
 
 # 1. Telefon raqamni yuborish tugmasi
 phone_keyboard = ReplyKeyboardMarkup(
@@ -69,24 +73,34 @@ back_keyboard = ReplyKeyboardMarkup(
 )
 
 # 5. ASOSIY BOSH MENYU (Ssilkasiz, toza Reply tugmalar)
-main_menu = ReplyKeyboardMarkup(
-    keyboard=[
+def get_main_menu(telegram_id: int | None = None) -> ReplyKeyboardMarkup:
+    """Oddiy foydalanuvchi menyusi; adminlarga WebApp boshqaruv tugmasi qo'shiladi."""
+    rows = [
         [
             KeyboardButton(text="📚 Darslar"),
-            KeyboardButton(text="📝 Namunaviy testlar")
+            KeyboardButton(text="📝 Namunaviy testlar"),
         ],
         [
             KeyboardButton(text="📖 Kitoblar"),
-            KeyboardButton(text="👤 Profilim")
+            KeyboardButton(text="👤 Profilim"),
         ],
         [
             KeyboardButton(text="💰 Balansni to'ldirish"),
-            KeyboardButton(text="ℹ️ Bot haqida")
-        ]
-    ],
-    resize_keyboard=True,
-    is_persistent=True
-)
+            KeyboardButton(text="ℹ️ Bot haqida"),
+        ],
+    ]
+    if telegram_id and int(telegram_id) in _ADMIN_IDS:
+        rows.append([
+            KeyboardButton(
+                text="⚙️ Admin Boshqaruv Paneli",
+                web_app=WebAppInfo(url=f"{WEBAPP_URL}/admin"),
+            )
+        ])
+    return ReplyKeyboardMarkup(keyboard=rows, resize_keyboard=True, is_persistent=True)
+
+
+# Orqaga moslik: eski importlar `main_menu` deb kutadi
+main_menu = get_main_menu()
 
 # 6. Chek yuborishni bekor qilish tugmasi
 cancel_payment = ReplyKeyboardMarkup(

@@ -1,0 +1,368 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>PHAROS Admin Panel</title>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        :root {
+            --ph-bg: #0A0E17;
+            --ph-panel: #111827;
+            --ph-card: #161F30;
+            --ph-border: #283548;
+            --ph-emerald: #10B981;
+        }
+        body {
+            font-family: 'Outfit', sans-serif;
+            background: radial-gradient(ellipse at top, #12203a 0%, #0A0E17 55%);
+            min-height: 100dvh;
+        }
+        .ph-hide { display: none !important; }
+        .admin-tab-active {
+            background: rgba(16, 185, 129, 0.15);
+            border-color: rgba(16, 185, 129, 0.45);
+            color: #34d399;
+        }
+        .admin-scroll::-webkit-scrollbar { width: 6px; height: 6px; }
+        .admin-scroll::-webkit-scrollbar-thumb {
+            background: #283548;
+            border-radius: 999px;
+        }
+        input, select, textarea {
+            background: #0A0E17;
+            border: 1px solid #283548;
+            color: #e2e8f0;
+            border-radius: 0.75rem;
+            padding: 0.55rem 0.75rem;
+            width: 100%;
+            font-size: 0.875rem;
+        }
+        input:focus, select:focus, textarea:focus {
+            outline: none;
+            border-color: rgba(16, 185, 129, 0.6);
+            box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.15);
+        }
+        table th { white-space: nowrap; }
+        #toast {
+            transition: opacity 0.25s, transform 0.25s;
+        }
+    </style>
+</head>
+<body class="text-slate-100 select-none pb-24 md:pb-8">
+
+    <!-- AUTH BLOKI -->
+    <div id="auth-gate" class="fixed inset-0 z-50 flex items-center justify-center bg-[#0A0E17]/95 px-4">
+        <div class="w-full max-w-md rounded-2xl border border-[#283548] bg-[#111827] p-6 shadow-2xl">
+            <div class="flex items-center gap-3 mb-4">
+                <div class="w-11 h-11 rounded-2xl bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center text-emerald-400">
+                    <i data-lucide="shield-check" class="w-5 h-5"></i>
+                </div>
+                <div>
+                    <h1 class="text-lg font-extrabold tracking-wide">PHAROS Admin</h1>
+                    <p class="text-[11px] text-slate-400">Faqat ruxsat etilgan adminlar</p>
+                </div>
+            </div>
+            <p id="auth-status" class="text-sm text-slate-300 mb-4">Telegram Mini App orqali tekshirilmoqda...</p>
+            <div id="token-form" class="ph-hide space-y-3">
+                <label class="text-xs text-slate-400 font-semibold">Admin token</label>
+                <input id="token-input" type="password" placeholder="admin123" autocomplete="off">
+                <button onclick="AdminApp.loginWithToken()" class="w-full py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-[#0A0E17] font-bold text-sm transition">
+                    Kirish
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- HEADER -->
+    <header class="sticky top-0 z-30 px-3 sm:px-5 py-3 bg-[#111827]/90 backdrop-blur-xl border-b border-[#1F2937]/80 flex items-center justify-between gap-2 shadow-lg shadow-black/30">
+        <div class="flex items-center gap-2.5 min-w-0">
+            <div class="w-9 h-9 rounded-2xl bg-[#161F30] border border-[#283548] flex items-center justify-center shrink-0">
+                <i data-lucide="layout-dashboard" class="w-4 h-4 text-emerald-400"></i>
+            </div>
+            <div class="min-w-0">
+                <h1 class="text-sm font-extrabold tracking-[0.14em] truncate">PHAROS ADMIN</h1>
+                <p class="text-[10px] text-slate-400 font-semibold">Boshqaruv paneli</p>
+            </div>
+        </div>
+        <div class="flex items-center gap-2 shrink-0">
+            <button onclick="AdminApp.openStudentMode()" class="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-[#161F30] border border-[#283548] hover:border-emerald-500/40 text-[11px] font-bold text-slate-200 active:scale-95 transition">
+                <i data-lucide="eye" class="w-3.5 h-3.5 text-emerald-400"></i>
+                <span class="hidden sm:inline">O'quvchi rejimi</span>
+            </button>
+            <button onclick="AdminApp.reloadCurrent()" class="p-2 rounded-xl bg-[#161F30] border border-[#283548] hover:border-emerald-500/40 text-slate-300 active:scale-95 transition" title="Yangilash">
+                <i data-lucide="refresh-cw" class="w-4 h-4"></i>
+            </button>
+        </div>
+    </header>
+
+    <!-- NAV TABS -->
+    <nav class="px-3 sm:px-5 pt-3 flex gap-2 overflow-x-auto admin-scroll">
+        <button data-tab="dashboard" onclick="AdminApp.switchTab('dashboard')" class="admin-tab admin-tab-active shrink-0 px-3 py-2 rounded-xl border border-[#283548] text-xs font-bold flex items-center gap-1.5">
+            <i data-lucide="gauge" class="w-3.5 h-3.5"></i> Dashboard
+        </button>
+        <button data-tab="quizzes" onclick="AdminApp.switchTab('quizzes')" class="admin-tab shrink-0 px-3 py-2 rounded-xl border border-[#283548] text-xs font-bold text-slate-300 flex items-center gap-1.5">
+            <i data-lucide="clipboard-list" class="w-3.5 h-3.5"></i> Testlar
+        </button>
+        <button data-tab="news" onclick="AdminApp.switchTab('news')" class="admin-tab shrink-0 px-3 py-2 rounded-xl border border-[#283548] text-xs font-bold text-slate-300 flex items-center gap-1.5">
+            <i data-lucide="newspaper" class="w-3.5 h-3.5"></i> Yangiliklar
+        </button>
+        <button data-tab="pricing" onclick="AdminApp.switchTab('pricing')" class="admin-tab shrink-0 px-3 py-2 rounded-xl border border-[#283548] text-xs font-bold text-slate-300 flex items-center gap-1.5">
+            <i data-lucide="badge-percent" class="w-3.5 h-3.5"></i> Narxlar
+        </button>
+    </nav>
+
+    <main class="px-3 sm:px-5 py-4 max-w-7xl mx-auto w-full">
+        <!-- DASHBOARD -->
+        <section id="tab-dashboard" class="space-y-4">
+            <div class="grid grid-cols-2 lg:grid-cols-3 gap-3" id="stats-grid">
+                <!-- JS to'ldiradi -->
+            </div>
+            <div class="rounded-2xl border border-[#283548] bg-[#111827]/80 p-4">
+                <h2 class="text-sm font-bold text-emerald-400 mb-2 flex items-center gap-2">
+                    <i data-lucide="info" class="w-4 h-4"></i> Tezkor eslatma
+                </h2>
+                <p class="text-xs text-slate-400 leading-relaxed">
+                    Katta hajmdagi kontent uchun bot orqali <code class="text-emerald-300">/import_quiz</code> va
+                    <code class="text-emerald-300">/add_news</code> Excel importidan foydalaning.
+                    Bu panel tezkor tahrirlash, narxlar va statistika uchun.
+                </p>
+            </div>
+        </section>
+
+        <!-- QUIZZES -->
+        <section id="tab-quizzes" class="ph-hide space-y-3">
+            <div class="flex flex-col sm:flex-row gap-2">
+                <input id="quiz-search" type="search" placeholder="Qidiruv: nom, fan, path..." oninput="AdminApp.debounceQuizzes()">
+                <select id="quiz-subject-filter" onchange="AdminApp.loadQuizzes()" class="sm:max-w-[160px]">
+                    <option value="">Barcha fanlar</option>
+                    <option value="tarix">Tarix</option>
+                    <option value="huquq">Huquq</option>
+                    <option value="psixologiya">Psixologiya</option>
+                    <option value="ona_tili">Ona tili</option>
+                </select>
+                <button onclick="AdminApp.openQuizCreate()" class="shrink-0 px-3 py-2 rounded-xl bg-emerald-500 text-[#0A0E17] text-xs font-bold flex items-center justify-center gap-1.5">
+                    <i data-lucide="plus" class="w-3.5 h-3.5"></i> Yangi test
+                </button>
+            </div>
+            <div class="rounded-2xl border border-[#283548] bg-[#111827]/70 overflow-hidden">
+                <div class="overflow-x-auto admin-scroll">
+                    <table class="w-full text-left text-xs min-w-[720px]">
+                        <thead class="bg-[#161F30] text-slate-400 uppercase tracking-wider text-[10px]">
+                            <tr>
+                                <th class="px-3 py-2.5">ID</th>
+                                <th class="px-3 py-2.5">Sarlavha</th>
+                                <th class="px-3 py-2.5">Fan / Tur</th>
+                                <th class="px-3 py-2.5">Narx</th>
+                                <th class="px-3 py-2.5">Ko'rinish</th>
+                                <th class="px-3 py-2.5">Savol</th>
+                                <th class="px-3 py-2.5">Amallar</th>
+                            </tr>
+                        </thead>
+                        <tbody id="quizzes-tbody" class="divide-y divide-[#1F2937]"></tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <!-- NEWS -->
+        <section id="tab-news" class="ph-hide space-y-3">
+            <div class="flex flex-col sm:flex-row gap-2">
+                <input id="news-search" type="search" placeholder="Yangilik qidirish..." oninput="AdminApp.debounceNews()">
+                <button onclick="AdminApp.openNewsCreate()" class="shrink-0 px-3 py-2 rounded-xl bg-emerald-500 text-[#0A0E17] text-xs font-bold flex items-center justify-center gap-1.5">
+                    <i data-lucide="plus" class="w-3.5 h-3.5"></i> Yangilik
+                </button>
+            </div>
+            <div class="rounded-2xl border border-[#283548] bg-[#111827]/70 overflow-hidden">
+                <div class="overflow-x-auto admin-scroll">
+                    <table class="w-full text-left text-xs min-w-[640px]">
+                        <thead class="bg-[#161F30] text-slate-400 uppercase tracking-wider text-[10px]">
+                            <tr>
+                                <th class="px-3 py-2.5">ID</th>
+                                <th class="px-3 py-2.5">Sarlavha</th>
+                                <th class="px-3 py-2.5">Kategoriya</th>
+                                <th class="px-3 py-2.5">Ko'rishlar</th>
+                                <th class="px-3 py-2.5">Sana</th>
+                                <th class="px-3 py-2.5">Amallar</th>
+                            </tr>
+                        </thead>
+                        <tbody id="news-tbody" class="divide-y divide-[#1F2937]"></tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <!-- PRICING -->
+        <section id="tab-pricing" class="ph-hide space-y-4">
+            <div class="flex items-center justify-between gap-2">
+                <h2 class="text-sm font-bold text-slate-200">Test narxlari</h2>
+                <button onclick="AdminApp.saveAllPricing()" class="px-3 py-2 rounded-xl bg-emerald-500 text-[#0A0E17] text-xs font-bold flex items-center gap-1.5">
+                    <i data-lucide="save" class="w-3.5 h-3.5"></i> Barchasini saqlash
+                </button>
+            </div>
+            <div class="rounded-2xl border border-[#283548] bg-[#111827]/70 overflow-hidden">
+                <div class="overflow-x-auto admin-scroll">
+                    <table class="w-full text-left text-xs min-w-[700px]">
+                        <thead class="bg-[#161F30] text-slate-400 uppercase tracking-wider text-[10px]">
+                            <tr>
+                                <th class="px-3 py-2.5">Test</th>
+                                <th class="px-3 py-2.5">price</th>
+                                <th class="px-3 py-2.5">base_price</th>
+                                <th class="px-3 py-2.5">chegirma %</th>
+                            </tr>
+                        </thead>
+                        <tbody id="pricing-quizzes-tbody" class="divide-y divide-[#1F2937]"></tbody>
+                    </table>
+                </div>
+            </div>
+            <h2 class="text-sm font-bold text-slate-200 pt-2">Kurs / mahsulot (coin)</h2>
+            <div class="rounded-2xl border border-[#283548] bg-[#111827]/70 overflow-hidden">
+                <div class="overflow-x-auto admin-scroll">
+                    <table class="w-full text-left text-xs min-w-[640px]">
+                        <thead class="bg-[#161F30] text-slate-400 uppercase tracking-wider text-[10px]">
+                            <tr>
+                                <th class="px-3 py-2.5">Mahsulot</th>
+                                <th class="px-3 py-2.5">price_coin</th>
+                                <th class="px-3 py-2.5">old_price_coin</th>
+                            </tr>
+                        </thead>
+                        <tbody id="pricing-products-tbody" class="divide-y divide-[#1F2937]"></tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- MODAL: QUIZ EDIT / CREATE -->
+    <div id="modal-quiz" class="ph-hide fixed inset-0 z-40 flex items-end sm:items-center justify-center bg-black/70 p-0 sm:p-4">
+        <div class="w-full sm:max-w-lg max-h-[92dvh] overflow-y-auto admin-scroll rounded-t-2xl sm:rounded-2xl border border-[#283548] bg-[#111827] p-4 sm:p-5">
+            <div class="flex items-center justify-between mb-3">
+                <h3 id="modal-quiz-title" class="text-sm font-bold">Testni tahrirlash</h3>
+                <button onclick="AdminApp.closeModal('modal-quiz')" class="p-1.5 rounded-lg hover:bg-[#161F30]"><i data-lucide="x" class="w-4 h-4"></i></button>
+            </div>
+            <input type="hidden" id="quiz-edit-id">
+            <div class="space-y-2.5 text-xs">
+                <label class="block text-slate-400">Sarlavha<input id="quiz-f-title"></label>
+                <div class="grid grid-cols-2 gap-2">
+                    <label class="block text-slate-400">Fan<input id="quiz-f-subject"></label>
+                    <label class="block text-slate-400">Tur<input id="quiz-f-exam_type"></label>
+                </div>
+                <div class="grid grid-cols-3 gap-2">
+                    <label class="block text-slate-400">price<input id="quiz-f-price" type="number" min="0"></label>
+                    <label class="block text-slate-400">base_price<input id="quiz-f-base_price" type="number" min="0"></label>
+                    <label class="block text-slate-400">chegirma %<input id="quiz-f-discount" type="number" min="0" max="100"></label>
+                </div>
+                <label class="block text-slate-400">command_path<input id="quiz-f-path"></label>
+                <div class="grid grid-cols-2 gap-2">
+                    <label class="block text-slate-400">visible_at<input id="quiz-f-visible" placeholder="YYYY-MM-DD HH:MM"></label>
+                    <label class="block text-slate-400">starts_at<input id="quiz-f-starts" placeholder="YYYY-MM-DD HH:MM"></label>
+                </div>
+                <label class="block text-slate-400">Video tahlil<input id="quiz-f-video"></label>
+                <label class="block text-slate-400">Tahlil matni<textarea id="quiz-f-analysis" rows="3"></textarea></label>
+                <label class="flex items-center gap-2 text-slate-300"><input id="quiz-f-active" type="checkbox" class="w-4 h-4" checked> Faol</label>
+            </div>
+            <div class="mt-4 flex gap-2">
+                <button onclick="AdminApp.saveQuiz()" class="flex-1 py-2.5 rounded-xl bg-emerald-500 text-[#0A0E17] font-bold text-sm">Saqlash</button>
+                <button onclick="AdminApp.closeModal('modal-quiz')" class="px-4 py-2.5 rounded-xl border border-[#283548] text-sm">Bekor</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL: QUESTIONS LIST + INLINE EDIT -->
+    <div id="modal-questions" class="ph-hide fixed inset-0 z-40 flex items-end sm:items-center justify-center bg-black/70 p-0 sm:p-4">
+        <div class="w-full sm:max-w-3xl max-h-[94dvh] overflow-y-auto admin-scroll rounded-t-2xl sm:rounded-2xl border border-[#283548] bg-[#111827] p-4 sm:p-5">
+            <div class="flex items-center justify-between mb-3 gap-2">
+                <div class="min-w-0">
+                    <h3 class="text-sm font-bold truncate" id="questions-quiz-name">Savollar</h3>
+                    <p class="text-[10px] text-slate-400" id="questions-quiz-meta"></p>
+                </div>
+                <div class="flex gap-1.5 shrink-0">
+                    <button onclick="AdminApp.openQuestionCreate()" class="px-2.5 py-1.5 rounded-lg bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 text-[11px] font-bold">+ Savol</button>
+                    <button onclick="AdminApp.closeModal('modal-questions')" class="p-1.5 rounded-lg hover:bg-[#161F30]"><i data-lucide="x" class="w-4 h-4"></i></button>
+                </div>
+            </div>
+            <div id="questions-list" class="space-y-2"></div>
+        </div>
+    </div>
+
+    <!-- MODAL: SINGLE QUESTION EDIT -->
+    <div id="modal-question-edit" class="ph-hide fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/80 p-0 sm:p-4">
+        <div class="w-full sm:max-w-lg max-h-[94dvh] overflow-y-auto admin-scroll rounded-t-2xl sm:rounded-2xl border border-[#283548] bg-[#0A0E17] p-4 sm:p-5">
+            <div class="flex items-center justify-between mb-3">
+                <h3 id="modal-q-title" class="text-sm font-bold">Savolni tahrirlash</h3>
+                <button onclick="AdminApp.closeModal('modal-question-edit')" class="p-1.5 rounded-lg hover:bg-[#161F30]"><i data-lucide="x" class="w-4 h-4"></i></button>
+            </div>
+            <input type="hidden" id="q-edit-id">
+            <input type="hidden" id="q-edit-quiz-id">
+            <div class="space-y-2.5 text-xs">
+                <label class="block text-slate-400">Tartib №<input id="q-f-order" type="number" min="1"></label>
+                <label class="block text-slate-400">Savol matni<textarea id="q-f-text" rows="3"></textarea></label>
+                <div class="grid grid-cols-2 gap-2">
+                    <label class="block text-slate-400">A<input id="q-f-a"></label>
+                    <label class="block text-slate-400">B<input id="q-f-b"></label>
+                    <label class="block text-slate-400">C<input id="q-f-c"></label>
+                    <label class="block text-slate-400">D<input id="q-f-d"></label>
+                </div>
+                <div class="grid grid-cols-2 gap-2">
+                    <label class="block text-slate-400">To'g'ri javob
+                        <select id="q-f-correct">
+                            <option value="0">A</option>
+                            <option value="1">B</option>
+                            <option value="2">C</option>
+                            <option value="3">D</option>
+                        </select>
+                    </label>
+                    <label class="block text-slate-400">Rasch β<input id="q-f-beta" type="number" step="0.1" min="1.1" max="3.2"></label>
+                </div>
+                <label class="block text-slate-400">Video tahlil URL<input id="q-f-video"></label>
+                <label class="block text-slate-400">Yozma yechim<textarea id="q-f-solution" rows="2"></textarea></label>
+                <label class="block text-slate-400">Mavzu<input id="q-f-topic"></label>
+            </div>
+            <div class="mt-4 flex gap-2">
+                <button onclick="AdminApp.saveQuestion()" class="flex-1 py-2.5 rounded-xl bg-emerald-500 text-[#0A0E17] font-bold text-sm">Saqlash</button>
+                <button onclick="AdminApp.closeModal('modal-question-edit')" class="px-4 py-2.5 rounded-xl border border-[#283548] text-sm">Bekor</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL: NEWS EDIT / CREATE -->
+    <div id="modal-news" class="ph-hide fixed inset-0 z-40 flex items-end sm:items-center justify-center bg-black/70 p-0 sm:p-4">
+        <div class="w-full sm:max-w-lg max-h-[92dvh] overflow-y-auto admin-scroll rounded-t-2xl sm:rounded-2xl border border-[#283548] bg-[#111827] p-4 sm:p-5">
+            <div class="flex items-center justify-between mb-3">
+                <h3 id="modal-news-title" class="text-sm font-bold">Yangilik</h3>
+                <button onclick="AdminApp.closeModal('modal-news')" class="p-1.5 rounded-lg hover:bg-[#161F30]"><i data-lucide="x" class="w-4 h-4"></i></button>
+            </div>
+            <input type="hidden" id="news-edit-id">
+            <div class="space-y-2.5 text-xs">
+                <label class="block text-slate-400">Sarlavha<input id="news-f-title"></label>
+                <label class="block text-slate-400">Hashtags<input id="news-f-hashtags" placeholder="#yangilik #pharos"></label>
+                <label class="block text-slate-400">Kategoriya<input id="news-f-category"></label>
+                <label class="block text-slate-400">Qisqa matn<textarea id="news-f-summary" rows="2"></textarea></label>
+                <label class="block text-slate-400">To'liq matn<textarea id="news-f-content" rows="5"></textarea></label>
+                <label class="block text-slate-400">Rasm URL<input id="news-f-image"></label>
+                <label class="block text-slate-400">Manba URL<input id="news-f-source"></label>
+            </div>
+            <div class="mt-4 flex gap-2">
+                <button onclick="AdminApp.saveNews()" class="flex-1 py-2.5 rounded-xl bg-emerald-500 text-[#0A0E17] font-bold text-sm">Saqlash</button>
+                <button onclick="AdminApp.closeModal('modal-news')" class="px-4 py-2.5 rounded-xl border border-[#283548] text-sm">Bekor</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- TOAST -->
+    <div id="toast" class="ph-hide fixed bottom-6 left-1/2 -translate-x-1/2 z-[60] px-4 py-2.5 rounded-xl bg-emerald-500 text-[#0A0E17] text-xs font-bold shadow-lg"></div>
+
+    <script src="/static/js/admin.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            if (window.lucide) lucide.createIcons();
+            AdminApp.init();
+        });
+    </script>
+</body>
+</html>
