@@ -1,40 +1,126 @@
 """
 Cloudflare Tunnel (cloudflared) orqali lokal 8080-portni ochiq URL ga chiqaradi.
 Ro'yxatdan o'tish va token talab qilinmaydi.
+
+Agar tizimda cloudflared / npx bo'lmasa, skript o'zi
+rasmiy cloudflared.exe ni loyiha papkasiga yuklab oladi.
 """
 
 from __future__ import annotations
 
+import os
+import platform
 import re
 import shutil
 import subprocess
 import sys
 import threading
+import urllib.request
+from pathlib import Path
 from typing import Optional
 
 LOCAL_URL = "http://127.0.0.1:8080"
 ADMIN_TOKEN = "admin123"
+SCRIPT_DIR = Path(__file__).resolve().parent
+LOCAL_BIN = SCRIPT_DIR / ("cloudflared.exe" if os.name == "nt" else "cloudflared")
+
 TRYCLOUDFLARE_RE = re.compile(
     r"https://[a-z0-9-]+\.trycloudflare\.com",
     re.IGNORECASE,
 )
 
+# Cloudflare rasmiy release (GitHub)
+DOWNLOAD_URLS = {
+    ("Windows", "AMD64"): (
+        "https://github.com/cloudflare/cloudflared/releases/latest/download/"
+        "cloudflared-windows-amd64.exe"
+    ),
+    ("Windows", "ARM64"): (
+        "https://github.com/cloudflare/cloudflared/releases/latest/download/"
+        "cloudflared-windows-arm64.exe"
+    ),
+    ("Linux", "x86_64"): (
+        "https://github.com/cloudflare/cloudflared/releases/latest/download/"
+        "cloudflared-linux-amd64"
+    ),
+    ("Linux", "aarch64"): (
+        "https://github.com/cloudflare/cloudflared/releases/latest/download/"
+        "cloudflared-linux-arm64"
+    ),
+    ("Darwin", "x86_64"): (
+        "https://github.com/cloudflare/cloudflared/releases/latest/download/"
+        "cloudflared-darwin-amd64.tgz"
+    ),
+    ("Darwin", "arm64"): (
+        "https://github.com/cloudflare/cloudflared/releases/latest/download/"
+        "cloudflared-darwin-arm64.tgz"
+    ),
+}
 
-def build_command() -> list[str]:
-    """Tizimdagi cloudflared yoki npx orqali cloudflared buyrug'ini tanlaydi."""
-    cloudflared = shutil.which("cloudflared")
-    if cloudflared:
-        return [cloudflared, "tunnel", "--url", LOCAL_URL]
+
+def download_cloudflared() -> Path:
+    """Rasmiy cloudflared binarini loyiha papkasiga yuklab oladi."""
+    system = platform.system()
+    machine = platform.machine()
+    # Windows ba'zan 'AMD64', ba'zan 'x86_64' deb qaytaradi
+    if machine.lower() in {"x86_64", "amd64"}:
+        machine = "AMD64" if system == "Windows" else "x86_64"
+    elif machine.lower() in {"aarch64", "arm64"}:
+        machine = "ARM64" if system == "Windows" else (
+            "arm64" if system == "Darwin" else "aarch64"
+        )
+
+    url = DOWNLOAD_URLS.get((system, machine))
+    if not url:
+        print(
+            f"Xatolik: bu platforma uchun avtomatik yuklash yo'q ({system}/{machine}).\n"
+            "Qo'lda cloudflared o'rnating: https://developers.cloudflare.com/cloudflare-one/connections/connect-apps/install-and-setup/installation/"
+        )
+        sys.exit(1)
+
+    if url.endswith(".tgz"):
+        print(
+            "macOS uchun .tgz arxivini qo'lda ochib cloudflared ni PATH ga qo'ying,\n"
+            f"yoki shu URL dan yuklang:\n  {url}"
+        )
+        sys.exit(1)
+
+    print("cloudflared topilmadi. Rasmiy binar yuklanmoqda...")
+    print(f"  {url}")
+    try:
+        urllib.request.urlretrieve(url, LOCAL_BIN)
+    except Exception as exc:
+        print(f"Yuklab bo'lmadi: {exc}")
+        sys.exit(1)
+
+    if os.name != "nt":
+        LOCAL_BIN.chmod(LOCAL_BIN.stat().st_mode | 0o111)
+
+    print(f"Tayyor: {LOCAL_BIN}\n")
+    return LOCAL_BIN
+
+
+def resolve_cloudflared() -> str:
+    """Ishga tushirish uchun cloudflared yo'lini topadi (yoki yuklab oladi)."""
+    found = shutil.which("cloudflared")
+    if found:
+        return found
+
+    if LOCAL_BIN.is_file():
+        return str(LOCAL_BIN)
 
     npx = shutil.which("npx")
     if npx:
-        return [npx, "--yes", "cloudflared", "tunnel", "--url", LOCAL_URL]
+        return "__npx__"
 
-    print(
-        "Xatolik: 'cloudflared' yoki 'npx' topilmadi.\n"
-        "cloudflared o'rnating yoki Node.js (npx) ni ishga tushiring."
-    )
-    sys.exit(1)
+    return str(download_cloudflared())
+
+
+def build_command() -> list[str]:
+    binary = resolve_cloudflared()
+    if binary == "__npx__":
+        return [shutil.which("npx") or "npx", "--yes", "cloudflared", "tunnel", "--url", LOCAL_URL]
+    return [binary, "tunnel", "--url", LOCAL_URL]
 
 
 def print_public_urls(base_url: str) -> None:
@@ -94,7 +180,6 @@ def main() -> None:
         "bufsize": 0,
     }
     if sys.platform == "win32":
-        # Ctrl+C asosiy skriptga tushsin; tunnelni o'zimiz yopamiz
         popen_kwargs["creationflags"] = subprocess.CREATE_NEW_PROCESS_GROUP
 
     process: Optional[subprocess.Popen] = None
