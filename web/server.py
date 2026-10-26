@@ -1399,31 +1399,135 @@ def _build_mock_payload(ctx: dict):
     }
 
 
+def _split_media_urls(raw: Optional[str]) -> list:
+    if not raw:
+        return []
+    parts = re.split(r"[\n|,;]+", str(raw))
+    return [p.strip() for p in parts if p and p.strip()]
+
+
+def _build_practical_exams(direction: TargetDirection) -> list:
+    exams = []
+    for n in range(1, 6):
+        name = getattr(direction, f"exam{n}_name", None)
+        date_raw = getattr(direction, f"exam{n}_date", None)
+        criteria = getattr(direction, f"exam{n}_criteria", None)
+        mock_url = getattr(direction, f"exam{n}_mock_url", None)
+        course_url = getattr(direction, f"exam{n}_course_url", None)
+        if not any([name, date_raw, criteria, mock_url, course_url]):
+            continue
+        exams.append({
+            "index": n,
+            "name": name or f"{n}-amaliy sinov",
+            "date": date_raw or "",
+            "criteria": criteria or "",
+            "practical_mock_id": getattr(direction, "practical_mock_id", None) or None,
+            "practical_mock_url": mock_url or None,
+            "practical_course_url": course_url or getattr(direction, "practical_course_url", None) or None,
+        })
+    return exams
+
+
+def _build_dates_timeline(inst: TargetInstitution, direction: TargetDirection) -> list:
+    items = []
+    if getattr(inst, "admission_date", None):
+        items.append({
+            "key": "admission",
+            "label": "Hujjat topshirish",
+            "date": inst.admission_date,
+        })
+    for n in range(1, 6):
+        date_raw = getattr(direction, f"exam{n}_date", None)
+        name = getattr(direction, f"exam{n}_name", None)
+        if date_raw:
+            items.append({
+                "key": f"exam{n}",
+                "label": name or f"{n}-amaliy imtihon",
+                "date": date_raw,
+            })
+    if getattr(direction, "test_exam_date", None):
+        items.append({
+            "key": "test_exam",
+            "label": "Test sinovi",
+            "date": direction.test_exam_date,
+        })
+    return items
+
+
 def _direction_card(direction: TargetDirection, inst: TargetInstitution) -> dict:
     grant = direction.grant_ball if direction.grant_ball is not None else direction.grant_score
     contract = direction.contract_ball if direction.contract_ball is not None else direction.contract_score
     second = direction.subject_second or direction.subject_secondary or ""
+    third = getattr(direction, "subject_third", None) or ""
     edu_lang = direction.edu_lang or direction.education_lang or ""
+    is_litsey = inst.inst_type in {"litsey", "litsey_harbiy"}
+    is_military = inst.inst_type in {"litsey_harbiy", "otm_harbiy"}
+    gallery_images = _split_media_urls(getattr(inst, "gallery", None))
+    practical_exams = _build_practical_exams(direction)
+    dates_timeline = _build_dates_timeline(inst, direction)
+    catalog_url = getattr(direction, "catalog_courses_url", None) or None
+    bundle_url = getattr(direction, "bundle_package_url", None) or catalog_url
+    subject_block = direction.subject_block or ""
+    if not subject_block:
+        bits = [direction.subject_main, second, third if is_litsey else None]
+        subject_block = " - ".join(b for b in bits if b)
     return {
         "id": direction.id,
         "inst_name": inst.name,
         "short_name": inst.short_name,
         "inst_type": inst.inst_type,
         "region": inst.region,
+        "logo_url": inst.logo_url or "",
         "direction_title": direction.title,
         "cipher": direction.cipher or "",
         "edu_form": direction.edu_form or "",
         "edu_lang": edu_lang,
         "subject_main": direction.subject_main,
         "subject_second": second,
+        "subject_third": third,
         "subject_secondary": second,
-        "mandatory_subjects": direction.mandatory_subjects or "Ona tili, Matematika, O'zbekiston tarixi",
-        "subject_block": direction.subject_block or "",
+        "mandatory_subjects": (
+            None if is_litsey
+            else (direction.mandatory_subjects or "Ona tili, Matematika, O'zbekiston tarixi")
+        ),
+        "subject_block": subject_block,
         "grant_score": grant or 0,
         "contract_score": contract or 0,
         "grant_ball": grant or 0,
         "contract_ball": contract or 0,
         "badge": _TARGET_BADGES.get(inst.inst_type, "🏛 OTM"),
+        "is_litsey": is_litsey,
+        "is_military": is_military,
+        "gallery_images": gallery_images,
+        "gallery": gallery_images,
+        "review_video_url": getattr(inst, "video_review_url", None) or None,
+        "video_review_url": getattr(inst, "video_review_url", None) or None,
+        "overview_text": None,
+        "eligibility_criteria": getattr(inst, "eligibility_criteria", None) or None,
+        "career_opportunities": getattr(inst, "opportunities", None) or None,
+        "opportunities": getattr(inst, "opportunities", None) or None,
+        "admission_info": getattr(inst, "admission_info", None) or None,
+        "admission_date": getattr(inst, "admission_date", None) or None,
+        "admission_requirements": getattr(inst, "admission_requirements", None) or None,
+        "dates_timeline": dates_timeline,
+        "practical_exams": practical_exams,
+        "subjects_table_image": getattr(direction, "subjects_table_image", None) or None,
+        "mock_test_url": getattr(direction, "mock_test_url", None) or None,
+        "catalog_courses_url": catalog_url,
+        "bundle_package_url": bundle_url,
+        "practical_mock_id": getattr(direction, "practical_mock_id", None) or None,
+        "practical_course_url": getattr(direction, "practical_course_url", None) or None,
+        "test_exam_date": getattr(direction, "test_exam_date", None) or None,
+        "exams": {
+            f"exam{n}": {
+                "date": getattr(direction, f"exam{n}_date", None),
+                "name": getattr(direction, f"exam{n}_name", None),
+                "criteria": getattr(direction, f"exam{n}_criteria", None),
+                "mock_url": getattr(direction, f"exam{n}_mock_url", None),
+                "course_url": getattr(direction, f"exam{n}_course_url", None),
+            }
+            for n in range(1, 6)
+        },
     }
 
 

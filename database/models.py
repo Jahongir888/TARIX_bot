@@ -611,8 +611,11 @@ class TargetInstitution(Base):
     logo_url = Column(String, nullable=True)  # Rasm / gerb havolasi
     gallery = Column(Text, nullable=True)  # Galereya: URL lar (\n yoki | bilan)
     video_review_url = Column(String, nullable=True)  # Videosharh ssilkasi
-    admission_requirements = Column(Text, nullable=True)  # Qabul talablari
-    opportunities = Column(Text, nullable=True)  # Imkoniyatlar
+    admission_requirements = Column(Text, nullable=True)  # Qabul talablari (umumiy)
+    eligibility_criteria = Column(Text, nullable=True)  # Kimlar qabul qilinadi
+    admission_info = Column(Text, nullable=True)  # Qabul tartibi va joyi
+    admission_date = Column(String, nullable=True)  # Hujjat topshirish muddati
+    opportunities = Column(Text, nullable=True)  # Imkoniyatlar / imtiyozlar
     is_active = Column(Boolean, default=True)
 
     directions = relationship("TargetDirection", back_populates="institution", cascade="all, delete-orphan")
@@ -631,9 +634,10 @@ class TargetDirection(Base):
 
     subject_main = Column(String, nullable=False, index=True)  # 1-fan (asosiy)
     subject_second = Column(String, nullable=True)  # 2-fan
+    subject_third = Column(String, nullable=True)  # 3-fan (harbiy litsey / subject3_exam)
     subject_secondary = Column(String, nullable=True)  # Eski maydon (subject_second bilan bir xil)
     mandatory_subjects = Column(String, nullable=True)  # Majburiy fanlar
-    subject_block = Column(String, nullable=True, index=True)  # "1-fan - 2-fan - MB"
+    subject_block = Column(String, nullable=True, index=True)  # "1-fan - 2-fan - 3-fan"
 
     # Imtihon ballari va kvota statistikasi
     grant_score = Column(Float, default=0.0)
@@ -645,6 +649,11 @@ class TargetDirection(Base):
     mock_quiz_id = Column(Integer, default=1)
     mock_test_url = Column(String, nullable=True)
     catalog_courses_url = Column(String, nullable=True)
+    bundle_package_url = Column(String, nullable=True)
+    subjects_table_image = Column(String, nullable=True)
+    test_exam_date = Column(String, nullable=True)
+    practical_mock_id = Column(String, nullable=True)
+    practical_course_url = Column(String, nullable=True)
 
     # Amaliy imtihonlar (exam1–exam5)
     exam1_date = Column(String, nullable=True)

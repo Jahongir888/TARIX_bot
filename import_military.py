@@ -39,11 +39,12 @@ COLUMN_ALIASES = {
     "admission_date": ("admission_date",),
     "subject_main": ("subject_main", "1-fan"),
     "subject_second": ("subject_second", "2-fan"),
-    "subject_third": ("subject_third", "3-fan"),
+    "subject_third": ("subject_third", "subject3_exam", "3-fan", "3_fan"),
     "grant_score": ("grant_score", "grant"),
     "subjects_table_image": ("subjects_table_image",),
     "mock_test_url": ("mock_test_url",),
     "catalog_courses_url": ("catalog_courses_url",),
+    "bundle_package_url": ("bundle_package_url", "package_url", "paket_url"),
     "practical_mock_id": ("practical_mock_id",),
     "practical_course_url": ("practical_course_url",),
     "test_exam_date": ("test_exam_date",),
@@ -205,7 +206,7 @@ def _read_rows(path: Path) -> list[dict]:
             )
 
             practical_course = _cell(raw, index, "practical_course_url") or None
-            practical_mock_raw = _cell(raw, index, "practical_mock_id")
+            practical_mock_raw = _cell(raw, index, "practical_mock_id") or None
             mock_quiz_id = 1
             shared_mock_url = None
             if practical_mock_raw:
@@ -213,6 +214,12 @@ def _read_rows(path: Path) -> list[dict]:
                     shared_mock_url = practical_mock_raw
                 else:
                     mock_quiz_id = _to_int(practical_mock_raw, 1)
+
+            eligibility = _cell(raw, index, "eligibility_criteria") or None
+            admission_info = _cell(raw, index, "admission_info") or None
+            admission_date = _cell(raw, index, "admission_date") or None
+            catalog_url = _cell(raw, index, "catalog_courses_url") or None
+            bundle_url = _cell(raw, index, "bundle_package_url") or catalog_url
 
             row = {
                 "name": name,
@@ -222,10 +229,13 @@ def _read_rows(path: Path) -> list[dict]:
                 "logo_url": _cell(raw, index, "logo_url") or None,
                 "gallery": _cell(raw, index, "gallery") or None,
                 "video_review_url": _cell(raw, index, "video_review_url") or None,
+                "eligibility_criteria": eligibility,
+                "admission_info": admission_info,
+                "admission_date": admission_date,
                 "admission_requirements": _build_admission_requirements(
-                    _cell(raw, index, "eligibility_criteria"),
-                    _cell(raw, index, "admission_info"),
-                    _cell(raw, index, "admission_date"),
+                    eligibility or "",
+                    admission_info or "",
+                    admission_date or "",
                 ),
                 "opportunities": _cell(raw, index, "opportunities") or None,
                 "overview_text": _cell(raw, index, "overview_text") or None,
@@ -236,9 +246,12 @@ def _read_rows(path: Path) -> list[dict]:
                 "subject_block": block,
                 "grant_score": _to_float(raw[index["grant_score"]]) if "grant_score" in index else 0.0,
                 "mock_test_url": _cell(raw, index, "mock_test_url") or None,
-                "catalog_courses_url": _cell(raw, index, "catalog_courses_url") or None,
+                "catalog_courses_url": catalog_url,
+                "bundle_package_url": bundle_url,
                 "subjects_table_image": _cell(raw, index, "subjects_table_image") or None,
                 "test_exam_date": _cell(raw, index, "test_exam_date") or None,
+                "practical_mock_id": practical_mock_raw,
+                "practical_course_url": practical_course,
                 "mock_quiz_id": mock_quiz_id,
             }
 
@@ -313,6 +326,9 @@ async def import_military():
                     gallery=row["gallery"],
                     video_review_url=row["video_review_url"],
                     admission_requirements=row["admission_requirements"],
+                    eligibility_criteria=row["eligibility_criteria"],
+                    admission_info=row["admission_info"],
+                    admission_date=row["admission_date"],
                     opportunities=opportunities,
                     is_active=True,
                 )
@@ -336,6 +352,7 @@ async def import_military():
                 title=row["title"],
                 subject_main=row["subject_main"],
                 subject_second=row["subject_second"],
+                subject_third=row["subject_third"],
                 subject_secondary=row["subject_second"],
                 subject_block=row["subject_block"],
                 education_lang="O'zbek",
@@ -347,6 +364,11 @@ async def import_military():
                 mock_quiz_id=row["mock_quiz_id"],
                 mock_test_url=row["mock_test_url"],
                 catalog_courses_url=row["catalog_courses_url"],
+                bundle_package_url=row["bundle_package_url"],
+                subjects_table_image=row["subjects_table_image"],
+                test_exam_date=row["test_exam_date"],
+                practical_mock_id=row["practical_mock_id"],
+                practical_course_url=row["practical_course_url"],
                 **exam_kwargs,
             ))
 

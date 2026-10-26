@@ -7,10 +7,15 @@ let targetListTotal = 0;
 let targetReqToken = 0;
 let targetExam = null;
 let targetExamTimer = null;
+let militaryDetailCard = null;
+let militaryCountdownTimer = null;
+const militaryCardsById = new Map();
 
 const TARGET_ALL_DIRECTION = "";
 const TARGET_ALL_BLOCK = "";
 const TARGET_ALL_REGION = "";
+const TARGET_LITSEY_TYPES = new Set(['litsey', 'litsey_harbiy']);
+const TARGET_MILITARY_TYPES = new Set(['litsey_harbiy', 'otm_harbiy']);
 
 function escTarget(value) {
     return String(value ?? '').replace(/[&<>"']/g, (ch) => ({
@@ -92,11 +97,58 @@ function targetFilterParams() {
     };
 }
 
+function isTargetLitsey(card) {
+    return TARGET_LITSEY_TYPES.has(card?.inst_type) || card?.is_litsey === true;
+}
+
+function isTargetMilitary(card) {
+    return TARGET_MILITARY_TYPES.has(card?.inst_type) || card?.is_military === true;
+}
+
+function buildSubjectBlockLabel(card) {
+    if (card.subject_block) return card.subject_block;
+    const bits = [card.subject_main, card.subject_second, card.subject_third].filter(Boolean);
+    return bits.join(' - ') || '—';
+}
+
+function renderSubjectsSection(card) {
+    const block = buildSubjectBlockLabel(card);
+    const rows = [
+        '<p class="text-[10px] font-bold uppercase tracking-wider text-emerald-400">Fanlar majmuasi</p>',
+        `<p class="text-[11px] text-slate-200 font-semibold tracking-wide">${escTarget(block)}</p>`,
+        `<p class="text-[10px] text-slate-400">1-fan: <span class="text-slate-200">${escTarget(card.subject_main || '—')}</span> <span class="text-amber-300">[3.1]</span></p>`,
+        `<p class="text-[10px] text-slate-400">2-fan: <span class="text-slate-200">${escTarget(card.subject_second || '—')}</span> <span class="text-amber-300">[2.1]</span></p>`,
+    ];
+    if (isTargetLitsey(card)) {
+        if (card.subject_third) {
+            rows.push(
+                `<p class="text-[10px] text-slate-400">3-fan: <span class="text-slate-200">${escTarget(card.subject_third)}</span> <span class="text-amber-300">[1.1]</span></p>`
+            );
+        }
+    } else {
+        const mandatory = card.mandatory_subjects || "Ona tili, Matematika, O'zbekiston tarixi";
+        rows.push(
+            `<p class="text-[10px] text-slate-400">Majburiy blok: <span class="text-slate-200">${escTarget(mandatory)}</span> <span class="text-amber-300">[1.1]</span></p>`
+        );
+    }
+    return rows.join('');
+}
+
 function renderTargetCard(card) {
+    militaryCardsById.set(String(card.id), card);
     const formLang = [card.edu_form, card.edu_lang].filter(Boolean).join(' · ') || '—';
-    const mandatory = card.mandatory_subjects || "Ona tili, Matematika, O'zbekiston tarixi";
+    const showDetail = isTargetMilitary(card) || isTargetLitsey(card)
+        || Boolean(card.eligibility_criteria || card.practical_exams?.length || card.gallery_images?.length);
     const el = document.createElement('div');
-    el.className = "bg-[#111827] border border-[#1F2937] hover:border-[#283548] rounded-2xl p-3.5 shadow-md space-y-2.5 transition-all";
+    el.className = 'bg-[#111827] border border-[#1F2937] hover:border-emerald-500/30 rounded-2xl p-3.5 shadow-md space-y-2.5 transition-all cursor-pointer';
+    el.setAttribute('role', 'button');
+    el.tabIndex = 0;
+    el.dataset.directionId = String(card.id);
+    el.addEventListener('click', (ev) => {
+        if (ev.target.closest('button')) return;
+        if (showDetail) openMilitaryDetail(card.id);
+    });
+    if (!showDetail) el.classList.remove('cursor-pointer');
     el.innerHTML = `
         <div class="flex items-start justify-between gap-2 border-b border-[#1F2937] pb-2">
             <div class="min-w-0">
@@ -109,7 +161,7 @@ function renderTargetCard(card) {
                 </p>
             </div>
             <span class="text-[10px] font-mono font-bold bg-[#161F30] text-slate-300 border border-[#283548] px-2 py-1 rounded-lg shrink-0">
-                ${escTarget(card.cipher || '—')}
+                ${escTarget(card.cipher || card.short_name || '—')}
             </span>
         </div>
         <div class="bg-[#0A0E17]/80 border border-[#283548]/50 rounded-xl p-2.5 text-xs space-y-1.5">
@@ -121,16 +173,19 @@ function renderTargetCard(card) {
             </div>
         </div>
         <div class="bg-[#161F30] border border-[#283548] rounded-xl p-2.5 space-y-1">
-            <p class="text-[10px] font-bold uppercase tracking-wider text-emerald-400">Fanlar majmuasi</p>
-            <p class="text-[11px] text-slate-200 font-semibold">${escTarget(card.subject_block || '—')}</p>
-            <p class="text-[10px] text-slate-400">1-fan: <span class="text-slate-200">${escTarget(card.subject_main)}</span> <span class="text-amber-300">[3.1]</span></p>
-            <p class="text-[10px] text-slate-400">2-fan: <span class="text-slate-200">${escTarget(card.subject_second || '—')}</span> <span class="text-amber-300">[2.1]</span></p>
-            <p class="text-[10px] text-slate-400">Majburiy blok: <span class="text-slate-200">${escTarget(mandatory)}</span> <span class="text-amber-300">[1.1]</span></p>
+            ${renderSubjectsSection(card)}
         </div>
-        <button type="button" data-direction-id="${card.id}" onclick="startTargetDirectionExam(this)"
-                class="w-full py-2.5 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 text-xs font-bold rounded-xl active:scale-95 transition-all cursor-pointer">
-            Shu yo'nalish bo'yicha test topshirish
-        </button>
+        <div class="grid grid-cols-1 gap-2">
+            ${showDetail ? `
+            <button type="button" data-direction-id="${card.id}" onclick="openMilitaryDetail(${card.id})"
+                    class="w-full py-2.5 bg-violet-500/10 hover:bg-violet-500/20 border border-violet-400/40 text-violet-200 text-xs font-bold rounded-xl active:scale-95 transition-all cursor-pointer">
+                Batafsil ma'lumot
+            </button>` : ''}
+            <button type="button" data-direction-id="${card.id}" onclick="startTargetDirectionExam(this)"
+                    class="w-full py-2.5 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 text-xs font-bold rounded-xl active:scale-95 transition-all cursor-pointer">
+                Shu yo'nalish bo'yicha test topshirish
+            </button>
+        </div>
     `;
     return el;
 }
@@ -142,6 +197,7 @@ async function loadTargetCards(append) {
     const filters = targetFilterParams();
     if (!append) {
         targetListOffset = 0;
+        militaryCardsById.clear();
         container.innerHTML = '<p class="text-xs text-slate-500 text-center py-6">Yo\'nalishlar saralanmoqda...</p>';
     }
 
@@ -422,6 +478,315 @@ function finishTargetExam() {
     document.getElementById('target-exam-progress').textContent = 'Yakunlandi';
 }
 
+function parseMilitaryDate(raw) {
+    if (!raw) return null;
+    const text = String(raw).trim();
+    if (!text) return null;
+    const normalized = text.includes('T') ? text : text.replace(' ', 'T');
+    const dt = new Date(normalized);
+    if (!Number.isNaN(dt.getTime())) return dt;
+    const m = text.match(/^(\d{2})\.(\d{2})\.(\d{4})(?:\s+(\d{2}):(\d{2}))?/);
+    if (m) {
+        return new Date(
+            Number(m[3]),
+            Number(m[2]) - 1,
+            Number(m[1]),
+            Number(m[4] || 0),
+            Number(m[5] || 0)
+        );
+    }
+    return null;
+}
+
+function formatMilitaryDate(raw) {
+    const dt = parseMilitaryDate(raw);
+    if (!dt) return raw || '—';
+    const dd = String(dt.getDate()).padStart(2, '0');
+    const mm = String(dt.getMonth() + 1).padStart(2, '0');
+    const yyyy = dt.getFullYear();
+    const hh = String(dt.getHours()).padStart(2, '0');
+    const min = String(dt.getMinutes()).padStart(2, '0');
+    return `${dd}.${mm}.${yyyy} ${hh}:${min}`;
+}
+
+function formatCountdown(ms) {
+    if (ms <= 0) return 'Muddat o\'tdi';
+    const totalSec = Math.floor(ms / 1000);
+    const days = Math.floor(totalSec / 86400);
+    const hours = Math.floor((totalSec % 86400) / 3600);
+    const mins = Math.floor((totalSec % 3600) / 60);
+    if (days > 0) return `${days} kun ${hours} soat`;
+    if (hours > 0) return `${hours} soat ${mins} daqiqa`;
+    return `${mins} daqiqa`;
+}
+
+function getMilitaryTimeline(card) {
+    if (Array.isArray(card.dates_timeline) && card.dates_timeline.length) {
+        return card.dates_timeline;
+    }
+    const items = [];
+    if (card.admission_date) {
+        items.push({ key: 'admission', label: 'Hujjat topshirish', date: card.admission_date });
+    }
+    (card.practical_exams || []).forEach((exam) => {
+        if (exam.date) items.push({ key: `exam${exam.index}`, label: exam.name || 'Amaliy imtihon', date: exam.date });
+    });
+    if (card.test_exam_date) {
+        items.push({ key: 'test_exam', label: 'Test sinovi', date: card.test_exam_date });
+    }
+    return items;
+}
+
+function nearestMilitaryDeadline(card) {
+    const now = Date.now();
+    const upcoming = getMilitaryTimeline(card)
+        .map((item) => ({ ...item, at: parseMilitaryDate(item.date) }))
+        .filter((item) => item.at && item.at.getTime() >= now)
+        .sort((a, b) => a.at - b.at);
+    return upcoming[0] || null;
+}
+
+function nl2brEscaped(text) {
+    return escTarget(text || '').replace(/\n/g, '<br>');
+}
+
+function toggleMilitaryAccordion(btn) {
+    const panel = btn?.nextElementSibling;
+    if (!panel) return;
+    panel.classList.toggle('hidden');
+    const icon = btn.querySelector('[data-acc-icon]');
+    if (icon) icon.textContent = panel.classList.contains('hidden') ? '+' : '−';
+}
+
+function toggleMilitaryTimelineList() {
+    const box = document.getElementById('military-timeline-list');
+    if (!box) return;
+    box.classList.toggle('hidden');
+}
+
+function openMilitaryVideo(url) {
+    if (!url) return;
+    const layer = document.getElementById('military-video-layer');
+    const frame = document.getElementById('military-video-frame');
+    if (!layer || !frame) {
+        window.open(url, '_blank');
+        return;
+    }
+    let embed = url;
+    const yt = url.match(/(?:youtu\.be\/|v=|embed\/)([A-Za-z0-9_-]{6,})/);
+    if (yt) embed = `https://www.youtube.com/embed/${yt[1]}?autoplay=1`;
+    frame.src = embed;
+    layer.classList.remove('hidden');
+}
+
+function closeMilitaryVideo() {
+    const layer = document.getElementById('military-video-layer');
+    const frame = document.getElementById('military-video-frame');
+    if (frame) frame.src = '';
+    if (layer) layer.classList.add('hidden');
+}
+
+function openMilitaryImage(url) {
+    if (!url) return;
+    const layer = document.getElementById('military-image-layer');
+    const img = document.getElementById('military-image-zoom');
+    if (!layer || !img) {
+        window.open(url, '_blank');
+        return;
+    }
+    img.src = url;
+    layer.classList.remove('hidden');
+}
+
+function closeMilitaryImage() {
+    const layer = document.getElementById('military-image-layer');
+    const img = document.getElementById('military-image-zoom');
+    if (img) img.src = '';
+    if (layer) layer.classList.add('hidden');
+}
+
+function tickMilitaryCountdown() {
+    const label = document.getElementById('military-countdown-label');
+    const value = document.getElementById('military-countdown-value');
+    if (!label || !value || !militaryDetailCard) return;
+    const nearest = nearestMilitaryDeadline(militaryDetailCard);
+    if (!nearest) {
+        label.textContent = 'Yaqin muddat';
+        value.textContent = 'Belgilanmagan';
+        return;
+    }
+    label.textContent = `${nearest.label}gacha:`;
+    value.textContent = formatCountdown(nearest.at.getTime() - Date.now());
+}
+
+function renderMilitaryDetailBody(card) {
+    const body = document.getElementById('military-detail-body');
+    if (!body) return;
+
+    const gallery = card.gallery_images || card.gallery || [];
+    const videoUrl = card.review_video_url || card.video_review_url;
+    const timeline = getMilitaryTimeline(card);
+    const exams = card.practical_exams || [];
+    const packageUrl = card.bundle_package_url || card.catalog_courses_url;
+    const subjectsImg = card.subjects_table_image;
+    const mockUrl = card.mock_test_url;
+
+    const logoHtml = card.logo_url
+        ? `<img src="${escTarget(card.logo_url)}" alt="" class="w-14 h-14 rounded-2xl object-cover border border-[#283548] bg-[#0A0E17]">`
+        : `<div class="w-14 h-14 rounded-2xl border border-emerald-500/30 bg-emerald-500/10 text-emerald-300 flex items-center justify-center text-lg font-black">${escTarget((card.short_name || 'H').slice(0, 3))}</div>`;
+
+    const galleryHtml = gallery.length
+        ? `<div class="flex gap-2 overflow-x-auto pb-1 scrollbar-none snap-x">
+            ${gallery.map((url) => `
+                <button type="button" onclick="openMilitaryImage('${escTarget(url)}')" class="snap-start shrink-0 cursor-pointer">
+                    <img src="${escTarget(url)}" alt="" class="h-28 w-44 rounded-2xl object-cover border border-[#283548]">
+                </button>
+            `).join('')}
+           </div>`
+        : `<p class="text-[11px] text-slate-500">Galereya rasmlari hozircha yo'q.</p>`;
+
+    const accordion = (title, content) => {
+        if (!content) return '';
+        return `
+            <div class="bg-[#111827] border border-[#1F2937] rounded-2xl overflow-hidden">
+                <button type="button" onclick="toggleMilitaryAccordion(this)"
+                        class="w-full flex items-center justify-between gap-2 px-3 py-2.5 text-left cursor-pointer">
+                    <span class="text-xs font-bold text-slate-100">${title}</span>
+                    <span data-acc-icon class="text-emerald-400 font-bold">+</span>
+                </button>
+                <div class="hidden px-3 pb-3 text-[11px] text-slate-300 leading-relaxed border-t border-[#1F2937] pt-2">
+                    ${nl2brEscaped(content)}
+                </div>
+            </div>`;
+    };
+
+    const examsHtml = exams.length
+        ? exams.map((exam) => `
+            <div class="bg-[#0A0E17] border border-[#283548]/70 rounded-2xl p-3 space-y-2">
+                <div class="flex items-start justify-between gap-2">
+                    <div>
+                        <p class="text-xs font-bold text-white">${escTarget(exam.name || 'Amaliy sinov')}</p>
+                        <p class="text-[10px] text-amber-300 mt-0.5">${escTarget(formatMilitaryDate(exam.date))}</p>
+                    </div>
+                </div>
+                ${exam.criteria ? `<p class="text-[11px] text-slate-400 leading-relaxed">${nl2brEscaped(exam.criteria)}</p>` : ''}
+                <div class="flex flex-wrap gap-2">
+                    ${(exam.practical_mock_id || exam.practical_mock_url) ? `
+                        <a href="${escTarget(exam.practical_mock_url || mockUrl || '#')}" target="_blank" rel="noopener"
+                           class="px-2.5 py-1.5 rounded-xl text-[10px] font-bold bg-amber-500/10 border border-amber-400/30 text-amber-200">Sinov testi 🎯</a>` : ''}
+                    ${exam.practical_course_url ? `
+                        <a href="${escTarget(exam.practical_course_url)}" target="_blank" rel="noopener"
+                           class="px-2.5 py-1.5 rounded-xl text-[10px] font-bold bg-violet-500/10 border border-violet-400/30 text-violet-200">Tayyorgarlik kursi 📚</a>` : ''}
+                </div>
+            </div>`).join('')
+        : `<p class="text-[11px] text-slate-500">Amaliy imtihonlar ma'lumoti yo'q.</p>`;
+
+    body.innerHTML = `
+        <section class="space-y-3">
+            <div class="flex items-start gap-3">
+                ${logoHtml}
+                <div class="min-w-0 flex-1">
+                    <p class="text-[10px] uppercase tracking-wider text-emerald-400 font-bold">${escTarget(card.badge || '')}</p>
+                    <h3 class="text-sm font-extrabold text-white leading-snug mt-0.5">${escTarget(card.inst_name)}</h3>
+                    <span class="inline-flex mt-1.5 px-2 py-0.5 rounded-lg border border-[#283548] bg-[#161F30] text-[10px] font-bold text-slate-300">
+                        ${escTarget(card.short_name || '—')}
+                    </span>
+                </div>
+            </div>
+            ${galleryHtml}
+            ${videoUrl ? `
+                <button type="button" onclick="openMilitaryVideo('${escTarget(videoUrl)}')"
+                        class="w-full py-2.5 rounded-2xl bg-rose-500/10 border border-rose-400/30 text-rose-200 text-xs font-bold cursor-pointer">
+                    ▶️ Bizning video sharh
+                </button>` : ''}
+        </section>
+
+        <section class="bg-gradient-to-br from-emerald-500/10 to-violet-500/10 border border-emerald-500/20 rounded-2xl p-3 space-y-2">
+            <p id="military-countdown-label" class="text-[10px] uppercase tracking-wider text-emerald-300 font-bold">Yaqin muddat</p>
+            <p id="military-countdown-value" class="text-lg font-black text-white">—</p>
+            <button type="button" onclick="toggleMilitaryTimelineList()"
+                    class="text-[11px] font-semibold text-violet-200 underline underline-offset-2 cursor-pointer">
+                Barcha muddatlar
+            </button>
+            <div id="military-timeline-list" class="hidden space-y-1.5 pt-1">
+                ${timeline.length ? timeline.map((item) => `
+                    <div class="flex items-center justify-between gap-2 bg-[#0A0E17]/70 border border-[#283548]/60 rounded-xl px-2.5 py-2">
+                        <span class="text-[11px] text-slate-200">${escTarget(item.label)}</span>
+                        <span class="text-[10px] font-mono text-amber-300">${escTarget(formatMilitaryDate(item.date))}</span>
+                    </div>`).join('') : '<p class="text-[11px] text-slate-500">Muddatlar kiritilmagan.</p>'}
+            </div>
+        </section>
+
+        <section class="space-y-2">
+            <p class="text-[10px] font-bold uppercase tracking-wider text-slate-400">Qabul talablari va mezonlar</p>
+            ${accordion('📋 Kimlar qabul qilinadi', card.eligibility_criteria)}
+            ${accordion('🎖 Imkoniyatlar va imtiyozlar', card.career_opportunities || card.opportunities)}
+            ${accordion('📍 Qabul tartibi va joyi', card.admission_info || card.admission_requirements)}
+        </section>
+
+        <section class="space-y-2">
+            <p class="text-[10px] font-bold uppercase tracking-wider text-slate-400">Amaliy imtihonlar</p>
+            ${examsHtml}
+        </section>
+
+        <section class="space-y-2">
+            <p class="text-[10px] font-bold uppercase tracking-wider text-slate-400">Test sinovi va fanlar</p>
+            <div class="bg-[#161F30] border border-[#283548] rounded-2xl p-3 space-y-1">
+                ${renderSubjectsSection(card)}
+            </div>
+            ${subjectsImg ? `
+                <button type="button" onclick="openMilitaryImage('${escTarget(subjectsImg)}')"
+                        class="w-full text-left bg-[#111827] border border-[#1F2937] rounded-2xl overflow-hidden cursor-pointer">
+                    <div class="px-3 py-2 text-xs font-bold text-slate-100">📊 Fanlar va kvota jadvali</div>
+                    <img src="${escTarget(subjectsImg)}" alt="Fanlar jadvali" class="w-full max-h-48 object-cover border-t border-[#1F2937]">
+                </button>` : ''}
+            ${mockUrl ? `
+                <a href="${escTarget(mockUrl)}" target="_blank" rel="noopener"
+                   class="block w-full text-center py-2.5 rounded-2xl bg-amber-500/10 border border-amber-400/40 text-amber-200 text-xs font-bold">
+                    Namunaviy testni ishlash
+                </a>` : `
+                <button type="button" data-direction-id="${card.id}" onclick="startTargetDirectionExam(this); closeMilitaryDetail();"
+                        class="w-full py-2.5 rounded-2xl bg-amber-500/10 border border-amber-400/40 text-amber-200 text-xs font-bold cursor-pointer">
+                    Namunaviy testni ishlash
+                </button>`}
+        </section>
+
+        ${packageUrl ? `
+        <section class="pb-2">
+            <a href="${escTarget(packageUrl)}" target="_blank" rel="noopener"
+               class="block w-full text-center py-3.5 rounded-2xl bg-gradient-to-r from-emerald-600 to-emerald-500 text-white text-sm font-extrabold shadow-lg shadow-emerald-900/30">
+                Birlashtirilgan to'liq tayyorgarlik to'plami (Paket)ni olish
+            </a>
+        </section>` : ''}
+    `;
+}
+
+function openMilitaryDetail(directionId) {
+    const card = militaryCardsById.get(String(directionId));
+    if (!card) return;
+    militaryDetailCard = card;
+    const modal = document.getElementById('military-detail-modal');
+    if (!modal) return;
+    renderMilitaryDetailBody(card);
+    tickMilitaryCountdown();
+    if (militaryCountdownTimer) clearInterval(militaryCountdownTimer);
+    militaryCountdownTimer = setInterval(tickMilitaryCountdown, 1000);
+    modal.classList.remove('hidden');
+    if (window.lucide) lucide.createIcons();
+}
+
+function closeMilitaryDetail() {
+    const modal = document.getElementById('military-detail-modal');
+    if (modal) modal.classList.add('hidden');
+    if (militaryCountdownTimer) {
+        clearInterval(militaryCountdownTimer);
+        militaryCountdownTimer = null;
+    }
+    closeMilitaryVideo();
+    closeMilitaryImage();
+    militaryDetailCard = null;
+}
+
 window.initTargetSection = initTargetSection;
 window.selectTargetInstType = selectTargetInstType;
 window.onTargetFilterChange = onTargetFilterChange;
@@ -434,3 +799,11 @@ window.targetExamNext = targetExamNext;
 window.answerTargetExam = answerTargetExam;
 window.jumpTargetExamBlock = jumpTargetExamBlock;
 window.finishTargetExam = finishTargetExam;
+window.openMilitaryDetail = openMilitaryDetail;
+window.closeMilitaryDetail = closeMilitaryDetail;
+window.toggleMilitaryAccordion = toggleMilitaryAccordion;
+window.toggleMilitaryTimelineList = toggleMilitaryTimelineList;
+window.openMilitaryVideo = openMilitaryVideo;
+window.closeMilitaryVideo = closeMilitaryVideo;
+window.openMilitaryImage = openMilitaryImage;
+window.closeMilitaryImage = closeMilitaryImage;
