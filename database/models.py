@@ -609,6 +609,10 @@ class TargetInstitution(Base):
     inst_type = Column(String, nullable=False, index=True)  # 'otm', 'otm_harbiy', 'litsey', 'litsey_harbiy'
     region = Column(String, nullable=False, index=True)  # "Toshkent", "Samarqand", "Farg'ona", va h.k.
     logo_url = Column(String, nullable=True)  # Rasm / gerb havolasi
+    gallery = Column(Text, nullable=True)  # Galereya: URL lar (\n yoki | bilan)
+    video_review_url = Column(String, nullable=True)  # Videosharh ssilkasi
+    admission_requirements = Column(Text, nullable=True)  # Qabul talablari
+    opportunities = Column(Text, nullable=True)  # Imkoniyatlar
     is_active = Column(Boolean, default=True)
 
     directions = relationship("TargetDirection", back_populates="institution", cascade="all, delete-orphan")
@@ -639,6 +643,35 @@ class TargetDirection(Base):
     quota = Column(Integer, default=0)
 
     mock_quiz_id = Column(Integer, default=1)
+    mock_test_url = Column(String, nullable=True)
+    catalog_courses_url = Column(String, nullable=True)
+
+    # Amaliy imtihonlar (exam1–exam5)
+    exam1_date = Column(String, nullable=True)
+    exam1_name = Column(String, nullable=True)
+    exam1_criteria = Column(Text, nullable=True)
+    exam1_mock_url = Column(String, nullable=True)
+    exam1_course_url = Column(String, nullable=True)
+    exam2_date = Column(String, nullable=True)
+    exam2_name = Column(String, nullable=True)
+    exam2_criteria = Column(Text, nullable=True)
+    exam2_mock_url = Column(String, nullable=True)
+    exam2_course_url = Column(String, nullable=True)
+    exam3_date = Column(String, nullable=True)
+    exam3_name = Column(String, nullable=True)
+    exam3_criteria = Column(Text, nullable=True)
+    exam3_mock_url = Column(String, nullable=True)
+    exam3_course_url = Column(String, nullable=True)
+    exam4_date = Column(String, nullable=True)
+    exam4_name = Column(String, nullable=True)
+    exam4_criteria = Column(Text, nullable=True)
+    exam4_mock_url = Column(String, nullable=True)
+    exam4_course_url = Column(String, nullable=True)
+    exam5_date = Column(String, nullable=True)
+    exam5_name = Column(String, nullable=True)
+    exam5_criteria = Column(Text, nullable=True)
+    exam5_mock_url = Column(String, nullable=True)
+    exam5_course_url = Column(String, nullable=True)
 
     institution = relationship("TargetInstitution", back_populates="directions")
 
