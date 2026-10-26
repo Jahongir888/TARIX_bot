@@ -17,6 +17,7 @@ from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from sqlalchemy import select, or_, update, func
+from urllib.parse import urlparse, unquote
 
 # Loyihaning ma'lumotlar bazasi va Aiogram bot importlari
 from database.db import async_session, init_db
@@ -1568,6 +1569,212 @@ def _direction_query(inst_type: str, direction: Optional[str], subject_block: Op
     if region:
         stmt = stmt.where(TargetInstitution.region == region)
     return stmt
+
+
+# --- Telegram post → real image proxy (lightweight in-memory cache) ---
+_TG_IMAGE_CACHE: dict = {}
+_TG_IMAGE_CACHE_TTL = 3600  # seconds
+_TG_POST_RE = re.compile(
+    r"^https?://(?:t\.me|telegram\.me)/(?:s/)?([A-Za-z0-9_]+)/(\d+)/?(?:\?.*)?$",
+    re.IGNORECASE,
+)
+_TG_CDN_HOST_RE = re.compile(
+    r"^(?:cdn\d*\.(?:telesco\.pe|telegram-cdn\.org)|(?:www\.)?telegram\.org)$",
+    re.IGNORECASE,
+)
+_TG_FETCH_HEADERS = {
+    "User-Agent": (
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+        "(KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
+    ),
+    "Accept": "text/html,application/xhtml+xml,image/avif,image/webp,image/*,*/*;q=0.8",
+    "Accept-Language": "en-US,en;q=0.9",
+}
+
+
+def _tg_cache_get(key: str):
+    entry = _TG_IMAGE_CACHE.get(key)
+    if not entry:
+        return None
+    if entry["expires"] < datetime.utcnow().timestamp():
+        _TG_IMAGE_CACHE.pop(key, None)
+        return None
+    return entry["value"]
+
+
+def _tg_cache_set(key: str, value):
+    _TG_IMAGE_CACHE[key] = {
+        "value": value,
+        "expires": datetime.utcnow().timestamp() + _TG_IMAGE_CACHE_TTL,
+    }
+    # Soft cap — drop oldest half if too large
+    if len(_TG_IMAGE_CACHE) > 256:
+        ordered = sorted(_TG_IMAGE_CACHE.items(), key=lambda kv: kv[1]["expires"])
+        for old_key, _ in ordered[: len(ordered) // 2]:
+            _TG_IMAGE_CACHE.pop(old_key, None)
+
+
+def _parse_telegram_post_url(url: str):
+    raw = unquote(str(url or "").strip())
+    m = _TG_POST_RE.match(raw)
+    if not m:
+        return None
+    return m.group(1), m.group(2)
+
+
+def _is_allowed_tg_cdn(url: str) -> bool:
+    try:
+        host = urlparse(url).hostname or ""
+    except Exception:
+        return False
+    return bool(_TG_CDN_HOST_RE.match(host))
+
+
+def _pick_tg_cdn_url(candidate: str) -> Optional[str]:
+    found = (candidate or "").strip().replace("&amp;", "&")
+    if found.startswith("http") and _is_allowed_tg_cdn(found):
+        return found
+    return None
+
+
+def _extract_tg_image_from_html(html: str, channel: str = "", post_id: str = "") -> Optional[str]:
+    """t.me/s/... sahifasidan aniq postga tegishli rasm URL ni ajratib oladi."""
+    if not html:
+        return None
+
+    # 1) Aniq post havolasiga bog'langan photo wrap (sahifada bir nechta post bo'ladi)
+    if channel and post_id:
+        ch = re.escape(channel)
+        pid = re.escape(str(post_id))
+        post_patterns = [
+            rf'<a[^>]+href=["\']https?://t\.me/{ch}/{pid}["\'][^>]*style=["\'][^"\']*background-image:\s*url\([\'"]?([^\'")\s]+)',
+            rf'<a[^>]+style=["\'][^"\']*background-image:\s*url\([\'"]?([^\'")\s]+)[^>]*href=["\']https?://t\.me/{ch}/{pid}["\']',
+            rf'data-post=["\']{ch}/{pid}["\'][\s\S]{{0,2500}}?background-image:\s*url\([\'"]?([^\'")\s]+)',
+        ]
+        for pat in post_patterns:
+            m = re.search(pat, html, flags=re.IGNORECASE)
+            if m:
+                picked = _pick_tg_cdn_url(m.group(1))
+                if picked:
+                    return picked
+
+    # 2) og:image (ba'zan bo'sh bo'ladi)
+    for pat in (
+        r'<meta[^>]+property=["\']og:image["\'][^>]+content=["\']([^"\']+)["\']',
+        r'<meta[^>]+content=["\']([^"\']+)["\'][^>]+property=["\']og:image["\']',
+    ):
+        m = re.search(pat, html, flags=re.IGNORECASE)
+        if m:
+            picked = _pick_tg_cdn_url(m.group(1))
+            if picked:
+                return picked
+
+    # 3) Fallback — birinchi CDN rasm
+    for pat in (
+        r'tgme_widget_message_photo_wrap[^>]+style=["\'][^"\']*background-image:\s*url\([\'"]?([^\'")\s]+)',
+        r'<img[^>]+src=["\'](https://cdn\d*\.(?:telesco\.pe|telegram-cdn\.org)/[^"\']+)["\']',
+    ):
+        m = re.search(pat, html, flags=re.IGNORECASE)
+        if m:
+            picked = _pick_tg_cdn_url(m.group(1))
+            if picked:
+                return picked
+    return None
+
+
+async def _http_get_bytes(url: str, timeout: float = 25.0) -> tuple:
+    """(status, content_bytes, content_type). httpx yoki urllib."""
+    if _httpx is not None:
+        async with _httpx.AsyncClient(timeout=timeout, follow_redirects=True) as client:
+            resp = await client.get(url, headers=_TG_FETCH_HEADERS)
+            ctype = resp.headers.get("content-type", "application/octet-stream")
+            return resp.status_code, resp.content, ctype
+
+    def _sync_get():
+        req = urllib.request.Request(url, headers=_TG_FETCH_HEADERS, method="GET")
+        try:
+            with urllib.request.urlopen(req, timeout=timeout) as resp:
+                data = resp.read()
+                ctype = resp.headers.get("Content-Type", "application/octet-stream")
+                return resp.status, data, ctype
+        except urllib.error.HTTPError as err:
+            try:
+                data = err.read()
+            except Exception:
+                data = b""
+            ctype = err.headers.get("Content-Type", "application/octet-stream") if err.headers else "application/octet-stream"
+            return err.code, data, ctype
+
+    return await asyncio.to_thread(_sync_get)
+
+
+async def _resolve_telegram_image_url(post_url: str) -> Optional[str]:
+    parsed = _parse_telegram_post_url(post_url)
+    if not parsed:
+        return None
+    channel, post_id = parsed
+    cache_key = f"tgimg:{channel}:{post_id}"
+    cached = _tg_cache_get(cache_key)
+    if cached:
+        return cached
+    preview_url = f"https://t.me/s/{channel}/{post_id}"
+    status, body, _ctype = await _http_get_bytes(preview_url)
+    if status >= 400 or not body:
+        return None
+    try:
+        html = body.decode("utf-8", errors="ignore")
+    except Exception:
+        return None
+    image_url = _extract_tg_image_from_html(html, channel=channel, post_id=post_id)
+    if image_url:
+        _tg_cache_set(cache_key, image_url)
+    return image_url
+
+
+@app.get("/api/media/tg-image")
+async def proxy_telegram_image(url: str = Query(..., min_length=8, max_length=512)):
+    """
+    Telegram ommaviy post (t.me/channel/N) sahifasidan haqiqiy rasmni
+    topib, image/jpeg (yoki asl content-type) oqimi sifatida qaytaradi.
+    Frontend <img src="/api/media/tg-image?url=..."> orqali ishlatadi.
+    """
+    post = _parse_telegram_post_url(url)
+    if not post:
+        raise HTTPException(status_code=400, detail="Faqat t.me / telegram.me post URL qabul qilinadi")
+
+    channel, post_id = post
+    bytes_key = f"tgbytes:{channel}:{post_id}"
+    cached_bytes = _tg_cache_get(bytes_key)
+    if cached_bytes:
+        data, ctype = cached_bytes
+        return Response(
+            content=data,
+            media_type=ctype or "image/jpeg",
+            headers={
+                "Cache-Control": "public, max-age=3600",
+                "X-TG-Proxy": "cache-hit",
+            },
+        )
+
+    image_url = await _resolve_telegram_image_url(url)
+    if not image_url:
+        raise HTTPException(status_code=404, detail="Postdan rasm topilmadi")
+
+    status, data, ctype = await _http_get_bytes(image_url)
+    if status >= 400 or not data:
+        raise HTTPException(status_code=502, detail="Rasmni yuklab bo'lmadi")
+
+    if not ctype or "text/html" in ctype.lower():
+        ctype = "image/jpeg"
+    _tg_cache_set(bytes_key, (data, ctype))
+    return Response(
+        content=data,
+        media_type=ctype,
+        headers={
+            "Cache-Control": "public, max-age=3600",
+            "X-TG-Proxy": "miss",
+        },
+    )
 
 
 @app.get("/api/target/filter-options")

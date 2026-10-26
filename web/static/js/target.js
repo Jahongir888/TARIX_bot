@@ -532,13 +532,12 @@ function renderCountdownBlocks(ms, prefix) {
         ? ['00', '00', '00', '00']
         : [String(days).padStart(2, '0'), String(hours).padStart(2, '0'), String(mins).padStart(2, '0'), String(secs).padStart(2, '0')];
     const labels = ['Kun', 'Soat', 'Daqiqa', 'Soniya'];
-    const colors = ['text-emerald-400', 'text-white', 'text-white', 'text-amber-400'];
     return `
-        <div class="grid grid-cols-4 gap-1.5 text-center select-none" data-countdown-for="${escTarget(prefix)}">
+        <div class="flex items-center justify-between gap-1.5 text-center select-none" data-countdown-for="${escTarget(prefix)}">
             ${vals.map((v, i) => `
-                <div class="bg-[#0A0E17]/80 border border-[#283548]/60 rounded-xl px-1 py-1.5">
-                    <span data-cd-part="${i}" class="block font-mono text-sm font-bold ${colors[i]}">${v}</span>
-                    <span class="text-[8px] uppercase tracking-wider text-slate-500">${labels[i]}</span>
+                <div class="flex-1 min-w-0 flex flex-col items-center justify-center w-10 h-10 sm:w-11 sm:h-11 p-1 rounded-lg bg-[#0F172A] border border-[#1E293B]">
+                    <span data-cd-part="${i}" class="block text-base sm:text-lg font-extrabold text-amber-400 leading-tight">${v}</span>
+                    <span class="text-[8px] sm:text-[9px] uppercase tracking-wider text-slate-400 leading-none">${labels[i]}</span>
                 </div>
             `).join('')}
         </div>`;
@@ -664,6 +663,26 @@ function isTelegramPostUrl(text) {
     return /^https?:\/\/(t\.me|telegram\.me)\//i.test(String(text || '').trim());
 }
 
+/** Telegram post URL → backend proxy; boshqa URL o'z holicha. */
+function resolveMediaUrl(url) {
+    const u = String(url || '').trim();
+    if (!u) return '';
+    if (u.startsWith('/api/media/tg-image')) return u;
+    if (isTelegramPostUrl(u)) {
+        return `/api/media/tg-image?url=${encodeURIComponent(u)}`;
+    }
+    return u;
+}
+
+/** <img> uchun ishlatilishi mumkinmi (Telegram postlar proxy orqali). */
+function canDisplayAsImage(url) {
+    const u = String(url || '').trim();
+    if (!u) return false;
+    if (u.startsWith('/api/media/tg-image')) return true;
+    if (!isMediaUrl(u) && !u.startsWith('data:')) return false;
+    return true;
+}
+
 /** gallery_images: vergul, \\n, \\r bilan ajratilgan yoki massiv */
 function parseGalleryImages(item) {
     const raw = item?.gallery_images ?? item?.gallery ?? '';
@@ -723,10 +742,7 @@ function militaryGalleryPlaceholderDataUri() {
 }
 
 function canUseAsImgSrc(url) {
-    const u = String(url || '').trim();
-    if (!u || !isMediaUrl(u)) return false;
-    if (isTelegramPostUrl(u)) return false;
-    return true;
+    return canDisplayAsImage(url);
 }
 
 function militaryImgLoaded(img) {
@@ -776,48 +792,44 @@ function renderMilitaryLogoHtml(card, opts = {}) {
     if (!canUseAsImgSrc(url)) {
         return militaryCrestHtml(initials, sizeClass, textClass, rounded);
     }
+    const src = escTarget(resolveMediaUrl(url));
     return `
-        <div data-mil-img-wrap class="${sizeClass} ${rounded} shrink-0 relative overflow-hidden border border-[#283548] bg-[#0A0E17]">
+        <div data-mil-img-wrap class="${sizeClass} ${rounded} shrink-0 relative overflow-hidden border border-[#283548] bg-[#0A0E17]
+                    shadow-[inset_0_0_0_1px_rgba(16,185,129,0.15)]">
             <div data-mil-img-loader class="absolute inset-0 animate-pulse bg-gradient-to-br from-[#161F30] to-[#0A0E17]"></div>
-            <img src="${escTarget(url)}" alt=""
+            <img src="${src}" alt="${escTarget(card?.inst_name || 'Logo')}"
                  data-mil-role="logo"
                  data-initials="${escTarget(initials)}"
                  data-size-class="${escTarget(sizeClass)}"
                  data-text-class="${escTarget(textClass)}"
                  data-rounded="${escTarget(rounded)}"
-                 class="${sizeClass} ${rounded} object-cover opacity-0 transition-opacity duration-300"
+                 class="absolute inset-0 w-full h-full object-contain opacity-0 transition-opacity duration-300"
                  onload="militaryImgLoaded(this)"
                  onerror="militaryImgFallback(this)">
         </div>`;
 }
 
 function renderGalleryTile(url) {
-    const safe = escTarget(url);
-    const telegram = isTelegramPostUrl(url);
-    const usable = canUseAsImgSrc(url);
-    const shell = 'snap-start shrink-0 relative h-28 w-44 rounded-xl overflow-hidden border border-[#283548] bg-[#0A0E17]';
+    const original = String(url || '').trim();
+    const displaySrc = resolveMediaUrl(original);
+    const safeOriginal = escTarget(original);
+    const safeSrc = escTarget(displaySrc);
+    const usable = canUseAsImgSrc(original);
+    const shell = 'snap-start shrink-0 relative h-28 w-44 rounded-xl overflow-hidden border border-[#283548] bg-[#0A0E17] hover:border-emerald-500/40 transition-colors';
     if (!usable) {
-        const href = isMediaUrl(url) ? safe : '#';
-        const tagOpen = isMediaUrl(url)
-            ? `<a href="${href}" target="_blank" rel="noopener" class="${shell} flex flex-col items-center justify-center gap-1.5 cursor-pointer hover:border-amber-400/40 transition-colors"`
-            : `<div class="${shell} flex flex-col items-center justify-center gap-1.5"`;
-        const tagClose = isMediaUrl(url) ? '</a>' : '</div>';
         return `
-            ${tagOpen}>
+            <div class="${shell} flex flex-col items-center justify-center gap-1.5">
                 <img src="${militaryGalleryPlaceholderDataUri()}" alt="" class="absolute inset-0 w-full h-full object-cover opacity-40 pointer-events-none" aria-hidden="true">
-                <span class="relative z-[1] text-[10px] font-bold text-amber-200/90 px-2 text-center leading-tight">
-                    ${telegram ? 'Telegram post' : 'Rasm mavjud emas'}
-                </span>
-                ${telegram ? '<span class="relative z-[1] text-[9px] text-slate-400">Ochish →</span>' : ''}
-            ${tagClose}`;
+                <span class="relative z-[1] text-[10px] font-bold text-amber-200/90 px-2 text-center leading-tight">Rasm mavjud emas</span>
+            </div>`;
     }
     return `
-        <button type="button" onclick="openMilitaryImage('${safe}')"
+        <button type="button" onclick="openMilitaryImage('${safeOriginal}')"
                 class="${shell} cursor-pointer active:scale-[0.98] transition-transform" data-mil-img-wrap>
             <div data-mil-img-loader class="absolute inset-0 flex items-center justify-center bg-[#0A0E17] z-[1]">
-                <span class="w-6 h-6 rounded-full border-2 border-amber-400/30 border-t-amber-400 animate-spin"></span>
+                <span class="w-6 h-6 rounded-full border-2 border-emerald-400/30 border-t-emerald-400 animate-spin"></span>
             </div>
-            <img src="${safe}" alt=""
+            <img src="${safeSrc}" alt=""
                  data-mil-role="gallery"
                  class="absolute inset-0 w-full h-full object-cover rounded-xl opacity-0 transition-opacity duration-300"
                  onload="militaryImgLoaded(this)"
@@ -825,29 +837,45 @@ function renderGalleryTile(url) {
         </button>`;
 }
 
+/** Mezon / material: tugma o'rniga to'g'ridan-to'g'ri rasm + in-app zoom */
 function criteriaHtml(criteria) {
     if (!criteria) return '';
     const raw = String(criteria).trim();
-    if (isDirectImageUrl(raw) && canUseAsImgSrc(raw)) {
-        return `<button type="button" onclick="openMilitaryImage('${escTarget(raw)}')"
-                        class="block w-full text-left cursor-pointer relative rounded-xl overflow-hidden border border-[#283548]" data-mil-img-wrap>
-            <div data-mil-img-loader class="absolute inset-0 flex items-center justify-center bg-[#0A0E17] z-[1]">
-                <span class="w-5 h-5 rounded-full border-2 border-amber-400/30 border-t-amber-400 animate-spin"></span>
+    if (isMediaUrl(raw) || isDirectImageUrl(raw)) {
+        const src = escTarget(resolveMediaUrl(raw));
+        const safeRaw = escTarget(raw);
+        return `<button type="button" onclick="openMilitaryImage('${safeRaw}')"
+                        class="block w-full text-left cursor-pointer relative rounded-xl overflow-hidden
+                               border border-white/10 bg-black/30 active:scale-[0.99] transition-transform" data-mil-img-wrap>
+            <div data-mil-img-loader class="absolute inset-0 flex items-center justify-center bg-[#0A0E17]/80 z-[1]">
+                <span class="w-5 h-5 rounded-full border-2 border-emerald-400/30 border-t-emerald-400 animate-spin"></span>
             </div>
-            <img src="${escTarget(raw)}" alt="Mezon" data-mil-role="gallery"
-                 class="w-full max-h-40 object-cover rounded-xl opacity-0 transition-opacity duration-300"
+            <img src="${src}" alt="Mezon jadvali" data-mil-role="gallery"
+                 class="max-h-48 w-full object-contain rounded-xl opacity-0 transition-opacity duration-300"
                  onload="militaryImgLoaded(this)" onerror="militaryImgFallback(this)">
-            <span class="text-[10px] text-violet-300 mt-1 inline-block px-0.5">Mezon rasmini kattalashtirish</span>
         </button>`;
     }
-    if (isMediaUrl(raw)) {
-        const label = isTelegramPostUrl(raw) ? '📎 Telegram mezon / material' : '📎 Mezon / materialni ochish';
-        return `<a href="${escTarget(raw)}" target="_blank" rel="noopener"
-                   class="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-[10px] font-bold bg-violet-500/10 border border-violet-400/30 text-violet-200">
-            ${label}
-        </a>`;
-    }
     return `<p class="text-[11px] text-slate-400 leading-relaxed">${nl2brEscaped(criteria)}</p>`;
+}
+
+/** Fanlar jadvali rasmi — tashqi havola tugmasisiz */
+function renderSubjectsTableImage(url) {
+    const raw = String(url || '').trim();
+    if (!raw || !canUseAsImgSrc(raw)) return '';
+    const src = escTarget(resolveMediaUrl(raw));
+    const safeRaw = escTarget(raw);
+    return `
+        <button type="button" onclick="openMilitaryImage('${safeRaw}')"
+                class="relative w-full text-left rounded-xl overflow-hidden border border-white/10 bg-black/30
+                       cursor-pointer active:scale-[0.99] transition-transform mt-2" data-mil-img-wrap>
+            <div data-mil-img-loader class="absolute inset-0 flex items-center justify-center bg-[#0A0E17]/80 z-[1]">
+                <span class="w-6 h-6 rounded-full border-2 border-emerald-400/30 border-t-emerald-400 animate-spin"></span>
+            </div>
+            <img src="${src}" alt="Fanlar jadvali" data-mil-role="gallery"
+                 class="max-h-48 w-full object-contain rounded-xl opacity-0 transition-opacity duration-300"
+                 onload="militaryImgLoaded(this)"
+                 onerror="militaryImgFallback(this)">
+        </button>`;
 }
 
 function getMilitaryTimeline(card) {
@@ -918,23 +946,16 @@ function closeMilitaryVideo() {
 
 function openMilitaryImage(url) {
     if (!url) return;
-    if (isTelegramPostUrl(url) || !canUseAsImgSrc(url)) {
-        if (isMediaUrl(url)) {
-            window.open(url, '_blank', 'noopener');
-        }
-        return;
-    }
+    const displayUrl = resolveMediaUrl(url);
+    if (!displayUrl) return;
     const layer = document.getElementById('military-image-layer');
     const img = document.getElementById('military-image-zoom');
-    if (!layer || !img) {
-        window.open(url, '_blank');
-        return;
-    }
+    if (!layer || !img) return;
     img.onerror = () => {
         img.onerror = null;
         img.src = militaryGalleryPlaceholderDataUri();
     };
-    img.src = url;
+    img.src = displayUrl;
     layer.classList.remove('hidden');
 }
 
@@ -1124,28 +1145,10 @@ function renderMilitaryDetailBody(card) {
 
         <section class="space-y-2">
             <p class="text-[10px] font-bold uppercase tracking-wider text-slate-400">Test sinovi va fanlar</p>
-            <div class="bg-[#161F30] border border-[#283548] rounded-2xl p-3 space-y-1">
+            <div class="bg-[#161F30] border border-[#283548] rounded-2xl p-3 space-y-2">
                 ${renderSubjectsSection(card)}
+                ${renderSubjectsTableImage(subjectsImg)}
             </div>
-            ${subjectsImg && canUseAsImgSrc(subjectsImg) ? `
-                <button type="button" onclick="openMilitaryImage('${escTarget(subjectsImg)}')"
-                        class="w-full text-left bg-[#111827] border border-[#1F2937] rounded-2xl overflow-hidden cursor-pointer" data-mil-img-wrap>
-                    <div class="px-3 py-2 text-xs font-bold text-slate-100">📊 Fanlar va kvota jadvali</div>
-                    <div class="relative border-t border-[#1F2937]">
-                        <div data-mil-img-loader class="absolute inset-0 flex items-center justify-center bg-[#0A0E17] z-[1]">
-                            <span class="w-6 h-6 rounded-full border-2 border-amber-400/30 border-t-amber-400 animate-spin"></span>
-                        </div>
-                        <img src="${escTarget(subjectsImg)}" alt="Fanlar jadvali"
-                             data-mil-role="gallery"
-                             class="w-full max-h-48 object-cover opacity-0 transition-opacity duration-300"
-                             onload="militaryImgLoaded(this)"
-                             onerror="militaryImgFallback(this)">
-                    </div>
-                </button>` : subjectsImg && isMediaUrl(subjectsImg) ? `
-                <a href="${escTarget(subjectsImg)}" target="_blank" rel="noopener"
-                   class="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-[10px] font-bold bg-violet-500/10 border border-violet-400/30 text-violet-200">
-                    📎 Fanlar jadvalini ochish
-                </a>` : ''}
         </section>
 
     `;
