@@ -137,11 +137,14 @@ function renderSubjectsSection(card) {
 function renderTargetCard(card) {
     militaryCardsById.set(String(card.id), card);
     const formLang = [card.edu_form, card.edu_lang].filter(Boolean).join(' · ') || '—';
+    const galleryCount = parseGalleryImages(card).length;
     const showDetail = isTargetMilitary(card) || isTargetLitsey(card)
-        || Boolean(card.eligibility_criteria || card.practical_exams?.length || card.gallery_images?.length);
-    const logoHtml = card.logo_url
-        ? `<img src="${escTarget(card.logo_url)}" alt="" class="w-10 h-10 rounded-xl object-cover border border-[#283548] bg-[#0A0E17] shrink-0">`
-        : `<div class="w-10 h-10 rounded-xl border border-emerald-500/30 bg-emerald-500/10 text-emerald-300 flex items-center justify-center text-[10px] font-black shrink-0">${escTarget((card.short_name || 'H').slice(0, 3))}</div>`;
+        || Boolean(card.eligibility_criteria || card.practical_exams?.length || galleryCount);
+    const logoHtml = renderMilitaryLogoHtml(card, {
+        sizeClass: 'w-10 h-10',
+        textClass: 'text-[10px]',
+        rounded: 'rounded-xl'
+    });
     const el = document.createElement('div');
     el.className = 'bg-[#111827] border border-[#1F2937] hover:border-emerald-500/30 rounded-2xl p-3.5 shadow-md space-y-2.5 transition-all' + (showDetail ? ' cursor-pointer' : '');
     el.setAttribute('role', 'button');
@@ -657,19 +660,191 @@ function isDirectImageUrl(text) {
     return /\.(png|jpe?g|gif|webp|bmp|svg)(\?|$)/i.test(String(text || '').trim());
 }
 
+function isTelegramPostUrl(text) {
+    return /^https?:\/\/(t\.me|telegram\.me)\//i.test(String(text || '').trim());
+}
+
+/** gallery_images: vergul, \\n, \\r bilan ajratilgan yoki massiv */
+function parseGalleryImages(item) {
+    const raw = item?.gallery_images ?? item?.gallery ?? '';
+    const splitOne = (part) =>
+        String(part || '').split(/[\n,\r]+/).map((s) => s.trim()).filter(Boolean);
+    if (Array.isArray(raw)) {
+        return raw.flatMap(splitOne);
+    }
+    return splitOne(raw);
+}
+
+function institutionInitials(card) {
+    const short = String(card?.short_name || '').trim();
+    if (short) {
+        const letters = short.replace(/[^A-Za-zА-Яа-яЁёЎўҚқҒғҲҳ'\s-]/g, '').trim();
+        if (letters.length >= 2) return letters.slice(0, 3).toUpperCase();
+        return short.slice(0, 3).toUpperCase();
+    }
+    const name = String(card?.inst_name || 'H').trim();
+    const words = name.split(/\s+/).filter(Boolean);
+    if (words.length >= 2) {
+        return words.slice(0, 2).map((w) => w[0]).join('').toUpperCase();
+    }
+    return name.slice(0, 2).toUpperCase() || 'H';
+}
+
+/** Zangori/oltin gerb nishoni — logotip o'rniga */
+function militaryCrestHtml(initials, sizeClass = 'w-14 h-14', textClass = 'text-sm', rounded = 'rounded-2xl') {
+    return `
+        <div class="${sizeClass} ${rounded} shrink-0 relative overflow-hidden flex items-center justify-center
+                    bg-gradient-to-br from-[#0B1F3A] via-[#123A6B] to-[#0A1628]
+                    border-2 border-amber-400/80 shadow-[inset_0_0_0_1px_rgba(59,130,246,0.45),0_0_14px_rgba(251,191,36,0.18)]"
+             aria-hidden="true">
+            <span class="absolute inset-x-2 top-1 h-px bg-gradient-to-r from-transparent via-amber-300/70 to-transparent"></span>
+            <span class="absolute inset-x-2 bottom-1 h-px bg-gradient-to-r from-transparent via-blue-400/50 to-transparent"></span>
+            <span class="${textClass} font-black tracking-wide text-amber-300 drop-shadow-[0_1px_2px_rgba(0,0,0,0.6)]">${escTarget(initials)}</span>
+        </div>`;
+}
+
+function militaryGalleryPlaceholderDataUri() {
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="352" height="224" viewBox="0 0 352 224" role="img">
+        <defs>
+            <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+                <stop offset="0%" stop-color="#0B1F3A"/>
+                <stop offset="55%" stop-color="#123A6B"/>
+                <stop offset="100%" stop-color="#0A1628"/>
+            </linearGradient>
+        </defs>
+        <rect width="352" height="224" rx="24" fill="url(#g)"/>
+        <rect x="12" y="12" width="328" height="200" rx="18" fill="none" stroke="#FBBF24" stroke-opacity="0.55" stroke-width="2"/>
+        <path d="M176 48 L204 78 L188 78 L188 118 L164 118 L164 78 L148 78 Z" fill="#FBBF24" fill-opacity="0.85"/>
+        <circle cx="176" cy="148" r="18" fill="none" stroke="#60A5FA" stroke-width="2.5"/>
+        <path d="M176 136 L176 160 M164 148 L188 148" stroke="#60A5FA" stroke-width="2" stroke-linecap="round"/>
+        <text x="176" y="196" text-anchor="middle" fill="#94A3B8" font-family="Segoe UI, Arial, sans-serif" font-size="14" font-weight="700">Harbiy shablon</text>
+    </svg>`;
+    return `data:image/svg+xml,${encodeURIComponent(svg)}`;
+}
+
+function canUseAsImgSrc(url) {
+    const u = String(url || '').trim();
+    if (!u || !isMediaUrl(u)) return false;
+    if (isTelegramPostUrl(u)) return false;
+    return true;
+}
+
+function militaryImgLoaded(img) {
+    if (!img) return;
+    img.classList.remove('opacity-0');
+    img.classList.add('opacity-100');
+    const wrap = img.closest('[data-mil-img-wrap]');
+    const loader = wrap?.querySelector('[data-mil-img-loader]');
+    if (loader) loader.classList.add('hidden');
+}
+
+function militaryImgFallback(img, initials) {
+    if (!img || img.dataset.fallbackApplied === '1') return;
+    img.dataset.fallbackApplied = '1';
+    const wrap = img.closest('[data-mil-img-wrap]');
+    const loader = wrap?.querySelector('[data-mil-img-loader]');
+    if (loader) loader.classList.add('hidden');
+    const role = img.dataset.milRole || 'gallery';
+    if (role === 'logo') {
+        const crest = document.createElement('div');
+        crest.innerHTML = militaryCrestHtml(
+            initials || img.dataset.initials || 'H',
+            img.dataset.sizeClass || 'w-14 h-14',
+            img.dataset.textClass || 'text-sm',
+            img.dataset.rounded || 'rounded-2xl'
+        ).trim();
+        const node = crest.firstElementChild;
+        const target = wrap || img;
+        if (node && target.parentNode) {
+            target.replaceWith(node);
+        }
+        return;
+    }
+    img.onerror = null;
+    img.src = militaryGalleryPlaceholderDataUri();
+    img.classList.remove('opacity-0');
+    img.classList.add('opacity-100');
+    img.alt = 'Harbiy shablon';
+}
+
+function renderMilitaryLogoHtml(card, opts = {}) {
+    const sizeClass = opts.sizeClass || 'w-14 h-14';
+    const textClass = opts.textClass || 'text-sm';
+    const rounded = opts.rounded || 'rounded-2xl';
+    const initials = institutionInitials(card);
+    const url = String(card?.logo_url || '').trim();
+    if (!canUseAsImgSrc(url)) {
+        return militaryCrestHtml(initials, sizeClass, textClass, rounded);
+    }
+    return `
+        <div data-mil-img-wrap class="${sizeClass} ${rounded} shrink-0 relative overflow-hidden border border-[#283548] bg-[#0A0E17]">
+            <div data-mil-img-loader class="absolute inset-0 animate-pulse bg-gradient-to-br from-[#161F30] to-[#0A0E17]"></div>
+            <img src="${escTarget(url)}" alt=""
+                 data-mil-role="logo"
+                 data-initials="${escTarget(initials)}"
+                 data-size-class="${escTarget(sizeClass)}"
+                 data-text-class="${escTarget(textClass)}"
+                 data-rounded="${escTarget(rounded)}"
+                 class="${sizeClass} ${rounded} object-cover opacity-0 transition-opacity duration-300"
+                 onload="militaryImgLoaded(this)"
+                 onerror="militaryImgFallback(this)">
+        </div>`;
+}
+
+function renderGalleryTile(url) {
+    const safe = escTarget(url);
+    const telegram = isTelegramPostUrl(url);
+    const usable = canUseAsImgSrc(url);
+    const shell = 'snap-start shrink-0 relative h-28 w-44 rounded-xl overflow-hidden border border-[#283548] bg-[#0A0E17]';
+    if (!usable) {
+        const href = isMediaUrl(url) ? safe : '#';
+        const tagOpen = isMediaUrl(url)
+            ? `<a href="${href}" target="_blank" rel="noopener" class="${shell} flex flex-col items-center justify-center gap-1.5 cursor-pointer hover:border-amber-400/40 transition-colors"`
+            : `<div class="${shell} flex flex-col items-center justify-center gap-1.5"`;
+        const tagClose = isMediaUrl(url) ? '</a>' : '</div>';
+        return `
+            ${tagOpen}>
+                <img src="${militaryGalleryPlaceholderDataUri()}" alt="" class="absolute inset-0 w-full h-full object-cover opacity-40 pointer-events-none" aria-hidden="true">
+                <span class="relative z-[1] text-[10px] font-bold text-amber-200/90 px-2 text-center leading-tight">
+                    ${telegram ? 'Telegram post' : 'Rasm mavjud emas'}
+                </span>
+                ${telegram ? '<span class="relative z-[1] text-[9px] text-slate-400">Ochish →</span>' : ''}
+            ${tagClose}`;
+    }
+    return `
+        <button type="button" onclick="openMilitaryImage('${safe}')"
+                class="${shell} cursor-pointer active:scale-[0.98] transition-transform" data-mil-img-wrap>
+            <div data-mil-img-loader class="absolute inset-0 flex items-center justify-center bg-[#0A0E17] z-[1]">
+                <span class="w-6 h-6 rounded-full border-2 border-amber-400/30 border-t-amber-400 animate-spin"></span>
+            </div>
+            <img src="${safe}" alt=""
+                 data-mil-role="gallery"
+                 class="absolute inset-0 w-full h-full object-cover rounded-xl opacity-0 transition-opacity duration-300"
+                 onload="militaryImgLoaded(this)"
+                 onerror="militaryImgFallback(this)">
+        </button>`;
+}
+
 function criteriaHtml(criteria) {
     if (!criteria) return '';
     const raw = String(criteria).trim();
-    if (isDirectImageUrl(raw)) {
-        return `<button type="button" onclick="openMilitaryImage('${escTarget(raw)}')" class="block w-full text-left cursor-pointer">
-            <img src="${escTarget(raw)}" alt="Mezon" class="w-full max-h-40 object-cover rounded-xl border border-[#283548]">
-            <span class="text-[10px] text-violet-300 mt-1 inline-block">Mezon rasmini kattalashtirish</span>
+    if (isDirectImageUrl(raw) && canUseAsImgSrc(raw)) {
+        return `<button type="button" onclick="openMilitaryImage('${escTarget(raw)}')"
+                        class="block w-full text-left cursor-pointer relative rounded-xl overflow-hidden border border-[#283548]" data-mil-img-wrap>
+            <div data-mil-img-loader class="absolute inset-0 flex items-center justify-center bg-[#0A0E17] z-[1]">
+                <span class="w-5 h-5 rounded-full border-2 border-amber-400/30 border-t-amber-400 animate-spin"></span>
+            </div>
+            <img src="${escTarget(raw)}" alt="Mezon" data-mil-role="gallery"
+                 class="w-full max-h-40 object-cover rounded-xl opacity-0 transition-opacity duration-300"
+                 onload="militaryImgLoaded(this)" onerror="militaryImgFallback(this)">
+            <span class="text-[10px] text-violet-300 mt-1 inline-block px-0.5">Mezon rasmini kattalashtirish</span>
         </button>`;
     }
     if (isMediaUrl(raw)) {
+        const label = isTelegramPostUrl(raw) ? '📎 Telegram mezon / material' : '📎 Mezon / materialni ochish';
         return `<a href="${escTarget(raw)}" target="_blank" rel="noopener"
                    class="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-[10px] font-bold bg-violet-500/10 border border-violet-400/30 text-violet-200">
-            📎 Mezon / materialni ochish
+            ${label}
         </a>`;
     }
     return `<p class="text-[11px] text-slate-400 leading-relaxed">${nl2brEscaped(criteria)}</p>`;
@@ -743,12 +918,22 @@ function closeMilitaryVideo() {
 
 function openMilitaryImage(url) {
     if (!url) return;
+    if (isTelegramPostUrl(url) || !canUseAsImgSrc(url)) {
+        if (isMediaUrl(url)) {
+            window.open(url, '_blank', 'noopener');
+        }
+        return;
+    }
     const layer = document.getElementById('military-image-layer');
     const img = document.getElementById('military-image-zoom');
     if (!layer || !img) {
         window.open(url, '_blank');
         return;
     }
+    img.onerror = () => {
+        img.onerror = null;
+        img.src = militaryGalleryPlaceholderDataUri();
+    };
     img.src = url;
     layer.classList.remove('hidden');
 }
@@ -798,7 +983,7 @@ function renderMilitaryDetailBody(card) {
     const body = document.getElementById('military-detail-body');
     if (!body) return;
 
-    const gallery = card.gallery_images || card.gallery || [];
+    const gallery = parseGalleryImages(card);
     const videoUrl = card.review_video_url || card.video_review_url;
     const timeline = getMilitaryTimeline(card);
     const exams = card.practical_exams || [];
@@ -807,17 +992,15 @@ function renderMilitaryDetailBody(card) {
     const mockUrl = card.mock_test_url;
     const nearest = nearestMilitaryDeadline(card);
 
-    const logoHtml = card.logo_url
-        ? `<img src="${escTarget(card.logo_url)}" alt="" class="w-14 h-14 rounded-2xl object-cover border border-[#283548] bg-[#0A0E17]">`
-        : `<div class="w-14 h-14 rounded-2xl border border-emerald-500/30 bg-emerald-500/10 text-emerald-300 flex items-center justify-center text-lg font-black">${escTarget((card.short_name || 'H').slice(0, 3))}</div>`;
+    const logoHtml = renderMilitaryLogoHtml(card, {
+        sizeClass: 'w-14 h-14',
+        textClass: 'text-sm',
+        rounded: 'rounded-2xl'
+    });
 
     const galleryHtml = gallery.length
         ? `<div class="flex gap-2 overflow-x-auto pb-1 scrollbar-none snap-x">
-            ${gallery.map((url) => `
-                <button type="button" onclick="openMilitaryImage('${escTarget(url)}')" class="snap-start shrink-0 cursor-pointer">
-                    <img src="${escTarget(url)}" alt="" class="h-28 w-44 rounded-2xl object-cover border border-[#283548]">
-                </button>
-            `).join('')}
+            ${gallery.map((url) => renderGalleryTile(url)).join('')}
            </div>`
         : `<p class="text-[11px] text-slate-500">Galereya rasmlari hozircha yo'q.</p>`;
 
@@ -944,12 +1127,25 @@ function renderMilitaryDetailBody(card) {
             <div class="bg-[#161F30] border border-[#283548] rounded-2xl p-3 space-y-1">
                 ${renderSubjectsSection(card)}
             </div>
-            ${subjectsImg ? `
+            ${subjectsImg && canUseAsImgSrc(subjectsImg) ? `
                 <button type="button" onclick="openMilitaryImage('${escTarget(subjectsImg)}')"
-                        class="w-full text-left bg-[#111827] border border-[#1F2937] rounded-2xl overflow-hidden cursor-pointer">
+                        class="w-full text-left bg-[#111827] border border-[#1F2937] rounded-2xl overflow-hidden cursor-pointer" data-mil-img-wrap>
                     <div class="px-3 py-2 text-xs font-bold text-slate-100">📊 Fanlar va kvota jadvali</div>
-                    <img src="${escTarget(subjectsImg)}" alt="Fanlar jadvali" class="w-full max-h-48 object-cover border-t border-[#1F2937]">
-                </button>` : ''}
+                    <div class="relative border-t border-[#1F2937]">
+                        <div data-mil-img-loader class="absolute inset-0 flex items-center justify-center bg-[#0A0E17] z-[1]">
+                            <span class="w-6 h-6 rounded-full border-2 border-amber-400/30 border-t-amber-400 animate-spin"></span>
+                        </div>
+                        <img src="${escTarget(subjectsImg)}" alt="Fanlar jadvali"
+                             data-mil-role="gallery"
+                             class="w-full max-h-48 object-cover opacity-0 transition-opacity duration-300"
+                             onload="militaryImgLoaded(this)"
+                             onerror="militaryImgFallback(this)">
+                    </div>
+                </button>` : subjectsImg && isMediaUrl(subjectsImg) ? `
+                <a href="${escTarget(subjectsImg)}" target="_blank" rel="noopener"
+                   class="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-[10px] font-bold bg-violet-500/10 border border-violet-400/30 text-violet-200">
+                    📎 Fanlar jadvalini ochish
+                </a>` : ''}
         </section>
 
     `;
@@ -1014,3 +1210,6 @@ window.onTimerFavoriteClick = onTimerFavoriteClick;
 window.getTimerFavorites = getTimerFavorites;
 window.openTargetCatalogCourses = openTargetCatalogCourses;
 window.openMilitaryMockTest = openMilitaryMockTest;
+window.militaryImgLoaded = militaryImgLoaded;
+window.militaryImgFallback = militaryImgFallback;
+window.parseGalleryImages = parseGalleryImages;
