@@ -258,32 +258,73 @@ let allExamDeadlinesList = [];
 /**
  * 1. API dan imtihon sanalarini yuklab olish va bosh sahifa vidjetiga chiqarish
  */
+function _readFavoriteTimers() {
+    if (typeof getTimerFavorites === 'function') {
+        return getTimerFavorites();
+    }
+    try {
+        const raw = JSON.parse(localStorage.getItem('tarix_timer_favorites') || '[]');
+        return Array.isArray(raw) ? raw : [];
+    } catch (_) {
+        return [];
+    }
+}
+
+function _favoriteToDeadlineItem(fav) {
+    const iso = fav.target_iso || fav.date || '';
+    let dateLabel = fav.date || '';
+    try {
+        const dt = new Date(iso);
+        if (!Number.isNaN(dt.getTime())) {
+            dateLabel = dt.toLocaleDateString('uz-UZ');
+        }
+    } catch (_) { /* ignore */ }
+    return {
+        id: fav.id,
+        title: fav.title || fav.label || 'Sevimli muddat',
+        badge: fav.badge || '⭐ SEVIMLI',
+        date: dateLabel,
+        target_iso: iso,
+        action_url: null,
+        is_favorite: true
+    };
+}
+
 async function loadExamDeadlines() {
     try {
         const res = await fetch('/api/deadlines');
         if (!res.ok) throw new Error("Dedlaynlarni yuklab bo'lmadi");
         const data = await res.json();
-        if (!data || !data.nearest) return;
 
-        // Barcha sanalarni xotirada saqlaymiz (modal uchun)
-        allExamDeadlinesList = data.all || [];
+        const now = Date.now();
+        // localStorage ro'yxati unshift bilan saqlanadi — oxirgi yulduzcha birinchi
+        const favItems = _readFavoriteTimers()
+            .map(_favoriteToDeadlineItem)
+            .filter((item) => {
+                const t = new Date(item.target_iso).getTime();
+                return !Number.isNaN(t) && t >= now;
+            });
 
-        const nearest = data.nearest;
+        // Sevimlilar birinchi o'rinda, so'ngra API dedlaynlari
+        const apiAll = data.all || [];
+        allExamDeadlinesList = [...favItems, ...apiAll];
+
+        const nearestFav = favItems[0] || null;
+        const nearest = nearestFav || data.nearest;
+        if (!nearest) return;
+
         const badgeEl = document.getElementById('timer-badge');
         const titleEl = document.getElementById('timer-exam-title');
 
-        if (badgeEl) badgeEl.innerText = nearest.badge || 'IMTIHON';
+        if (badgeEl) badgeEl.innerText = nearest.badge || (nearestFav ? '⭐ SEVIMLI' : 'IMTIHON');
         if (titleEl) titleEl.innerText = nearest.title || 'Rasmiy Imtihon';
 
-        // Aniq nishon vaqti (target ISO)
         const targetTime = new Date(nearest.target_iso).getTime();
 
-        // Oldingi interval bo'lsa tozalaymiz
         if (deadlineCountdownInterval) clearInterval(deadlineCountdownInterval);
 
         function updateCountdown() {
-            const now = new Date().getTime();
-            const diff = targetTime - now;
+            const diff = targetTime - Date.now();
 
             const daysEl = document.getElementById('timer-days');
             const hoursEl = document.getElementById('timer-hours');
@@ -334,13 +375,13 @@ function openAllDeadlinesModal() {
         `;
     } else {
         container.innerHTML = allExamDeadlinesList.map(item => `
-            <div class="bg-[#161F30] border border-[#283548] p-3 rounded-2xl flex items-center justify-between gap-3">
+            <div class="bg-[#161F30] border ${item.is_favorite ? 'border-amber-400/40' : 'border-[#283548]'} p-3 rounded-2xl flex items-center justify-between gap-3">
                 <div class="flex-1 min-w-0">
                     <div class="flex items-center gap-1.5 mb-1">
-                        <span class="text-[9px] uppercase font-bold bg-emerald-500/10 text-emerald-400 px-1.5 py-0.5 rounded border border-emerald-500/20">
-                            ${item.badge || 'IMTIHON'}
+                        <span class="text-[9px] uppercase font-bold ${item.is_favorite ? 'bg-amber-500/10 text-amber-400 border-amber-400/30' : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'} px-1.5 py-0.5 rounded border">
+                            ${item.is_favorite ? '⭐ ' : ''}${item.badge || 'IMTIHON'}
                         </span>
-                        <span class="text-[10px] text-slate-400 font-mono">📅 ${item.date}</span>
+                        <span class="text-[10px] text-slate-400 font-mono">📅 ${item.date || ''}</span>
                     </div>
                     <h4 class="text-xs font-bold text-white truncate">${item.title}</h4>
                 </div>
@@ -365,6 +406,9 @@ function closeAllDeadlinesModal() {
 // Bosh sahifa ochilganda yoki tab almashganda chaqiriladi
 if (typeof document !== 'undefined') {
     loadExamDeadlines();
+    window.addEventListener('timer-favorites-changed', () => {
+        loadExamDeadlines();
+    });
 }
 
 // ==========================================================

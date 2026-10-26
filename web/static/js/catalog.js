@@ -214,6 +214,48 @@ async function handleProductBuy(productId, priceCoin, title) {
     }
 }
 
+/**
+ * Maqsad modalidagi "Kurs haqida" — catalog_courses_url bo'yicha filtr.
+ * URL misollari:
+ *   ?subject=tarix&category=litsey
+ *   /catalog?subject=psixologiya&category=otm
+ *   subject=tarix&category=paketlar
+ */
+function openCatalogFromTarget(catalogUrl) {
+    let subject = 'all';
+    let category = 'all';
+    const raw = String(catalogUrl || '').trim();
+    if (raw) {
+        try {
+            let qs = raw;
+            if (raw.includes('://') || raw.startsWith('/')) {
+                const u = new URL(raw, window.location.origin);
+                qs = u.search || raw.split('?')[1] || '';
+            } else if (raw.includes('=')) {
+                qs = raw.startsWith('?') ? raw : `?${raw}`;
+            }
+            const params = new URLSearchParams(qs.startsWith('?') ? qs : `?${qs}`);
+            subject = params.get('subject') || params.get('fan') || subject;
+            category = params.get('category') || params.get('cat') || params.get('toifa') || category;
+        } catch (_) {
+            // URL yaroqsiz bo'lsa — umumiy katalog
+        }
+    }
+
+    // Fan chipi mavjud emas bo'lsa — all
+    if (!document.getElementById(`sub-chip-${subject}`)) {
+        subject = 'all';
+    }
+    selectCatalogSubject(subject);
+    // selectCatalogSubject category ni 'all' ga qaytaradi — keyin keraklisini qo'llaymiz
+    const allowed = (categoryMatrix[subject] || categoryMatrix.all).map((c) => c.id);
+    selectedCategory = allowed.includes(category) ? category : 'all';
+    renderCategoryChips();
+    loadCatalogProducts();
+}
+
+window.openCatalogFromTarget = openCatalogFromTarget;
+
 // Sahifa yuklanganda yoki tabga o'tganda ishga tushirish
 document.addEventListener('DOMContentLoaded', () => {
     selectCatalogSubject('all');

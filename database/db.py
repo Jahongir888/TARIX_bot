@@ -26,6 +26,7 @@ def _ensure_sqlite_columns(sync_conn):
         "target_institutions": {
             "gallery": "TEXT",
             "video_review_url": "VARCHAR",
+            "overview_text": "TEXT",
             "admission_requirements": "TEXT",
             "eligibility_criteria": "TEXT",
             "admission_info": "TEXT",
@@ -49,6 +50,8 @@ def _ensure_sqlite_columns(sync_conn):
             "test_exam_date": "VARCHAR",
             "practical_mock_id": "VARCHAR",
             "practical_course_url": "VARCHAR",
+            "dates_timeline_json": "TEXT",
+            "practical_exams_json": "TEXT",
             "exam1_date": "VARCHAR",
             "exam1_name": "VARCHAR",
             "exam1_criteria": "TEXT",

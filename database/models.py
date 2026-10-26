@@ -611,11 +611,12 @@ class TargetInstitution(Base):
     logo_url = Column(String, nullable=True)  # Rasm / gerb havolasi
     gallery = Column(Text, nullable=True)  # Galereya: URL lar (\n yoki | bilan)
     video_review_url = Column(String, nullable=True)  # Videosharh ssilkasi
+    overview_text = Column(Text, nullable=True)  # Umumiy tavsif
     admission_requirements = Column(Text, nullable=True)  # Qabul talablari (umumiy)
     eligibility_criteria = Column(Text, nullable=True)  # Kimlar qabul qilinadi
     admission_info = Column(Text, nullable=True)  # Qabul tartibi va joyi
     admission_date = Column(String, nullable=True)  # Hujjat topshirish muddati
-    opportunities = Column(Text, nullable=True)  # Imkoniyatlar / imtiyozlar
+    opportunities = Column(Text, nullable=True)  # Imkoniyatlar / imtiyozlar (career_opportunities)
     is_active = Column(Boolean, default=True)
 
     directions = relationship("TargetDirection", back_populates="institution", cascade="all, delete-orphan")
@@ -654,6 +655,9 @@ class TargetDirection(Base):
     test_exam_date = Column(String, nullable=True)
     practical_mock_id = Column(String, nullable=True)
     practical_course_url = Column(String, nullable=True)
+    # API/UI uchun yig'ma JSON (dates_timeline + practical_exams)
+    dates_timeline_json = Column(Text, nullable=True)
+    practical_exams_json = Column(Text, nullable=True)
 
     # Amaliy imtihonlar (exam1–exam5)
     exam1_date = Column(String, nullable=True)

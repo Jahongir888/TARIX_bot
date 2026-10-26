@@ -2,10 +2,17 @@
 
 Faqat inst_type = litsey_harbiy | otm_harbiy yozuvlarini yangilaydi
 (fuqarolik OTM/litsey yozuvlariga tegmaydi).
+
+Maydonlar:
+  TargetInstitution — inst_type, region, logo_url, gallery_images, review_video_url,
+                      overview_text, eligibility_criteria, career_opportunities, admission_info
+  TargetDirection — direction_title, subject_main/second/third, grant_score, mock_test_url,
+                    catalog_courses_url, exam1–exam5, dates_timeline_json, practical_exams_json
 """
 from __future__ import annotations
 
 import asyncio
+import json
 import re
 from datetime import datetime, date
 from pathlib import Path
@@ -21,6 +28,7 @@ EXCEL_PATH = ROOT / "harbiy_muassasalar.xlsx"
 MILITARY_TYPES = ("litsey_harbiy", "otm_harbiy")
 
 _APOSTROPHES = ("ʻ", "ʼ", "‘", "’", "`", "´", "ʹ", "′", "‛")
+_URL_RE = re.compile(r"^https?://", re.I)
 
 # Excel ustuni -> ichki kalit (harbiy_muassasalar.xlsx sarlavhalari)
 COLUMN_ALIASES = {
@@ -53,6 +61,10 @@ COLUMN_ALIASES = {
 for n in range(1, 6):
     COLUMN_ALIASES[f"exam{n}_date"] = (f"exam{n}_date",)
     COLUMN_ALIASES[f"exam{n}_name_criteria"] = (f"exam{n}_name_criteria",)
+    COLUMN_ALIASES[f"exam{n}_name"] = (f"exam{n}_name",)
+    COLUMN_ALIASES[f"exam{n}_criteria"] = (f"exam{n}_criteria",)
+    COLUMN_ALIASES[f"exam{n}_mock_url"] = (f"exam{n}_mock_url", f"exam{n}_mock")
+    COLUMN_ALIASES[f"exam{n}_course_url"] = (f"exam{n}_course_url", f"exam{n}_course")
 
 
 def _norm(value) -> str:
@@ -118,20 +130,61 @@ def _normalize_inst_type(raw: str, name: str = "") -> str | None:
     return None
 
 
-def _split_name_criteria(raw: str) -> tuple[str | None, str | None]:
-    """examN_name_criteria: birinchi qator — nom, qolgani — mezon."""
+def _split_name_criteria(raw: str, default_name: str | None = None) -> tuple[str | None, str | None]:
+    """examN_name_criteria: nom+mezon, yoki faqat mezon rasmi URL."""
     text = _norm(raw)
     if not text:
         return None, None
+    # Faqat URL bo'lsa — mezon rasmi / hujjat
+    if _URL_RE.match(text) and "\n" not in text and "|" not in text:
+        return default_name, text
     parts = [p.strip() for p in re.split(r"[\n|;]+", text) if p.strip()]
     if len(parts) == 1:
-        # "Nom — mezon" yoki "Nom: mezon"
         for sep in (" — ", " - ", ": ", " – "):
             if sep in parts[0]:
                 name, _, criteria = parts[0].partition(sep)
-                return name.strip() or None, criteria.strip() or None
+                return name.strip() or default_name, criteria.strip() or None
         return parts[0], None
     return parts[0], "\n".join(parts[1:])
+
+
+def _build_timeline_and_exams(row: dict) -> tuple[str, str]:
+    """dates_timeline va practical_exams ni JSON string sifatida yig'adi."""
+    timeline = []
+    if row.get("admission_date"):
+        timeline.append({
+            "key": "admission",
+            "label": "Hujjat topshirish",
+            "date": row["admission_date"],
+        })
+    exams = []
+    for n in range(1, 6):
+        exam_date = row.get(f"exam{n}_date")
+        exam_name = row.get(f"exam{n}_name")
+        exam_criteria = row.get(f"exam{n}_criteria")
+        mock_url = row.get(f"exam{n}_mock_url")
+        course_url = row.get(f"exam{n}_course_url")
+        if not any([exam_date, exam_name, exam_criteria, mock_url, course_url]):
+            continue
+        label = exam_name or f"{n}-amaliy imtihon"
+        if exam_date:
+            timeline.append({"key": f"exam{n}", "label": label, "date": exam_date})
+        exams.append({
+            "index": n,
+            "name": label,
+            "date": exam_date or "",
+            "criteria": exam_criteria or "",
+            "practical_mock_url": mock_url,
+            "practical_course_url": course_url,
+            "practical_mock_id": row.get("practical_mock_id"),
+        })
+    if row.get("test_exam_date"):
+        timeline.append({
+            "key": "test_exam",
+            "label": "Test sinovi",
+            "date": row["test_exam_date"],
+        })
+    return json.dumps(timeline, ensure_ascii=False), json.dumps(exams, ensure_ascii=False)
 
 
 def _build_admission_requirements(eligibility: str, admission_info: str, admission_date: str) -> str | None:
@@ -220,6 +273,8 @@ def _read_rows(path: Path) -> list[dict]:
             admission_date = _cell(raw, index, "admission_date") or None
             catalog_url = _cell(raw, index, "catalog_courses_url") or None
             bundle_url = _cell(raw, index, "bundle_package_url") or catalog_url
+            overview = _cell(raw, index, "overview_text") or None
+            opportunities = _cell(raw, index, "opportunities") or None
 
             row = {
                 "name": name,
@@ -237,8 +292,8 @@ def _read_rows(path: Path) -> list[dict]:
                     admission_info or "",
                     admission_date or "",
                 ),
-                "opportunities": _cell(raw, index, "opportunities") or None,
-                "overview_text": _cell(raw, index, "overview_text") or None,
+                "opportunities": opportunities,
+                "overview_text": overview,
                 "title": title,
                 "subject_main": main,
                 "subject_second": second or None,
@@ -256,18 +311,28 @@ def _read_rows(path: Path) -> list[dict]:
             }
 
             for n in range(1, 6):
+                default_name = f"{n}-amaliy imtihon"
                 exam_date = _cell(raw, index, f"exam{n}_date") or None
-                exam_name, exam_criteria = _split_name_criteria(
-                    _cell(raw, index, f"exam{n}_name_criteria")
+                explicit_name = _cell(raw, index, f"exam{n}_name") or None
+                explicit_criteria = _cell(raw, index, f"exam{n}_criteria") or None
+                split_name, split_criteria = _split_name_criteria(
+                    _cell(raw, index, f"exam{n}_name_criteria"),
+                    default_name=default_name,
                 )
-                # Sana yoki nom/mezon bo'lsa — imtihon mavjud deb hisoblaymiz
-                has_exam = bool(exam_date or exam_name or exam_criteria)
+                exam_name = explicit_name or split_name
+                exam_criteria = explicit_criteria or split_criteria
+                per_mock = _cell(raw, index, f"exam{n}_mock_url") or None
+                per_course = _cell(raw, index, f"exam{n}_course_url") or None
+                has_exam = bool(exam_date or exam_name or exam_criteria or per_mock or per_course)
                 row[f"exam{n}_date"] = exam_date
-                row[f"exam{n}_name"] = exam_name
+                row[f"exam{n}_name"] = exam_name if has_exam else None
                 row[f"exam{n}_criteria"] = exam_criteria
-                row[f"exam{n}_mock_url"] = shared_mock_url if has_exam else None
-                row[f"exam{n}_course_url"] = practical_course if has_exam else None
+                row[f"exam{n}_mock_url"] = per_mock or (shared_mock_url if has_exam else None)
+                row[f"exam{n}_course_url"] = per_course or (practical_course if has_exam else None)
 
+            timeline_json, exams_json = _build_timeline_and_exams(row)
+            row["dates_timeline_json"] = timeline_json
+            row["practical_exams_json"] = exams_json
             rows.append(row)
         return rows
     finally:
@@ -310,13 +375,6 @@ async def import_military():
         for row in rows:
             key = (row["name"], row["region"], row["inst_type"])
             if key not in institutions:
-                # overview_text ni imkoniyatlar oldiga qo'shamiz (alohida maydon bo'lmasa)
-                opportunities = row["opportunities"]
-                if row.get("overview_text"):
-                    opportunities = (
-                        f"{row['overview_text']}\n\n{opportunities}"
-                        if opportunities else row["overview_text"]
-                    )
                 inst = TargetInstitution(
                     name=row["name"],
                     short_name=row["short_name"],
@@ -325,11 +383,12 @@ async def import_military():
                     logo_url=row["logo_url"],
                     gallery=row["gallery"],
                     video_review_url=row["video_review_url"],
+                    overview_text=row.get("overview_text"),
                     admission_requirements=row["admission_requirements"],
                     eligibility_criteria=row["eligibility_criteria"],
                     admission_info=row["admission_info"],
                     admission_date=row["admission_date"],
-                    opportunities=opportunities,
+                    opportunities=row["opportunities"],
                     is_active=True,
                 )
                 session.add(inst)
@@ -369,6 +428,8 @@ async def import_military():
                 test_exam_date=row["test_exam_date"],
                 practical_mock_id=row["practical_mock_id"],
                 practical_course_url=row["practical_course_url"],
+                dates_timeline_json=row.get("dates_timeline_json"),
+                practical_exams_json=row.get("practical_exams_json"),
                 **exam_kwargs,
             ))
 

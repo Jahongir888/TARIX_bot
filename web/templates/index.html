@@ -684,19 +684,29 @@
         </div>
     </div>
 
-    <!-- MAQSAD: HARBIY LITSEY / OTM BATAFSIL BOTTOM SHEET -->
-    <div id="military-detail-modal" class="hidden fixed inset-0 z-[85] bg-black/80 backdrop-blur-sm flex items-end sm:items-center justify-center" onclick="if(event.target===this)closeMilitaryDetail()">
-        <div class="bg-[#0B1220] border border-[#1F2937] w-full max-w-md max-h-[94vh] rounded-t-3xl sm:rounded-3xl flex flex-col overflow-hidden shadow-2xl shadow-violet-950/40">
-            <div class="px-4 pt-3 pb-2 border-b border-[#1F2937] flex items-center justify-between gap-2 shrink-0">
-                <div class="min-w-0">
-                    <div class="w-10 h-1 rounded-full bg-[#283548] mx-auto mb-2 sm:hidden"></div>
-                    <p class="text-[10px] uppercase tracking-wider text-violet-300 font-bold">Batafsil ma'lumot</p>
-                </div>
-                <button type="button" onclick="closeMilitaryDetail()" class="shrink-0 w-8 h-8 rounded-xl bg-[#161F30] border border-[#283548] text-slate-300 text-sm cursor-pointer">✕</button>
-            </div>
-            <div id="military-detail-body" class="flex-1 overflow-y-auto px-4 py-3 space-y-4"></div>
+    <!-- MAQSAD: HARBIY LITSEY / OTM TO'LIQ EKRAN BATAFSIL -->
+    <div id="military-detail-modal" class="hidden fixed inset-0 z-50 w-full h-full bg-[#0A0E17] overflow-y-auto">
+        <div class="sticky top-0 z-[60] bg-[#0A0E17]/95 backdrop-blur-md border-b border-[#1F2937] px-3 py-2.5 flex items-center gap-2">
+            <button type="button" onclick="closeMilitaryDetail()"
+                    class="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-[#161F30] border border-violet-400/30 text-violet-200 text-xs font-bold active:scale-95 transition-all cursor-pointer shrink-0">
+                ⬅️ Orqaga
+            </button>
+            <p class="text-[10px] uppercase tracking-wider text-violet-300 font-bold truncate">Batafsil ma'lumot</p>
         </div>
-        <div id="military-video-layer" class="hidden absolute inset-0 z-[90] bg-black/90 flex items-center justify-center p-3" onclick="if(event.target===this)closeMilitaryVideo()">
+        <div id="military-detail-body" class="max-w-md mx-auto w-full px-4 py-3 space-y-4 pb-28"></div>
+        <div id="military-detail-actions" class="fixed bottom-0 left-0 right-0 z-[65] bg-gradient-to-t from-[#0A0E17] via-[#0A0E17]/98 to-transparent px-4 pt-4 pb-5">
+            <div class="max-w-md mx-auto grid grid-cols-2 gap-2">
+                <button type="button" id="military-btn-exam" onclick="openMilitaryMockTest(militaryDetailCard)"
+                        class="py-3 rounded-2xl bg-gradient-to-r from-emerald-600 to-emerald-500 text-white text-xs font-extrabold shadow-lg shadow-emerald-900/30 active:scale-95 transition-all cursor-pointer">
+                    Imtihon topshirish
+                </button>
+                <button type="button" id="military-btn-catalog" onclick="openTargetCatalogCourses(militaryDetailCard && (militaryDetailCard.catalog_courses_url || militaryDetailCard.bundle_package_url || ''))"
+                        class="py-3 rounded-2xl bg-violet-500/15 border border-violet-400/40 text-violet-100 text-xs font-extrabold active:scale-95 transition-all cursor-pointer">
+                    Kurs haqida
+                </button>
+            </div>
+        </div>
+        <div id="military-video-layer" class="hidden fixed inset-0 z-[90] bg-black/90 flex items-center justify-center p-3" onclick="if(event.target===this)closeMilitaryVideo()">
             <div class="w-full max-w-md space-y-2">
                 <div class="flex justify-end">
                     <button type="button" onclick="closeMilitaryVideo()" class="w-8 h-8 rounded-xl bg-[#161F30] border border-[#283548] text-slate-200 cursor-pointer">✕</button>
@@ -706,7 +716,7 @@
                 </div>
             </div>
         </div>
-        <div id="military-image-layer" class="hidden absolute inset-0 z-[90] bg-black/90 flex items-center justify-center p-3" onclick="if(event.target===this)closeMilitaryImage()">
+        <div id="military-image-layer" class="hidden fixed inset-0 z-[90] bg-black/90 flex items-center justify-center p-3" onclick="if(event.target===this)closeMilitaryImage()">
             <div class="w-full max-w-md space-y-2">
                 <div class="flex justify-end">
                     <button type="button" onclick="closeMilitaryImage()" class="w-8 h-8 rounded-xl bg-[#161F30] border border-[#283548] text-slate-200 cursor-pointer">✕</button>
@@ -1747,10 +1757,10 @@
     </div>
 
     <!-- MODULLI JAVASCRIPT FAYLLARI -->
-    <script src="/static/js/home.js?v=test-tg-1"></script>
+    <script src="/static/js/home.js?v=20261026-fav-timers"></script>
     <script src="/static/js/profile.js"></script>
-    <script src="/static/js/catalog.js?v=ona-tili-1"></script>
-    <script src="/static/js/target.js?v=20261026-military"></script>
+    <script src="/static/js/catalog.js?v=20261026-target-filter"></script>
+    <script src="/static/js/target.js?v=20261026-military-v2"></script>
     <script src="/static/js/cabinet.js?v=header-back-1"></script>
     <script src="/static/js/octagon.js?v=1"></script>
     <script src="/static/js/subject_dashboard.js?v=1"></script>
@@ -1829,6 +1839,8 @@
         // BO'LIMLARNI ALMASHTIRISH
         function switchTab(tab, opts) {
     opts = opts || {};
+    // Katalog alias: switchTab('catalog') -> books
+    if (tab === 'catalog') tab = 'books';
     if (opts.backTo) {
         window.headerBackContext = opts.backTo;
     } else if (tab !== 'lessons' && tab !== 'profile' && tab !== 'subject-hub') {
@@ -1869,6 +1881,7 @@
     // 6. Bo'lim ma'lumotlarini yuklash
     if (tab === 'home') {
         if (typeof loadNews === 'function') loadNews();
+        if (typeof loadExamDeadlines === 'function') loadExamDeadlines();
     } else if (tab === 'target') {
         if (typeof initTargetSection === 'function') initTargetSection();
     } else if (tab === 'lessons') {
@@ -1883,6 +1896,12 @@
         if (typeof initSubjectHub === 'function') initSubjectHub(opts.subjectId || null);
     } else if (tab === 'tests') {
         if (typeof initTestsSection === 'function') initTestsSection();
+    } else if (tab === 'books') {
+        if (typeof openCatalogFromTarget === 'function' && opts.catalogUrl) {
+            openCatalogFromTarget(opts.catalogUrl);
+        } else if (typeof loadCatalogProducts === 'function') {
+            loadCatalogProducts();
+        }
     }
 
     if (tab !== 'tests' && typeof closeAllExamOverlays === 'function') {

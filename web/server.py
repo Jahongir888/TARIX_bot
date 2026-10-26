@@ -1406,7 +1406,22 @@ def _split_media_urls(raw: Optional[str]) -> list:
     return [p.strip() for p in parts if p and p.strip()]
 
 
+def _parse_json_list(raw) -> Optional[list]:
+    if not raw:
+        return None
+    if isinstance(raw, list):
+        return raw
+    try:
+        data = json.loads(raw) if isinstance(raw, str) else None
+        return data if isinstance(data, list) else None
+    except (TypeError, ValueError, json.JSONDecodeError):
+        return None
+
+
 def _build_practical_exams(direction: TargetDirection) -> list:
+    cached = _parse_json_list(getattr(direction, "practical_exams_json", None))
+    if cached is not None:
+        return cached
     exams = []
     for n in range(1, 6):
         name = getattr(direction, f"exam{n}_name", None)
@@ -1429,6 +1444,9 @@ def _build_practical_exams(direction: TargetDirection) -> list:
 
 
 def _build_dates_timeline(inst: TargetInstitution, direction: TargetDirection) -> list:
+    cached = _parse_json_list(getattr(direction, "dates_timeline_json", None))
+    if cached is not None:
+        return cached
     items = []
     if getattr(inst, "admission_date", None):
         items.append({
@@ -1502,7 +1520,7 @@ def _direction_card(direction: TargetDirection, inst: TargetInstitution) -> dict
         "gallery": gallery_images,
         "review_video_url": getattr(inst, "video_review_url", None) or None,
         "video_review_url": getattr(inst, "video_review_url", None) or None,
-        "overview_text": None,
+        "overview_text": getattr(inst, "overview_text", None) or None,
         "eligibility_criteria": getattr(inst, "eligibility_criteria", None) or None,
         "career_opportunities": getattr(inst, "opportunities", None) or None,
         "opportunities": getattr(inst, "opportunities", None) or None,

@@ -139,8 +139,11 @@ function renderTargetCard(card) {
     const formLang = [card.edu_form, card.edu_lang].filter(Boolean).join(' · ') || '—';
     const showDetail = isTargetMilitary(card) || isTargetLitsey(card)
         || Boolean(card.eligibility_criteria || card.practical_exams?.length || card.gallery_images?.length);
+    const logoHtml = card.logo_url
+        ? `<img src="${escTarget(card.logo_url)}" alt="" class="w-10 h-10 rounded-xl object-cover border border-[#283548] bg-[#0A0E17] shrink-0">`
+        : `<div class="w-10 h-10 rounded-xl border border-emerald-500/30 bg-emerald-500/10 text-emerald-300 flex items-center justify-center text-[10px] font-black shrink-0">${escTarget((card.short_name || 'H').slice(0, 3))}</div>`;
     const el = document.createElement('div');
-    el.className = 'bg-[#111827] border border-[#1F2937] hover:border-emerald-500/30 rounded-2xl p-3.5 shadow-md space-y-2.5 transition-all cursor-pointer';
+    el.className = 'bg-[#111827] border border-[#1F2937] hover:border-emerald-500/30 rounded-2xl p-3.5 shadow-md space-y-2.5 transition-all' + (showDetail ? ' cursor-pointer' : '');
     el.setAttribute('role', 'button');
     el.tabIndex = 0;
     el.dataset.directionId = String(card.id);
@@ -148,21 +151,25 @@ function renderTargetCard(card) {
         if (ev.target.closest('button')) return;
         if (showDetail) openMilitaryDetail(card.id);
     });
-    if (!showDetail) el.classList.remove('cursor-pointer');
     el.innerHTML = `
-        <div class="flex items-start justify-between gap-2 border-b border-[#1F2937] pb-2">
-            <div class="min-w-0">
+        <div class="flex items-start gap-2 border-b border-[#1F2937] pb-2">
+            ${logoHtml}
+            <div class="min-w-0 flex-1">
                 <span class="text-[9px] font-bold uppercase tracking-wider text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded-md inline-block mb-1">
                     ${escTarget(card.badge)}
                 </span>
-                <h4 class="text-xs font-extrabold text-white leading-tight">${escTarget(card.inst_name)}</h4>
+                <div class="flex items-start gap-2">
+                    <h4 class="text-xs font-extrabold text-white leading-tight min-w-0 flex-1">${escTarget(card.inst_name)}</h4>
+                    ${showDetail ? `
+                    <button type="button" data-direction-id="${card.id}" onclick="openMilitaryDetail(${card.id})"
+                            class="shrink-0 px-2 py-0.5 rounded-lg text-[10px] font-bold bg-violet-500/15 border border-violet-400/40 text-violet-200 hover:bg-violet-500/25 active:scale-95 transition-all cursor-pointer">
+                        Batafsil
+                    </button>` : ''}
+                </div>
                 <p class="text-[10px] text-slate-400 flex items-center gap-1 mt-0.5">
                     <i data-lucide="map-pin" class="w-3 h-3 text-emerald-400"></i> ${escTarget(card.region)}
                 </p>
             </div>
-            <span class="text-[10px] font-mono font-bold bg-[#161F30] text-slate-300 border border-[#283548] px-2 py-1 rounded-lg shrink-0">
-                ${escTarget(card.cipher || card.short_name || '—')}
-            </span>
         </div>
         <div class="bg-[#0A0E17]/80 border border-[#283548]/50 rounded-xl p-2.5 text-xs space-y-1.5">
             <p class="font-bold text-slate-200 text-xs leading-snug">${escTarget(card.direction_title)}</p>
@@ -174,17 +181,6 @@ function renderTargetCard(card) {
         </div>
         <div class="bg-[#161F30] border border-[#283548] rounded-xl p-2.5 space-y-1">
             ${renderSubjectsSection(card)}
-        </div>
-        <div class="grid grid-cols-1 gap-2">
-            ${showDetail ? `
-            <button type="button" data-direction-id="${card.id}" onclick="openMilitaryDetail(${card.id})"
-                    class="w-full py-2.5 bg-violet-500/10 hover:bg-violet-500/20 border border-violet-400/40 text-violet-200 text-xs font-bold rounded-xl active:scale-95 transition-all cursor-pointer">
-                Batafsil ma'lumot
-            </button>` : ''}
-            <button type="button" data-direction-id="${card.id}" onclick="startTargetDirectionExam(this)"
-                    class="w-full py-2.5 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 text-xs font-bold rounded-xl active:scale-95 transition-all cursor-pointer">
-                Shu yo'nalish bo'yicha test topshirish
-            </button>
         </div>
     `;
     return el;
@@ -509,15 +505,174 @@ function formatMilitaryDate(raw) {
     return `${dd}.${mm}.${yyyy} ${hh}:${min}`;
 }
 
+function splitCountdown(ms) {
+    const safe = Math.max(0, ms);
+    const totalSec = Math.floor(safe / 1000);
+    return {
+        days: Math.floor(totalSec / 86400),
+        hours: Math.floor((totalSec % 86400) / 3600),
+        mins: Math.floor((totalSec % 3600) / 60),
+        secs: totalSec % 60,
+        expired: ms <= 0
+    };
+}
+
 function formatCountdown(ms) {
-    if (ms <= 0) return 'Muddat o\'tdi';
-    const totalSec = Math.floor(ms / 1000);
-    const days = Math.floor(totalSec / 86400);
-    const hours = Math.floor((totalSec % 86400) / 3600);
-    const mins = Math.floor((totalSec % 3600) / 60);
-    if (days > 0) return `${days} kun ${hours} soat`;
-    if (hours > 0) return `${hours} soat ${mins} daqiqa`;
-    return `${mins} daqiqa`;
+    const { days, hours, mins, secs, expired } = splitCountdown(ms);
+    if (expired) return "Muddat o'tdi";
+    return `${days} kun ${String(hours).padStart(2, '0')} soat ${String(mins).padStart(2, '0')} daq ${String(secs).padStart(2, '0')} son`;
+}
+
+function renderCountdownBlocks(ms, prefix) {
+    const { days, hours, mins, secs, expired } = splitCountdown(ms);
+    const vals = expired
+        ? ['00', '00', '00', '00']
+        : [String(days).padStart(2, '0'), String(hours).padStart(2, '0'), String(mins).padStart(2, '0'), String(secs).padStart(2, '0')];
+    const labels = ['Kun', 'Soat', 'Daqiqa', 'Soniya'];
+    const colors = ['text-emerald-400', 'text-white', 'text-white', 'text-amber-400'];
+    return `
+        <div class="grid grid-cols-4 gap-1.5 text-center select-none" data-countdown-for="${escTarget(prefix)}">
+            ${vals.map((v, i) => `
+                <div class="bg-[#0A0E17]/80 border border-[#283548]/60 rounded-xl px-1 py-1.5">
+                    <span data-cd-part="${i}" class="block font-mono text-sm font-bold ${colors[i]}">${v}</span>
+                    <span class="text-[8px] uppercase tracking-wider text-slate-500">${labels[i]}</span>
+                </div>
+            `).join('')}
+        </div>`;
+}
+
+const TIMER_FAV_KEY = 'tarix_timer_favorites';
+
+function getTimerFavorites() {
+    try {
+        const raw = JSON.parse(localStorage.getItem(TIMER_FAV_KEY) || '[]');
+        return Array.isArray(raw) ? raw : [];
+    } catch (_) {
+        return [];
+    }
+}
+
+function saveTimerFavorites(list) {
+    localStorage.setItem(TIMER_FAV_KEY, JSON.stringify(list));
+    window.dispatchEvent(new CustomEvent('timer-favorites-changed'));
+    if (typeof loadExamDeadlines === 'function') {
+        try { loadExamDeadlines(); } catch (_) { /* home hali yuklanmagan */ }
+    }
+}
+
+function timerFavoriteId(directionId, key) {
+    return `${directionId}:${key}`;
+}
+
+function isTimerFavorite(directionId, key) {
+    const id = timerFavoriteId(directionId, key);
+    return getTimerFavorites().some((item) => item.id === id);
+}
+
+function toggleTimerFavorite(directionId, key, label, dateRaw, badge) {
+    const card = militaryDetailCard || militaryCardsById.get(String(directionId));
+    const id = timerFavoriteId(directionId, key);
+    let list = getTimerFavorites();
+    const existing = list.findIndex((item) => item.id === id);
+    if (existing >= 0) {
+        list.splice(existing, 1);
+    } else {
+        const dt = parseMilitaryDate(dateRaw);
+        list.unshift({
+            id,
+            direction_id: Number(directionId),
+            key,
+            label: label || 'Muddat',
+            date: dateRaw || '',
+            target_iso: dt ? dt.toISOString() : '',
+            badge: badge || card?.badge || 'MAQSAD',
+            title: `${card?.inst_name || ''} — ${label || 'Muddat'}`.trim(),
+            inst_name: card?.inst_name || '',
+            favorited_at: Date.now()
+        });
+    }
+    saveTimerFavorites(list);
+    // Yulduzcha UI yangilash
+    document.querySelectorAll(`[data-fav-btn="${escTarget(id)}"]`).forEach((btn) => {
+        const on = existing < 0;
+        btn.className = on
+            ? 'shrink-0 w-8 h-8 rounded-xl flex items-center justify-center text-amber-400 fill-amber-400 bg-amber-500/10 border border-amber-400/40 cursor-pointer active:scale-95 transition-all'
+            : 'shrink-0 w-8 h-8 rounded-xl flex items-center justify-center text-slate-500 bg-[#161F30] border border-[#283548] cursor-pointer active:scale-95 transition-all';
+        btn.innerHTML = on ? '⭐' : '☆';
+        btn.setAttribute('aria-pressed', on ? 'true' : 'false');
+    });
+}
+
+function starButtonHtml(directionId, key, label, dateRaw, badge) {
+    const id = timerFavoriteId(directionId, key);
+    const on = isTimerFavorite(directionId, key);
+    const cls = on
+        ? 'shrink-0 w-8 h-8 rounded-xl flex items-center justify-center text-amber-400 fill-amber-400 bg-amber-500/10 border border-amber-400/40 cursor-pointer active:scale-95 transition-all'
+        : 'shrink-0 w-8 h-8 rounded-xl flex items-center justify-center text-slate-500 bg-[#161F30] border border-[#283548] cursor-pointer active:scale-95 transition-all';
+    return `<button type="button" data-fav-btn="${escTarget(id)}"
+        data-direction-id="${escTarget(directionId)}" data-fav-key="${escTarget(key)}"
+        data-fav-label="${escTarget(label)}" data-fav-date="${escTarget(dateRaw)}" data-fav-badge="${escTarget(badge || '')}"
+        onclick="onTimerFavoriteClick(this)"
+        class="${cls}" aria-pressed="${on ? 'true' : 'false'}" title="Sevimlilarga qo'shish">${on ? '⭐' : '☆'}</button>`;
+}
+
+function onTimerFavoriteClick(btn) {
+    if (!btn) return;
+    toggleTimerFavorite(
+        btn.dataset.directionId,
+        btn.dataset.favKey,
+        btn.dataset.favLabel,
+        btn.dataset.favDate,
+        btn.dataset.favBadge
+    );
+}
+
+function openTargetCatalogCourses(catalogUrl) {
+    closeMilitaryDetail();
+    if (typeof switchTab === 'function') {
+        switchTab('catalog', { catalogUrl: catalogUrl || '' });
+    } else if (catalogUrl) {
+        window.open(catalogUrl, '_blank');
+    }
+}
+
+function openMilitaryMockTest(card) {
+    const url = card?.mock_test_url;
+    if (url) {
+        window.open(url, '_blank', 'noopener');
+        return;
+    }
+    if (card?.id) {
+        openTargetMock({ direction_id: card.id }).catch(() => {
+            alert("Imtihonni ochib bo'lmadi. Qayta urinib ko'ring.");
+        });
+    }
+}
+
+function isMediaUrl(text) {
+    return /^https?:\/\//i.test(String(text || '').trim());
+}
+
+function isDirectImageUrl(text) {
+    return /\.(png|jpe?g|gif|webp|bmp|svg)(\?|$)/i.test(String(text || '').trim());
+}
+
+function criteriaHtml(criteria) {
+    if (!criteria) return '';
+    const raw = String(criteria).trim();
+    if (isDirectImageUrl(raw)) {
+        return `<button type="button" onclick="openMilitaryImage('${escTarget(raw)}')" class="block w-full text-left cursor-pointer">
+            <img src="${escTarget(raw)}" alt="Mezon" class="w-full max-h-40 object-cover rounded-xl border border-[#283548]">
+            <span class="text-[10px] text-violet-300 mt-1 inline-block">Mezon rasmini kattalashtirish</span>
+        </button>`;
+    }
+    if (isMediaUrl(raw)) {
+        return `<a href="${escTarget(raw)}" target="_blank" rel="noopener"
+                   class="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-[10px] font-bold bg-violet-500/10 border border-violet-400/30 text-violet-200">
+            📎 Mezon / materialni ochish
+        </a>`;
+    }
+    return `<p class="text-[11px] text-slate-400 leading-relaxed">${nl2brEscaped(criteria)}</p>`;
 }
 
 function getMilitaryTimeline(card) {
@@ -606,17 +761,37 @@ function closeMilitaryImage() {
 }
 
 function tickMilitaryCountdown() {
-    const label = document.getElementById('military-countdown-label');
-    const value = document.getElementById('military-countdown-value');
-    if (!label || !value || !militaryDetailCard) return;
+    if (!militaryDetailCard) return;
+    const now = Date.now();
+    document.querySelectorAll('#military-detail-body [data-countdown-for]').forEach((box) => {
+        const key = box.getAttribute('data-countdown-for');
+        const item = getMilitaryTimeline(militaryDetailCard).find((t) => t.key === key);
+        const at = item ? parseMilitaryDate(item.date) : null;
+        const parts = splitCountdown(at ? at.getTime() - now : 0);
+        const vals = parts.expired
+            ? ['00', '00', '00', '00']
+            : [
+                String(parts.days).padStart(2, '0'),
+                String(parts.hours).padStart(2, '0'),
+                String(parts.mins).padStart(2, '0'),
+                String(parts.secs).padStart(2, '0')
+            ];
+        box.querySelectorAll('[data-cd-part]').forEach((el) => {
+            const idx = Number(el.getAttribute('data-cd-part'));
+            if (!Number.isNaN(idx) && vals[idx] != null) el.textContent = vals[idx];
+        });
+    });
+    const nearestLabel = document.getElementById('military-countdown-label');
+    const nearestHint = document.getElementById('military-countdown-hint');
     const nearest = nearestMilitaryDeadline(militaryDetailCard);
-    if (!nearest) {
-        label.textContent = 'Yaqin muddat';
-        value.textContent = 'Belgilanmagan';
-        return;
+    if (nearestLabel) {
+        nearestLabel.textContent = nearest ? `${nearest.label}gacha` : 'Yaqin muddat';
     }
-    label.textContent = `${nearest.label}gacha:`;
-    value.textContent = formatCountdown(nearest.at.getTime() - Date.now());
+    if (nearestHint) {
+        nearestHint.textContent = nearest
+            ? formatMilitaryDate(nearest.date)
+            : 'Belgilanmagan';
+    }
 }
 
 function renderMilitaryDetailBody(card) {
@@ -627,9 +802,10 @@ function renderMilitaryDetailBody(card) {
     const videoUrl = card.review_video_url || card.video_review_url;
     const timeline = getMilitaryTimeline(card);
     const exams = card.practical_exams || [];
-    const packageUrl = card.bundle_package_url || card.catalog_courses_url;
+    const catalogUrl = card.catalog_courses_url || card.bundle_package_url || '';
     const subjectsImg = card.subjects_table_image;
     const mockUrl = card.mock_test_url;
+    const nearest = nearestMilitaryDeadline(card);
 
     const logoHtml = card.logo_url
         ? `<img src="${escTarget(card.logo_url)}" alt="" class="w-14 h-14 rounded-2xl object-cover border border-[#283548] bg-[#0A0E17]">`
@@ -660,25 +836,48 @@ function renderMilitaryDetailBody(card) {
             </div>`;
     };
 
+    const timerRow = (item) => {
+        const at = parseMilitaryDate(item.date);
+        const ms = at ? at.getTime() - Date.now() : 0;
+        return `
+            <div class="bg-[#0A0E17]/80 border border-[#283548]/70 rounded-2xl p-3 space-y-2">
+                <div class="flex items-start justify-between gap-2">
+                    <div class="min-w-0">
+                        <p class="text-xs font-bold text-white">${escTarget(item.label)}</p>
+                        <p class="text-[10px] text-amber-300 mt-0.5 font-mono">${escTarget(formatMilitaryDate(item.date))}</p>
+                    </div>
+                    ${starButtonHtml(card.id, item.key, item.label, item.date, card.badge)}
+                </div>
+                ${renderCountdownBlocks(ms, item.key)}
+            </div>`;
+    };
+
     const examsHtml = exams.length
-        ? exams.map((exam) => `
+        ? exams.map((exam) => {
+            const key = `exam${exam.index || ''}`;
+            const at = parseMilitaryDate(exam.date);
+            const ms = at ? at.getTime() - Date.now() : 0;
+            return `
             <div class="bg-[#0A0E17] border border-[#283548]/70 rounded-2xl p-3 space-y-2">
                 <div class="flex items-start justify-between gap-2">
-                    <div>
+                    <div class="min-w-0">
                         <p class="text-xs font-bold text-white">${escTarget(exam.name || 'Amaliy sinov')}</p>
                         <p class="text-[10px] text-amber-300 mt-0.5">${escTarget(formatMilitaryDate(exam.date))}</p>
                     </div>
+                    ${exam.date ? starButtonHtml(card.id, key, exam.name || 'Amaliy sinov', exam.date, card.badge) : ''}
                 </div>
-                ${exam.criteria ? `<p class="text-[11px] text-slate-400 leading-relaxed">${nl2brEscaped(exam.criteria)}</p>` : ''}
+                ${exam.date ? renderCountdownBlocks(ms, key) : ''}
+                ${criteriaHtml(exam.criteria)}
                 <div class="flex flex-wrap gap-2">
-                    ${(exam.practical_mock_id || exam.practical_mock_url) ? `
+                    ${(exam.practical_mock_id || exam.practical_mock_url || mockUrl) ? `
                         <a href="${escTarget(exam.practical_mock_url || mockUrl || '#')}" target="_blank" rel="noopener"
                            class="px-2.5 py-1.5 rounded-xl text-[10px] font-bold bg-amber-500/10 border border-amber-400/30 text-amber-200">Sinov testi 🎯</a>` : ''}
                     ${exam.practical_course_url ? `
                         <a href="${escTarget(exam.practical_course_url)}" target="_blank" rel="noopener"
                            class="px-2.5 py-1.5 rounded-xl text-[10px] font-bold bg-violet-500/10 border border-violet-400/30 text-violet-200">Tayyorgarlik kursi 📚</a>` : ''}
                 </div>
-            </div>`).join('')
+            </div>`;
+        }).join('')
         : `<p class="text-[11px] text-slate-500">Amaliy imtihonlar ma'lumoti yo'q.</p>`;
 
     body.innerHTML = `
@@ -688,6 +887,7 @@ function renderMilitaryDetailBody(card) {
                 <div class="min-w-0 flex-1">
                     <p class="text-[10px] uppercase tracking-wider text-emerald-400 font-bold">${escTarget(card.badge || '')}</p>
                     <h3 class="text-sm font-extrabold text-white leading-snug mt-0.5">${escTarget(card.inst_name)}</h3>
+                    <p class="text-[11px] text-slate-400 mt-0.5">${escTarget(card.direction_title || '')}</p>
                     <span class="inline-flex mt-1.5 px-2 py-0.5 rounded-lg border border-[#283548] bg-[#161F30] text-[10px] font-bold text-slate-300">
                         ${escTarget(card.short_name || '—')}
                     </span>
@@ -699,21 +899,31 @@ function renderMilitaryDetailBody(card) {
                         class="w-full py-2.5 rounded-2xl bg-rose-500/10 border border-rose-400/30 text-rose-200 text-xs font-bold cursor-pointer">
                     ▶️ Bizning video sharh
                 </button>` : ''}
+            ${card.overview_text ? `
+                <div class="bg-[#111827] border border-[#1F2937] rounded-2xl p-3 text-[11px] text-slate-300 leading-relaxed">
+                    ${nl2brEscaped(card.overview_text)}
+                </div>` : ''}
         </section>
 
-        <section class="bg-gradient-to-br from-emerald-500/10 to-violet-500/10 border border-emerald-500/20 rounded-2xl p-3 space-y-2">
-            <p id="military-countdown-label" class="text-[10px] uppercase tracking-wider text-emerald-300 font-bold">Yaqin muddat</p>
-            <p id="military-countdown-value" class="text-lg font-black text-white">—</p>
+        <section class="bg-gradient-to-br from-emerald-500/10 to-violet-500/10 border border-emerald-500/20 rounded-2xl p-3 space-y-3">
+            <div class="flex items-start justify-between gap-2">
+                <div class="min-w-0">
+                    <p id="military-countdown-label" class="text-[10px] uppercase tracking-wider text-emerald-300 font-bold">
+                        ${nearest ? escTarget(nearest.label) + 'gacha' : 'Yaqin muddat'}
+                    </p>
+                    <p id="military-countdown-hint" class="text-[10px] text-slate-400 mt-0.5 font-mono">
+                        ${nearest ? escTarget(formatMilitaryDate(nearest.date)) : 'Belgilanmagan'}
+                    </p>
+                </div>
+                ${nearest ? starButtonHtml(card.id, nearest.key, nearest.label, nearest.date, card.badge) : ''}
+            </div>
+            ${nearest ? renderCountdownBlocks(nearest.at.getTime() - Date.now(), nearest.key) : ''}
             <button type="button" onclick="toggleMilitaryTimelineList()"
                     class="text-[11px] font-semibold text-violet-200 underline underline-offset-2 cursor-pointer">
-                Barcha muddatlar
+                Barcha muddatlar va taymerlar
             </button>
-            <div id="military-timeline-list" class="hidden space-y-1.5 pt-1">
-                ${timeline.length ? timeline.map((item) => `
-                    <div class="flex items-center justify-between gap-2 bg-[#0A0E17]/70 border border-[#283548]/60 rounded-xl px-2.5 py-2">
-                        <span class="text-[11px] text-slate-200">${escTarget(item.label)}</span>
-                        <span class="text-[10px] font-mono text-amber-300">${escTarget(formatMilitaryDate(item.date))}</span>
-                    </div>`).join('') : '<p class="text-[11px] text-slate-500">Muddatlar kiritilmagan.</p>'}
+            <div id="military-timeline-list" class="hidden space-y-2 pt-1">
+                ${timeline.length ? timeline.map(timerRow).join('') : '<p class="text-[11px] text-slate-500">Muddatlar kiritilmagan.</p>'}
             </div>
         </section>
 
@@ -740,25 +950,14 @@ function renderMilitaryDetailBody(card) {
                     <div class="px-3 py-2 text-xs font-bold text-slate-100">📊 Fanlar va kvota jadvali</div>
                     <img src="${escTarget(subjectsImg)}" alt="Fanlar jadvali" class="w-full max-h-48 object-cover border-t border-[#1F2937]">
                 </button>` : ''}
-            ${mockUrl ? `
-                <a href="${escTarget(mockUrl)}" target="_blank" rel="noopener"
-                   class="block w-full text-center py-2.5 rounded-2xl bg-amber-500/10 border border-amber-400/40 text-amber-200 text-xs font-bold">
-                    Namunaviy testni ishlash
-                </a>` : `
-                <button type="button" data-direction-id="${card.id}" onclick="startTargetDirectionExam(this); closeMilitaryDetail();"
-                        class="w-full py-2.5 rounded-2xl bg-amber-500/10 border border-amber-400/40 text-amber-200 text-xs font-bold cursor-pointer">
-                    Namunaviy testni ishlash
-                </button>`}
         </section>
 
-        ${packageUrl ? `
-        <section class="pb-2">
-            <a href="${escTarget(packageUrl)}" target="_blank" rel="noopener"
-               class="block w-full text-center py-3.5 rounded-2xl bg-gradient-to-r from-emerald-600 to-emerald-500 text-white text-sm font-extrabold shadow-lg shadow-emerald-900/30">
-                Birlashtirilgan to'liq tayyorgarlik to'plami (Paket)ni olish
-            </a>
-        </section>` : ''}
     `;
+
+    const catalogBtn = document.getElementById('military-btn-catalog');
+    if (catalogBtn) {
+        catalogBtn.onclick = () => openTargetCatalogCourses(catalogUrl);
+    }
 }
 
 function openMilitaryDetail(directionId) {
@@ -772,6 +971,8 @@ function openMilitaryDetail(directionId) {
     if (militaryCountdownTimer) clearInterval(militaryCountdownTimer);
     militaryCountdownTimer = setInterval(tickMilitaryCountdown, 1000);
     modal.classList.remove('hidden');
+    modal.scrollTop = 0;
+    document.body.style.overflow = 'hidden';
     if (window.lucide) lucide.createIcons();
 }
 
@@ -785,6 +986,7 @@ function closeMilitaryDetail() {
     closeMilitaryVideo();
     closeMilitaryImage();
     militaryDetailCard = null;
+    document.body.style.overflow = '';
 }
 
 window.initTargetSection = initTargetSection;
@@ -807,3 +1009,8 @@ window.openMilitaryVideo = openMilitaryVideo;
 window.closeMilitaryVideo = closeMilitaryVideo;
 window.openMilitaryImage = openMilitaryImage;
 window.closeMilitaryImage = closeMilitaryImage;
+window.toggleTimerFavorite = toggleTimerFavorite;
+window.onTimerFavoriteClick = onTimerFavoriteClick;
+window.getTimerFavorites = getTimerFavorites;
+window.openTargetCatalogCourses = openTargetCatalogCourses;
+window.openMilitaryMockTest = openMilitaryMockTest;
