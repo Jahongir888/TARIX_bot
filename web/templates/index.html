@@ -431,6 +431,7 @@
                 <!-- Ichki navigatsiya -->
                 <div class="flex gap-1.5 overflow-x-auto pb-1 scrollbar-none snap-x">
                     <button type="button" data-sh-panel="wiki" onclick="shSwitchPanel('wiki')" class="sh-nav-chip snap-start px-3 py-1.5 rounded-xl text-[10px] font-bold whitespace-nowrap bg-emerald-500 text-slate-950 shadow-md cursor-pointer">Wiki</button>
+                    <button type="button" data-sh-panel="master" onclick="shSwitchPanel('master')" class="sh-nav-chip snap-start px-3 py-1.5 rounded-xl text-[10px] font-semibold whitespace-nowrap bg-[#161F30] border border-[#283548] text-slate-300 cursor-pointer">Savol-javob</button>
                     <button type="button" data-sh-panel="battle" onclick="shSwitchPanel('battle')" class="sh-nav-chip snap-start px-3 py-1.5 rounded-xl text-[10px] font-semibold whitespace-nowrap bg-[#161F30] border border-[#283548] text-slate-300 cursor-pointer">Battle</button>
                     <button type="button" data-sh-panel="schedule" onclick="shSwitchPanel('schedule')" class="sh-nav-chip snap-start px-3 py-1.5 rounded-xl text-[10px] font-semibold whitespace-nowrap bg-[#161F30] border border-[#283548] text-slate-300 cursor-pointer">Jadval</button>
                     <button type="button" data-sh-panel="mistakes" onclick="shSwitchPanel('mistakes')" class="sh-nav-chip snap-start px-3 py-1.5 rounded-xl text-[10px] font-semibold whitespace-nowrap bg-[#161F30] border border-[#283548] text-slate-300 cursor-pointer">Xatolar</button>
@@ -459,6 +460,33 @@
                             </select>
                         </div>
                         <div id="sh-wiki-results" class="space-y-2 max-h-80 overflow-y-auto"></div>
+                    </div>
+                </div>
+
+                <!-- PANEL: Master baza savol-javob -->
+                <div id="sh-panel-master" class="sh-panel hidden space-y-2.5">
+                    <div class="bg-[#111827] border border-[#1F2937] rounded-2xl p-3 space-y-2.5">
+                        <div class="flex items-center justify-between gap-2">
+                            <h3 class="text-[11px] font-bold text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
+                                <i data-lucide="message-circle-question" class="w-3.5 h-3.5 text-emerald-400"></i>
+                                Fakt va savol-javob
+                            </h3>
+                            <span id="sh-master-count" class="text-[9px] text-slate-500 font-mono"></span>
+                        </div>
+                        <div class="flex gap-2">
+                            <select id="sh-master-grade" onchange="shOnMasterGradeChange()"
+                                    class="flex-1 bg-[#161F30] border border-[#283548] rounded-xl px-2.5 py-2 text-xs text-white outline-none">
+                                <option value="">Sinf tanlang</option>
+                            </select>
+                            <select id="sh-master-topic" onchange="shOnMasterTopicChange()"
+                                    class="flex-1 bg-[#161F30] border border-[#283548] rounded-xl px-2.5 py-2 text-xs text-white outline-none" disabled>
+                                <option value="">Mavzu</option>
+                            </select>
+                        </div>
+                        <div id="sh-master-topics" class="flex gap-1.5 overflow-x-auto pb-0.5 scrollbar-none"></div>
+                        <div id="sh-master-results" class="space-y-2 max-h-[28rem] overflow-y-auto">
+                            <p class="text-[11px] text-slate-500 text-center py-6">Sinf va mavzuni tanlang</p>
+                        </div>
                     </div>
                 </div>
 

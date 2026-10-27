@@ -10,6 +10,9 @@ let shState = {
     wikiTimer: null,
     scheduleVideoUrl: null,
     overview: null,
+    masterGrade: null,
+    masterTopic: null,
+    masterGradesLoaded: false,
 };
 
 function _shTgId() {
@@ -212,6 +215,7 @@ function shSwitchPanel(panel) {
 
     const loaders = {
         wiki: shLoadWiki,
+        master: shLoadMasterPanel,
         battle: shLoadBattle,
         schedule: shLoadSchedule,
         mistakes: shLoadMistakes,
@@ -221,8 +225,199 @@ function shSwitchPanel(panel) {
         quizzes: () => shLoadQuizzes('all'),
         diagnostics: shLoadDiagnostics,
     };
-    if (loaders[panel] && shState.subjectId) loaders[panel]();
+    // Master baza fan ID ga bog'liq emas — har doim yuklanadi
+    if (loaders[panel] && (panel === 'master' || shState.subjectId)) loaders[panel]();
     if (window.lucide) lucide.createIcons();
+}
+
+// ==========================================================
+// MASTER BAZA — SAVOL-JAVOB
+// ==========================================================
+async function shLoadMasterPanel() {
+    const box = document.getElementById('sh-master-results');
+    const gradeSel = document.getElementById('sh-master-grade');
+    if (!box || !gradeSel) return;
+
+    if (!shState.masterGradesLoaded) {
+        gradeSel.innerHTML = '<option value="">Yuklanmoqda...</option>';
+        try {
+            const res = await fetch('/api/master/grades');
+            const data = await res.json();
+            const grades = data.grades || [];
+            if (!grades.length) {
+                gradeSel.innerHTML = '<option value="">Sinf yo\'q</option>';
+                box.innerHTML = '<p class="text-[11px] text-slate-500 text-center py-6">Master baza bo\'sh. Avval <code>import_master_baza.py</code> ni ishga tushiring.</p>';
+                return;
+            }
+            gradeSel.innerHTML = grades.map((g) =>
+                `<option value="${g.grade}">${_shEscape(g.title)} · ${g.questions_count} savol</option>`
+            ).join('');
+            shState.masterGradesLoaded = true;
+            if (!shState.masterGrade) shState.masterGrade = grades[0].grade;
+            gradeSel.value = String(shState.masterGrade);
+        } catch (e) {
+            gradeSel.innerHTML = '<option value="">Xatolik</option>';
+            box.innerHTML = '<p class="text-[11px] text-rose-400 text-center py-4">Sinflarni yuklab bo\'lmadi</p>';
+            return;
+        }
+    }
+
+    await shLoadMasterTopics(shState.masterGrade || Number(gradeSel.value));
+}
+
+async function shOnMasterGradeChange() {
+    const gradeSel = document.getElementById('sh-master-grade');
+    const grade = Number(gradeSel?.value || 0);
+    shState.masterGrade = grade || null;
+    shState.masterTopic = null;
+    await shLoadMasterTopics(grade);
+}
+
+async function shLoadMasterTopics(grade) {
+    const topicSel = document.getElementById('sh-master-topic');
+    const chips = document.getElementById('sh-master-topics');
+    const box = document.getElementById('sh-master-results');
+    const countEl = document.getElementById('sh-master-count');
+    if (!topicSel || !box) return;
+
+    if (!grade) {
+        topicSel.disabled = true;
+        topicSel.innerHTML = '<option value="">Mavzu</option>';
+        if (chips) chips.innerHTML = '';
+        box.innerHTML = '<p class="text-[11px] text-slate-500 text-center py-6">Sinf tanlang</p>';
+        return;
+    }
+
+    topicSel.disabled = true;
+    topicSel.innerHTML = '<option value="">Yuklanmoqda...</option>';
+    if (chips) chips.innerHTML = '';
+    box.innerHTML = '<p class="text-[11px] text-slate-500 text-center py-4">Mavzular yuklanmoqda...</p>';
+
+    try {
+        const res = await fetch(`/api/master/topics/${grade}`);
+        const data = await res.json();
+        const topics = data.topics || [];
+        if (countEl) countEl.textContent = topics.length ? `${topics.length} mavzu` : '';
+
+        if (!topics.length) {
+            topicSel.innerHTML = '<option value="">Mavzu yo\'q</option>';
+            box.innerHTML = `<p class="text-[11px] text-slate-500 text-center py-6">${grade}-sinf uchun mavzu topilmadi</p>`;
+            return;
+        }
+
+        topicSel.disabled = false;
+        topicSel.innerHTML = topics.map((t) =>
+            `<option value="${t.topic_num}">${_shEscape(t.title)} · ${t.questions_count} savol</option>`
+        ).join('');
+
+        if (chips) {
+            chips.innerHTML = topics.map((t) => `
+                <button type="button" data-master-topic="${t.topic_num}"
+                        onclick="shSelectMasterTopic(${t.topic_num})"
+                        class="sh-master-topic-chip shrink-0 px-2.5 py-1 rounded-lg text-[10px] font-semibold border border-[#283548] bg-[#161F30] text-slate-300 cursor-pointer">
+                    ${_shEscape(t.title)} · ${t.facts_count}
+                </button>
+            `).join('');
+        }
+
+        const preferred = shState.masterTopic && topics.some((t) => t.topic_num === shState.masterTopic)
+            ? shState.masterTopic
+            : topics[0].topic_num;
+        topicSel.value = String(preferred);
+        await shSelectMasterTopic(preferred);
+    } catch (e) {
+        topicSel.innerHTML = '<option value="">Xatolik</option>';
+        box.innerHTML = '<p class="text-[11px] text-rose-400 text-center py-4">Mavzular yuklanmadi</p>';
+    }
+}
+
+async function shOnMasterTopicChange() {
+    const topicSel = document.getElementById('sh-master-topic');
+    const topicNum = Number(topicSel?.value || 0);
+    await shSelectMasterTopic(topicNum);
+}
+
+async function shSelectMasterTopic(topicNum) {
+    const grade = shState.masterGrade || Number(document.getElementById('sh-master-grade')?.value || 0);
+    const box = document.getElementById('sh-master-results');
+    const topicSel = document.getElementById('sh-master-topic');
+    const countEl = document.getElementById('sh-master-count');
+    if (!box || !grade || !topicNum) return;
+
+    shState.masterTopic = topicNum;
+    if (topicSel) topicSel.value = String(topicNum);
+
+    document.querySelectorAll('.sh-master-topic-chip').forEach((btn) => {
+        const active = Number(btn.getAttribute('data-master-topic')) === topicNum;
+        btn.className = active
+            ? 'sh-master-topic-chip shrink-0 px-2.5 py-1 rounded-lg text-[10px] font-bold border border-emerald-500/40 bg-emerald-500 text-slate-950 cursor-pointer'
+            : 'sh-master-topic-chip shrink-0 px-2.5 py-1 rounded-lg text-[10px] font-semibold border border-[#283548] bg-[#161F30] text-slate-300 cursor-pointer';
+    });
+
+    box.innerHTML = '<p class="text-[11px] text-slate-500 text-center py-4">Savollar yuklanmoqda...</p>';
+    try {
+        const res = await fetch(`/api/master/facts/${grade}/${topicNum}`);
+        if (!res.ok) {
+            const err = await res.json().catch(() => ({}));
+            box.innerHTML = `<p class="text-[11px] text-rose-400 text-center py-4">${_shEscape(err.detail || 'Topilmadi')}</p>`;
+            return;
+        }
+        const data = await res.json();
+        const facts = data.facts || [];
+        if (countEl) countEl.textContent = `${facts.length} savol`;
+
+        if (!facts.length) {
+            box.innerHTML = '<p class="text-[11px] text-slate-500 text-center py-6">Bu mavzuda savol yo\'q</p>';
+            return;
+        }
+
+        box.innerHTML = facts.map((f, idx) => {
+            const variants = [f.variant_b, f.variant_c, f.variant_d]
+                .filter(Boolean)
+                .map((v, i) => `<li class="text-[10px] text-slate-400">${['B', 'C', 'D'][i]}) ${_shEscape(v)}</li>`)
+                .join('');
+            return `
+            <div class="bg-[#161F30] border border-[#283548] rounded-xl p-3 space-y-2">
+                <div class="flex items-center justify-between gap-2">
+                    <span class="text-[9px] font-mono text-emerald-400/90">${_shEscape(f.fakt_id || '')}${f.test_id ? ' · ' + _shEscape(f.test_id) : ''}</span>
+                    <span class="text-[8px] uppercase font-bold px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">#${idx + 1}</span>
+                </div>
+                ${f.asl_gap ? `<p class="text-[11px] text-slate-300 leading-relaxed">${_shEscape(f.asl_gap)}</p>` : ''}
+                ${f.fakt_kontekst ? `<p class="text-[10px] text-slate-500 italic leading-relaxed">${_shEscape(f.fakt_kontekst)}</p>` : ''}
+                <div class="rounded-lg bg-[#0A0E17]/60 border border-[#283548]/80 px-2.5 py-2">
+                    <p class="text-[9px] text-slate-500 mb-0.5 uppercase tracking-wide">Savol</p>
+                    <p class="text-xs font-semibold text-white leading-snug">${_shEscape(f.savol_matni)}</p>
+                </div>
+                <button type="button" onclick="shToggleMasterAnswer(this)"
+                        class="w-full py-1.5 rounded-lg text-[10px] font-bold bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 active:scale-[0.98] cursor-pointer">
+                    Javobni ko'rsatish
+                </button>
+                <div class="hidden master-answer space-y-1.5">
+                    <div class="rounded-lg bg-emerald-500/10 border border-emerald-500/25 px-2.5 py-2">
+                        <p class="text-[9px] text-emerald-400/80 mb-0.5 uppercase tracking-wide">Etalon javob</p>
+                        <p class="text-[11px] font-semibold text-emerald-300 leading-snug">${_shEscape(f.etalon_javob)}</p>
+                    </div>
+                    ${variants ? `<ul class="space-y-0.5 pl-0.5">${variants}</ul>` : ''}
+                    <p class="text-[9px] text-slate-500">
+                        ${[f.klass, f.yonalish, f.tematik_teg, f.mavzu_reja].filter(Boolean).map(_shEscape).join(' · ')}
+                    </p>
+                </div>
+            </div>`;
+        }).join('');
+        _shHaptic('light');
+    } catch (e) {
+        box.innerHTML = '<p class="text-[11px] text-rose-400 text-center py-4">Savollar yuklanmadi</p>';
+    }
+    if (window.lucide) lucide.createIcons();
+}
+
+function shToggleMasterAnswer(btn) {
+    const wrap = btn?.parentElement?.querySelector('.master-answer');
+    if (!wrap) return;
+    const open = wrap.classList.contains('hidden');
+    wrap.classList.toggle('hidden', !open);
+    btn.textContent = open ? 'Javobni yashirish' : 'Javobni ko\'rsatish';
+    if (open) _shHaptic('success');
 }
 
 // ==========================================================
@@ -828,6 +1023,11 @@ window.shSwitchPanel = shSwitchPanel;
 window.shBackToSubjects = shBackToSubjects;
 window.shOnWikiSearch = shOnWikiSearch;
 window.shLoadWiki = shLoadWiki;
+window.shLoadMasterPanel = shLoadMasterPanel;
+window.shOnMasterGradeChange = shOnMasterGradeChange;
+window.shOnMasterTopicChange = shOnMasterTopicChange;
+window.shSelectMasterTopic = shSelectMasterTopic;
+window.shToggleMasterAnswer = shToggleMasterAnswer;
 window.shSendCommunityChallenge = shSendCommunityChallenge;
 window.shResolveMistake = shResolveMistake;
 window.shFilterCommunity = shFilterCommunity;

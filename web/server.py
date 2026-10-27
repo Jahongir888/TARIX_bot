@@ -5818,6 +5818,36 @@ def _master_fact_to_dict(row: MasterFactQuestion) -> dict:
     }
 
 
+@app.get("/api/master/grades")
+async def get_master_grades():
+    """Master bazada mavjud sinflar ro'yxati."""
+    async with async_session() as session:
+        rows = (
+            await session.execute(
+                select(
+                    MasterFactQuestion.grade,
+                    func.count(func.distinct(MasterFactQuestion.topic_num)).label("topics_count"),
+                    func.count(func.distinct(MasterFactQuestion.fakt_id)).label("facts_count"),
+                    func.count(MasterFactQuestion.id).label("questions_count"),
+                )
+                .group_by(MasterFactQuestion.grade)
+                .order_by(MasterFactQuestion.grade)
+            )
+        ).all()
+
+    grades = [
+        {
+            "grade": grade,
+            "title": f"{grade}-sinf",
+            "topics_count": int(topics_count or 0),
+            "facts_count": int(facts_count or 0),
+            "questions_count": int(questions_count or 0),
+        }
+        for grade, topics_count, facts_count, questions_count in rows
+    ]
+    return {"grades": grades, "total": len(grades)}
+
+
 @app.get("/api/master/topics/{grade}")
 async def get_master_topics(grade: int):
     """Tanlangan sinf bo'yicha mavzular va ulardagi faktlar soni."""
