@@ -1011,3 +1011,32 @@ class ExamSubmission(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
     quiz = relationship("ExamQuiz", back_populates="submissions")
+
+
+# ==========================================================
+# MASTER BAZA (master_baza.xlsx — fakt + savol-javob)
+# ==========================================================
+class MasterFactQuestion(Base):
+    """master_baza.xlsx dagi faktlar, savollar va etalon javoblar."""
+    __tablename__ = "master_fact_questions"
+
+    id = Column(Integer, primary_key=True)
+    fakt_id = Column(String, index=True, nullable=False)  # Masalan: '6_01_01'
+    test_id = Column(String, index=True, nullable=True)  # Masalan: 'T_6_01_01'
+    grade = Column(Integer, index=True, nullable=False)  # Fakt_ID dan: '6_01_01' -> 6
+    topic_num = Column(Integer, index=True, nullable=False)  # Fakt_ID dan: '6_01_01' -> 1
+    asl_gap = Column(Text, nullable=False)  # Nazariy matn / fakt
+    fakt_kontekst = Column(Text, nullable=True)
+    savol_matni = Column(Text, nullable=False)  # Savol
+    test_matni = Column(Text, nullable=True)
+    test_obyekt = Column(String, nullable=True)
+    etalon_javob = Column(Text, nullable=False)  # To'g'ri javob
+    variant_b = Column(Text, nullable=True)
+    variant_c = Column(Text, nullable=True)
+    variant_d = Column(Text, nullable=True)
+    kalit_soz = Column(String, nullable=True)
+    klass = Column(String, nullable=True)  # '[VHJ]', '[SAN]'
+    yonalish = Column(String, nullable=True)  # '[IJT]', '[SIY]'
+    tarkibiy_faktlar = Column(Text, nullable=True)
+    tematik_teg = Column(String, nullable=True)  # '[DAVRLASHTIRISH]'
+    mavzu_reja = Column(String, nullable=True)  # 'R_6_01_01'

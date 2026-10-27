@@ -34,6 +34,7 @@ from database.models import (
     SubjectBook, SubjectQuizLink, UserSubjectEnrollment,
     ExamQuiz, ExamQuestion, ExamRating, ExamSubmission,
     ReferralEarning, UserCourseAccess,
+    MasterFactQuestion,
 )
 import json
 from database.regions_data import REGIONS_DATA
@@ -5787,6 +5788,93 @@ async def exams_student(telegram_id: int, quiz_id: Optional[int] = None):
             "quiz_total": quiz_row.total_questions if quiz_row else None,
             "quiz_percent": quiz_row.percent if quiz_row else None,
         }
+
+
+# ==========================================================
+# MASTER BAZA API (Ovozli savol-javob / Mini App)
+# ==========================================================
+def _master_fact_to_dict(row: MasterFactQuestion) -> dict:
+    return {
+        "id": row.id,
+        "fakt_id": row.fakt_id,
+        "test_id": row.test_id,
+        "grade": row.grade,
+        "topic_num": row.topic_num,
+        "asl_gap": row.asl_gap,
+        "fakt_kontekst": row.fakt_kontekst,
+        "savol_matni": row.savol_matni,
+        "test_matni": row.test_matni,
+        "test_obyekt": row.test_obyekt,
+        "etalon_javob": row.etalon_javob,
+        "variant_b": row.variant_b,
+        "variant_c": row.variant_c,
+        "variant_d": row.variant_d,
+        "kalit_soz": row.kalit_soz,
+        "klass": row.klass,
+        "yonalish": row.yonalish,
+        "tarkibiy_faktlar": row.tarkibiy_faktlar,
+        "tematik_teg": row.tematik_teg,
+        "mavzu_reja": row.mavzu_reja,
+    }
+
+
+@app.get("/api/master/topics/{grade}")
+async def get_master_topics(grade: int):
+    """Tanlangan sinf bo'yicha mavzular va ulardagi faktlar soni."""
+    async with async_session() as session:
+        rows = (
+            await session.execute(
+                select(
+                    MasterFactQuestion.topic_num,
+                    func.count(func.distinct(MasterFactQuestion.fakt_id)).label("facts_count"),
+                    func.count(MasterFactQuestion.id).label("questions_count"),
+                )
+                .where(MasterFactQuestion.grade == grade)
+                .group_by(MasterFactQuestion.topic_num)
+                .order_by(MasterFactQuestion.topic_num)
+            )
+        ).all()
+
+    topics = [
+        {
+            "topic_num": topic_num,
+            "title": f"Mavzu {topic_num}",
+            "facts_count": int(facts_count or 0),
+            "questions_count": int(questions_count or 0),
+        }
+        for topic_num, facts_count, questions_count in rows
+    ]
+    return {"grade": grade, "topics": topics, "total_topics": len(topics)}
+
+
+@app.get("/api/master/facts/{grade}/{topic_num}")
+async def get_master_facts(grade: int, topic_num: int):
+    """Tanlangan mavzuga tegishli faktlar, asl gaplar va etalon javoblar."""
+    async with async_session() as session:
+        rows = (
+            await session.execute(
+                select(MasterFactQuestion)
+                .where(
+                    MasterFactQuestion.grade == grade,
+                    MasterFactQuestion.topic_num == topic_num,
+                )
+                .order_by(MasterFactQuestion.id)
+            )
+        ).scalars().all()
+
+    if not rows:
+        raise HTTPException(
+            status_code=404,
+            detail=f"{grade}-sinf, Mavzu {topic_num} uchun faktlar topilmadi",
+        )
+
+    return {
+        "grade": grade,
+        "topic_num": topic_num,
+        "title": f"Mavzu {topic_num}",
+        "count": len(rows),
+        "facts": [_master_fact_to_dict(r) for r in rows],
+    }
 
 
 # ==========================================================
