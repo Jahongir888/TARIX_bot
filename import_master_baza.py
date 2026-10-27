@@ -1,6 +1,7 @@
 """master_baza.xlsx (1-sahifa) ni SQLite bazaga xavfsiz import qiladi.
 
 Excel fayl HECH QANDAY o'zgartirilmaydi — mavjud ustunlar bilan o'qiladi.
+openpyxl ishlatiladi (serverda pandas shart emas).
 """
 from __future__ import annotations
 
@@ -9,7 +10,7 @@ import math
 import re
 from pathlib import Path
 
-import pandas as pd
+from openpyxl import load_workbook
 from sqlalchemy import delete, select
 
 from database.db import async_session, init_db
@@ -17,6 +18,13 @@ from database.models import MasterFactQuestion
 
 ROOT = Path(__file__).resolve().parent
 EXCEL_PATH = ROOT / "master_baza.xlsx"
+
+EXPECTED_COLUMNS = [
+    "Fakt_ID", "Test_ID", "Asl_Gap", "Fakt_Kontekst", "Savol_Matni",
+    "Test_Matni", "Test_Obyekt", "Etalon_Javob", "Variant_B", "Variant_C",
+    "Variant_D", "Kalit_Soz", "Klass", "Yonalish", "Tarkibiy_Faktlar",
+    "Tematik_Teg", "Mavzu_Reja",
+]
 
 # Fakt_ID / Test_ID / Mavzu_Reja: 6_01_01 | T_6_01_01 | R_6_01_01
 _ID_RE = re.compile(
@@ -29,11 +37,6 @@ def _cell(value) -> str | None:
     """Excel katakchasini tozalangan matnga aylantiradi; bo'sh bo'lsa None."""
     if value is None:
         return None
-    try:
-        if pd.isna(value):
-            return None
-    except (TypeError, ValueError):
-        pass
     if isinstance(value, float):
         if math.isnan(value):
             return None
@@ -63,16 +66,25 @@ def _load_rows() -> list[dict]:
     if not EXCEL_PATH.is_file():
         raise FileNotFoundError(f"Excel topilmadi: {EXCEL_PATH}")
 
-    df = pd.read_excel(EXCEL_PATH, sheet_name=0)
-    expected = [
-        "Fakt_ID", "Test_ID", "Asl_Gap", "Fakt_Kontekst", "Savol_Matni",
-        "Test_Matni", "Test_Obyekt", "Etalon_Javob", "Variant_B", "Variant_C",
-        "Variant_D", "Kalit_Soz", "Klass", "Yonalish", "Tarkibiy_Faktlar",
-        "Tematik_Teg", "Mavzu_Reja",
-    ]
-    missing = [c for c in expected if c not in df.columns]
+    wb = load_workbook(EXCEL_PATH, read_only=True, data_only=True)
+    ws = wb.worksheets[0]
+    rows_iter = ws.iter_rows(values_only=True)
+    try:
+        header_row = next(rows_iter)
+    except StopIteration:
+        wb.close()
+        raise ValueError("Excel 1-sahifasi bo'sh")
+
+    headers = [str(h).strip() if h is not None else "" for h in header_row]
+    col_index = {name: headers.index(name) for name in EXPECTED_COLUMNS if name in headers}
+    missing = [c for c in EXPECTED_COLUMNS if c not in col_index]
     if missing:
+        wb.close()
         raise ValueError(f"Excel ustunlari yetishmayapti: {missing}")
+
+    def get(row_vals, name: str):
+        idx = col_index[name]
+        return row_vals[idx] if idx < len(row_vals) else None
 
     rows: list[dict] = []
     last_fakt_id: str | None = None
@@ -80,17 +92,24 @@ def _load_rows() -> list[dict]:
     last_grade: int | None = None
     last_topic: int | None = None
     skipped = 0
+    total = 0
 
-    for _, row in df.iterrows():
-        fakt_id = _cell(row["Fakt_ID"])
-        test_id = _cell(row["Test_ID"])
-        asl_gap = _cell(row["Asl_Gap"])
-        savol = _cell(row["Savol_Matni"])
-        test_matni = _cell(row["Test_Matni"])
-        etalon = _cell(row["Etalon_Javob"])
-        mavzu_reja = _cell(row["Mavzu_Reja"])
+    for row_vals in rows_iter:
+        total += 1
+        if row_vals is None:
+            skipped += 1
+            continue
+        row_vals = list(row_vals)
 
-        # Ikkala ID ham bo'sh — nazariy qo'shimcha yoki bo'sh satr; chetlab o'tamiz
+        fakt_id = _cell(get(row_vals, "Fakt_ID"))
+        test_id = _cell(get(row_vals, "Test_ID"))
+        asl_gap = _cell(get(row_vals, "Asl_Gap"))
+        savol = _cell(get(row_vals, "Savol_Matni"))
+        test_matni = _cell(get(row_vals, "Test_Matni"))
+        etalon = _cell(get(row_vals, "Etalon_Javob"))
+        mavzu_reja = _cell(get(row_vals, "Mavzu_Reja"))
+
+        # Ikkala ID ham bo'sh — nazariy qo'shimcha yoki bo'sh satr
         if not fakt_id and not test_id:
             skipped += 1
             continue
@@ -99,7 +118,6 @@ def _load_rows() -> list[dict]:
         if not fakt_id:
             fakt_id = last_fakt_id
             if not fakt_id and test_id:
-                # Test_ID dan sintetik fakt_id (T_6_01_04 -> 6_01_04)
                 fakt_id = test_id[2:] if test_id.upper().startswith("T_") else test_id
             if not asl_gap:
                 asl_gap = last_asl_gap
@@ -133,23 +151,24 @@ def _load_rows() -> list[dict]:
             "grade": grade,
             "topic_num": topic_num,
             "asl_gap": asl_gap,
-            "fakt_kontekst": _cell(row["Fakt_Kontekst"]),
+            "fakt_kontekst": _cell(get(row_vals, "Fakt_Kontekst")),
             "savol_matni": question_text,
             "test_matni": test_matni,
-            "test_obyekt": _cell(row["Test_Obyekt"]),
+            "test_obyekt": _cell(get(row_vals, "Test_Obyekt")),
             "etalon_javob": etalon,
-            "variant_b": _cell(row["Variant_B"]),
-            "variant_c": _cell(row["Variant_C"]),
-            "variant_d": _cell(row["Variant_D"]),
-            "kalit_soz": _cell(row["Kalit_Soz"]),
-            "klass": _cell(row["Klass"]),
-            "yonalish": _cell(row["Yonalish"]),
-            "tarkibiy_faktlar": _cell(row["Tarkibiy_Faktlar"]),
-            "tematik_teg": _cell(row["Tematik_Teg"]),
+            "variant_b": _cell(get(row_vals, "Variant_B")),
+            "variant_c": _cell(get(row_vals, "Variant_C")),
+            "variant_d": _cell(get(row_vals, "Variant_D")),
+            "kalit_soz": _cell(get(row_vals, "Kalit_Soz")),
+            "klass": _cell(get(row_vals, "Klass")),
+            "yonalish": _cell(get(row_vals, "Yonalish")),
+            "tarkibiy_faktlar": _cell(get(row_vals, "Tarkibiy_Faktlar")),
+            "tematik_teg": _cell(get(row_vals, "Tematik_Teg")),
             "mavzu_reja": mavzu_reja,
         })
 
-    print(f"[OK] Excel: {len(df)} satr o'qildi, {len(rows)} ta yozuv tayyor, {skipped} ta o'tkazib yuborildi.")
+    wb.close()
+    print(f"[OK] Excel: {total} satr o'qildi, {len(rows)} ta yozuv tayyor, {skipped} ta o'tkazib yuborildi.")
     return rows
 
 
@@ -172,7 +191,6 @@ async def import_master_baza(*, replace: bool = True) -> None:
 
             session.add_all([MasterFactQuestion(**item) for item in records])
 
-        # Statistika
         facts = len({r["fakt_id"] for r in records})
         questions = len(records)
         grades = sorted({r["grade"] for r in records})

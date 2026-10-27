@@ -238,28 +238,35 @@ async function shLoadMasterPanel() {
     const gradeSel = document.getElementById('sh-master-grade');
     if (!box || !gradeSel) return;
 
-    if (!shState.masterGradesLoaded) {
-        gradeSel.innerHTML = '<option value="">Yuklanmoqda...</option>';
-        try {
-            const res = await fetch('/api/master/grades');
-            const data = await res.json();
-            const grades = data.grades || [];
-            if (!grades.length) {
-                gradeSel.innerHTML = '<option value="">Sinf yo\'q</option>';
-                box.innerHTML = '<p class="text-[11px] text-slate-500 text-center py-6">Master baza bo\'sh. Avval <code>import_master_baza.py</code> ni ishga tushiring.</p>';
-                return;
-            }
-            gradeSel.innerHTML = grades.map((g) =>
-                `<option value="${g.grade}">${_shEscape(g.title)} · ${g.questions_count} savol</option>`
-            ).join('');
-            shState.masterGradesLoaded = true;
-            if (!shState.masterGrade) shState.masterGrade = grades[0].grade;
-            gradeSel.value = String(shState.masterGrade);
-        } catch (e) {
+    gradeSel.innerHTML = '<option value="">Yuklanmoqda...</option>';
+    box.innerHTML = '<p class="text-[11px] text-slate-500 text-center py-4">Sinflar yuklanmoqda...</p>';
+    try {
+        const res = await fetch('/api/master/grades');
+        const data = await res.json().catch(() => ({}));
+        const grades = data.grades || [];
+        if (!res.ok) {
             gradeSel.innerHTML = '<option value="">Xatolik</option>';
-            box.innerHTML = '<p class="text-[11px] text-rose-400 text-center py-4">Sinflarni yuklab bo\'lmadi</p>';
+            box.innerHTML = `<p class="text-[11px] text-rose-400 text-center py-4">API xato: ${_shEscape(data.detail || data.error || res.status)}</p>`;
             return;
         }
+        if (!grades.length) {
+            gradeSel.innerHTML = '<option value="">Sinf yo\'q</option>';
+            box.innerHTML = `<p class="text-[11px] text-amber-400 text-center py-6 leading-relaxed">Master baza bo'sh.<br>Serverda <code class="text-emerald-400">import_master_baza.py</code> ishga tushirilishi kerak.${data.error ? '<br>' + _shEscape(data.error) : ''}</p>`;
+            shState.masterGradesLoaded = false;
+            return;
+        }
+        gradeSel.innerHTML = grades.map((g) =>
+            `<option value="${g.grade}">${_shEscape(g.title)} · ${g.questions_count} savol</option>`
+        ).join('');
+        shState.masterGradesLoaded = true;
+        if (!shState.masterGrade || !grades.some((g) => g.grade === shState.masterGrade)) {
+            shState.masterGrade = grades[0].grade;
+        }
+        gradeSel.value = String(shState.masterGrade);
+    } catch (e) {
+        gradeSel.innerHTML = '<option value="">Xatolik</option>';
+        box.innerHTML = '<p class="text-[11px] text-rose-400 text-center py-4">Sinflarni yuklab bo\'lmadi (tarmoq)</p>';
+        return;
     }
 
     await shLoadMasterTopics(shState.masterGrade || Number(gradeSel.value));

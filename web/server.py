@@ -5821,19 +5821,24 @@ def _master_fact_to_dict(row: MasterFactQuestion) -> dict:
 @app.get("/api/master/grades")
 async def get_master_grades():
     """Master bazada mavjud sinflar ro'yxati."""
-    async with async_session() as session:
-        rows = (
-            await session.execute(
-                select(
-                    MasterFactQuestion.grade,
-                    func.count(func.distinct(MasterFactQuestion.topic_num)).label("topics_count"),
-                    func.count(func.distinct(MasterFactQuestion.fakt_id)).label("facts_count"),
-                    func.count(MasterFactQuestion.id).label("questions_count"),
+    try:
+        await init_db()
+        async with async_session() as session:
+            rows = (
+                await session.execute(
+                    select(
+                        MasterFactQuestion.grade,
+                        func.count(func.distinct(MasterFactQuestion.topic_num)).label("topics_count"),
+                        func.count(func.distinct(MasterFactQuestion.fakt_id)).label("facts_count"),
+                        func.count(MasterFactQuestion.id).label("questions_count"),
+                    )
+                    .group_by(MasterFactQuestion.grade)
+                    .order_by(MasterFactQuestion.grade)
                 )
-                .group_by(MasterFactQuestion.grade)
-                .order_by(MasterFactQuestion.grade)
-            )
-        ).all()
+            ).all()
+    except Exception as e:
+        print(f"[master/grades] xato: {e}")
+        return {"grades": [], "total": 0, "error": str(e)}
 
     grades = [
         {
@@ -5851,19 +5856,24 @@ async def get_master_grades():
 @app.get("/api/master/topics/{grade}")
 async def get_master_topics(grade: int):
     """Tanlangan sinf bo'yicha mavzular va ulardagi faktlar soni."""
-    async with async_session() as session:
-        rows = (
-            await session.execute(
-                select(
-                    MasterFactQuestion.topic_num,
-                    func.count(func.distinct(MasterFactQuestion.fakt_id)).label("facts_count"),
-                    func.count(MasterFactQuestion.id).label("questions_count"),
+    try:
+        await init_db()
+        async with async_session() as session:
+            rows = (
+                await session.execute(
+                    select(
+                        MasterFactQuestion.topic_num,
+                        func.count(func.distinct(MasterFactQuestion.fakt_id)).label("facts_count"),
+                        func.count(MasterFactQuestion.id).label("questions_count"),
+                    )
+                    .where(MasterFactQuestion.grade == grade)
+                    .group_by(MasterFactQuestion.topic_num)
+                    .order_by(MasterFactQuestion.topic_num)
                 )
-                .where(MasterFactQuestion.grade == grade)
-                .group_by(MasterFactQuestion.topic_num)
-                .order_by(MasterFactQuestion.topic_num)
-            )
-        ).all()
+            ).all()
+    except Exception as e:
+        print(f"[master/topics] xato: {e}")
+        return {"grade": grade, "topics": [], "total_topics": 0, "error": str(e)}
 
     topics = [
         {
@@ -5880,17 +5890,22 @@ async def get_master_topics(grade: int):
 @app.get("/api/master/facts/{grade}/{topic_num}")
 async def get_master_facts(grade: int, topic_num: int):
     """Tanlangan mavzuga tegishli faktlar, asl gaplar va etalon javoblar."""
-    async with async_session() as session:
-        rows = (
-            await session.execute(
-                select(MasterFactQuestion)
-                .where(
-                    MasterFactQuestion.grade == grade,
-                    MasterFactQuestion.topic_num == topic_num,
+    try:
+        await init_db()
+        async with async_session() as session:
+            rows = (
+                await session.execute(
+                    select(MasterFactQuestion)
+                    .where(
+                        MasterFactQuestion.grade == grade,
+                        MasterFactQuestion.topic_num == topic_num,
+                    )
+                    .order_by(MasterFactQuestion.id)
                 )
-                .order_by(MasterFactQuestion.id)
-            )
-        ).scalars().all()
+            ).scalars().all()
+    except Exception as e:
+        print(f"[master/facts] xato: {e}")
+        raise HTTPException(status_code=500, detail=f"Master baza o'qilmadi: {e}") from e
 
     if not rows:
         raise HTTPException(
