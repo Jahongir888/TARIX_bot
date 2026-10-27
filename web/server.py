@@ -5818,24 +5818,37 @@ def _master_fact_to_dict(row: MasterFactQuestion) -> dict:
     }
 
 
+async def _master_grade_rows(session):
+    return (
+        await session.execute(
+            select(
+                MasterFactQuestion.grade,
+                func.count(func.distinct(MasterFactQuestion.topic_num)).label("topics_count"),
+                func.count(func.distinct(MasterFactQuestion.fakt_id)).label("facts_count"),
+                func.count(MasterFactQuestion.id).label("questions_count"),
+            )
+            .group_by(MasterFactQuestion.grade)
+            .order_by(MasterFactQuestion.grade)
+        )
+    ).all()
+
+
 @app.get("/api/master/grades")
 async def get_master_grades():
     """Master bazada mavjud sinflar ro'yxati."""
     try:
         await init_db()
         async with async_session() as session:
-            rows = (
-                await session.execute(
-                    select(
-                        MasterFactQuestion.grade,
-                        func.count(func.distinct(MasterFactQuestion.topic_num)).label("topics_count"),
-                        func.count(func.distinct(MasterFactQuestion.fakt_id)).label("facts_count"),
-                        func.count(MasterFactQuestion.id).label("questions_count"),
-                    )
-                    .group_by(MasterFactQuestion.grade)
-                    .order_by(MasterFactQuestion.grade)
-                )
-            ).all()
+            rows = await _master_grade_rows(session)
+            # Serverda import qilinmagan bo'lsa — bir marta avtomatik yuklaymiz
+            if not rows:
+                try:
+                    from import_master_baza import import_master_baza
+                    await import_master_baza(replace=False)
+                    rows = await _master_grade_rows(session)
+                except Exception as import_err:
+                    print(f"[master/grades] avto-import xato: {import_err}")
+                    return {"grades": [], "total": 0, "error": f"avto-import: {import_err}"}
     except Exception as e:
         print(f"[master/grades] xato: {e}")
         return {"grades": [], "total": 0, "error": str(e)}
