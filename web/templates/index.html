@@ -1521,6 +1521,15 @@
                     class="w-full py-3 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold rounded-xl text-sm active:scale-95 transition-all cursor-pointer">
                 Click orqali to'lash
             </button>
+            <p id="topup-status" class="hidden mt-3 text-[11px] text-center leading-relaxed px-1"></p>
+            <div id="topup-link-box" class="hidden mt-3 space-y-2">
+                <p class="text-[10px] text-slate-400">To'lov havolasi (do'st/ota-ona uchun ham):</p>
+                <div id="topup-link-text" class="bg-[#161F30] border border-[#283548] p-2.5 rounded-xl font-mono text-[10px] text-emerald-400 break-all select-all"></div>
+                <div class="grid grid-cols-2 gap-2">
+                    <button type="button" onclick="copyTopUpLink()" class="py-2.5 bg-[#1F2937] hover:bg-slate-700 text-white rounded-xl text-xs font-bold cursor-pointer">📋 Nusxalash</button>
+                    <button type="button" onclick="openTopUpLink()" class="py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold cursor-pointer">🔗 Ochish</button>
+                </div>
+            </div>
             <p class="text-[10px] text-slate-500 text-center mt-3">Do'st/ota-ona to'lashi uchun ularning Clickida ham xuddi shu havoladan foydalanish mumkin.</p>
         </div>
     </div>
@@ -1858,7 +1867,7 @@
 
     <!-- MODULLI JAVASCRIPT FAYLLARI -->
     <script src="/static/js/home.js?v=20261026-fav-timers"></script>
-    <script src="/static/js/profile.js?v=20261027-topup-click-v2"></script>
+    <script src="/static/js/profile.js?v=20261027-topup-click-v3"></script>
     <script src="/static/js/catalog.js?v=20261026-target-filter"></script>
     <script src="/static/js/target.js?v=20261026-media-proxy-v1"></script>
     <script src="/static/js/cabinet.js?v=header-back-1"></script>

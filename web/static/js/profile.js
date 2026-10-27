@@ -523,6 +523,51 @@ function tgNotify(message) {
     try { window.alert(text); } catch (e2) { console.warn(text); }
 }
 
+let _topUpPayUrl = "";
+
+function setTopUpStatus(message, kind) {
+    const el = document.getElementById("topup-status");
+    if (!el) return;
+    if (!message) {
+        el.classList.add("hidden");
+        el.innerText = "";
+        return;
+    }
+    el.classList.remove("hidden");
+    el.innerText = message;
+    el.className = "mt-3 text-[11px] text-center leading-relaxed px-1 " + (
+        kind === "ok" ? "text-emerald-400" : "text-rose-400"
+    );
+}
+
+function showTopUpLink(url) {
+    _topUpPayUrl = url || "";
+    const box = document.getElementById("topup-link-box");
+    const text = document.getElementById("topup-link-text");
+    if (text) text.innerText = _topUpPayUrl;
+    if (box) box.classList.toggle("hidden", !_topUpPayUrl);
+}
+
+function openTopUpLink() {
+    if (!_topUpPayUrl) return;
+    try {
+        if (window.Telegram?.WebApp?.openLink) {
+            window.Telegram.WebApp.openLink(_topUpPayUrl);
+            return;
+        }
+    } catch (e) {}
+    window.open(_topUpPayUrl, "_blank");
+}
+
+function copyTopUpLink() {
+    if (!_topUpPayUrl) return;
+    navigator.clipboard.writeText(_topUpPayUrl).then(() => {
+        setTopUpStatus("Havola nusxalandi. Brauzerda oching yoki do'stga yuboring.", "ok");
+    }).catch(() => {
+        setTopUpStatus("Nusxalanmadi — havolani qo'lda belgilab oling.", "err");
+    });
+}
+
 // Hisobni Click orqali to'ldirish (kalitsiz ham modal ochiladi)
 function openTopUpModal() {
     const modal = document.getElementById("topup-modal");
@@ -533,6 +578,8 @@ function openTopUpModal() {
     const input = document.getElementById("topup-amount-input");
     if (input && !input.value) input.value = "50000";
     selectTopUpAmount(Number(input?.value) || 50000);
+    setTopUpStatus("", "ok");
+    showTopUpLink("");
     modal.classList.remove("hidden");
     modal.classList.add("ph-open");
 }
@@ -559,12 +606,15 @@ async function startClickTopUp() {
     const tgId = getCurrentTelegramId();
     const raw = document.getElementById("topup-amount-input")?.value;
     const amount = Number(raw);
+    setTopUpStatus("", "ok");
+    showTopUpLink("");
+
     if (!tgId) {
-        tgNotify("Telegram ID aniqlanmadi. Mini Appni bot orqali oching.");
+        setTopUpStatus("Telegram ID aniqlanmadi. Mini Appni bot orqali oching.", "err");
         return;
     }
     if (!amount || amount < 1000) {
-        tgNotify("Minimal summa 1 000 so'm.");
+        setTopUpStatus("Minimal summa 1 000 so'm.", "err");
         return;
     }
 
@@ -584,22 +634,20 @@ async function startClickTopUp() {
             const detail = data.detail;
             const msg = typeof detail === "string"
                 ? detail
-                : "Click sozlanmagan. .env ga SERVICE_ID va MERCHANT_ID yozing.";
+                : "Click sozlanmagan: .env ga CLICK_SERVICE_ID va CLICK_MERCHANT_ID yozing, so'ng deploy qiling.";
+            setTopUpStatus(msg, "err");
             tgNotify(msg);
             return;
         }
         if (data.pay_url) {
-            closeTopUpModal();
-            if (window.Telegram?.WebApp?.openLink) {
-                window.Telegram.WebApp.openLink(data.pay_url);
-            } else {
-                window.open(data.pay_url, "_blank");
-            }
+            showTopUpLink(data.pay_url);
+            setTopUpStatus("Havola tayyor. Pastdagi «Ochish» yoki «Nusxalash»ni bosing.", "ok");
+            openTopUpLink();
         } else {
-            tgNotify("To'lov havolasi olinmadi.");
+            setTopUpStatus("To'lov havolasi olinmadi.", "err");
         }
     } catch (e) {
-        tgNotify("Server bilan aloqa uzildi.");
+        setTopUpStatus("Server bilan aloqa uzildi.", "err");
     } finally {
         if (btn) {
             btn.disabled = false;
@@ -613,6 +661,8 @@ window.openTopUpModal = openTopUpModal;
 window.closeTopUpModal = closeTopUpModal;
 window.selectTopUpAmount = selectTopUpAmount;
 window.startClickTopUp = startClickTopUp;
+window.openTopUpLink = openTopUpLink;
+window.copyTopUpLink = copyTopUpLink;
 
 function bindTopUpButton() {
     const topUpBtn = document.getElementById("btn-topup-balance");
