@@ -2,8 +2,9 @@ import os
 import sys
 import math
 import random
+import hashlib
 from datetime import datetime, date, timedelta
-from typing import Optional, List
+from typing import Optional, List, Any, Dict
 
 # Tizim Pythonida uvicorn yo'q: avtomatik loyiha .venv ga o'tamiz
 _VENV_PY = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".venv", "Scripts", "python.exe"))
@@ -12,18 +13,19 @@ if not _IN_VENV and os.path.isfile(_VENV_PY):
     os.execv(_VENV_PY, [_VENV_PY, "-m", "web.server", *sys.argv[1:]])
 
 import uvicorn
-from fastapi import FastAPI, Response, Query, HTTPException
-from fastapi.responses import HTMLResponse
+from fastapi import FastAPI, Response, Query, HTTPException, Request
+from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from sqlalchemy import select, or_, update, func
-from urllib.parse import urlparse, unquote
+from urllib.parse import urlparse, unquote, urlencode
 
 # Loyihaning ma'lumotlar bazasi va Aiogram bot importlari
 from database.db import async_session, init_db
 from database.models import (
     User, UserDevice, UserProgress, News, NewsComment, NewsReaction,
-    CoinTransaction, UserDailyActivity, UserFeedback, ExamEvent,
+    CoinTransaction, BalanceTransaction, PaymentHistory,
+    UserDailyActivity, UserFeedback, ExamEvent,
     Notification, UserCoursePace, UserOctagonProfile, Promotion,
     PlatformStats, UserCabinetItem, UserFeedback,
     TargetInstitution, TargetDirection,
@@ -42,7 +44,7 @@ from database.regions_data import REGIONS_DATA
 import uuid
 import secrets
 
-from data.config import BOT_TOKEN, GEMINI_API_KEY, GEMINI_ESSAY_MODEL
+from data.config import BOT_TOKEN, GEMINI_API_KEY, GEMINI_ESSAY_MODEL, WEBAPP_URL
 from aiogram import Bot
 from web.routes.admin_routes import router as admin_router
 import asyncio
@@ -55,6 +57,12 @@ try:
     import httpx as _httpx
 except ImportError:  # serverda paket bo'lmasa ham Mini App ishlashi uchun
     _httpx = None
+
+# Click Merchant (YaTT) rekvizitlari — .env dan xavfsiz o'qiladi
+CLICK_SERVICE_ID = (os.getenv("CLICK_SERVICE_ID") or "").strip()
+CLICK_MERCHANT_ID = (os.getenv("CLICK_MERCHANT_ID") or "").strip()
+CLICK_SECRET_KEY = (os.getenv("CLICK_SECRET_KEY") or "").strip()
+CLICK_MERCHANT_USER_ID = (os.getenv("CLICK_MERCHANT_USER_ID") or "").strip()
 
 # 1. FastAPI ilovasini yaratamiz
 app = FastAPI(title="PHAROS Education Platform")
@@ -147,6 +155,11 @@ class ProfileUpdateSchema(BaseModel):
     secondary_phone: Optional[str] = None
     birth_date: Optional[str] = None
     avatar_url: Optional[str] = None
+
+
+class ClickCreatePaymentSchema(BaseModel):
+    telegram_id: int
+    amount: int  # so'm (butun)
 
 class SupervisorAddSchema(BaseModel):
     student_tg_id: int
@@ -313,17 +326,42 @@ async def get_user_profile(
             await session.commit()
             await session.refresh(user)
 
-        # Tranzaksiyalar tarixi
-        tx_query = select(CoinTransaction).where(CoinTransaction.user_id == telegram_id).order_by(CoinTransaction.created_at.desc())
-        tx_res = await session.execute(tx_query)
+        # Tranzaksiyalar tarixi (BalanceTransaction afzal; bo'sh bo'lsa CoinTransaction)
+        bal_tx = (
+            await session.execute(
+                select(BalanceTransaction)
+                .where(BalanceTransaction.telegram_id == telegram_id)
+                .order_by(BalanceTransaction.created_at.desc())
+                .limit(50)
+            )
+        ).scalars().all()
         transactions = []
-        for t in tx_res.scalars().all():
-            t_date = t.created_at.strftime("%d-%b, %H:%M") if t.created_at else "-"
-            transactions.append({
-                "amount": t.amount,
-                "description": t.description,
-                "date": t_date
-            })
+        if bal_tx:
+            for t in bal_tx:
+                t_date = t.created_at.strftime("%d-%b, %H:%M") if t.created_at else "-"
+                signed = int(t.amount or 0)
+                if t.transaction_type == "expense" and signed > 0:
+                    signed = -signed
+                transactions.append({
+                    "amount": signed,
+                    "description": t.title,
+                    "title": t.title,
+                    "date": t_date,
+                    "item_category": t.item_category,
+                })
+        else:
+            tx_query = select(CoinTransaction).where(
+                CoinTransaction.user_id == telegram_id
+            ).order_by(CoinTransaction.created_at.desc())
+            tx_res = await session.execute(tx_query)
+            for t in tx_res.scalars().all():
+                t_date = t.created_at.strftime("%d-%b, %H:%M") if t.created_at else "-"
+                transactions.append({
+                    "amount": t.amount,
+                    "description": t.description,
+                    "title": t.description,
+                    "date": t_date,
+                })
 
         # Qurilmalar ro'yxati
         devices_q = select(UserDevice).where(UserDevice.user_id == user.telegram_id).order_by(UserDevice.last_login.desc())
@@ -566,6 +604,13 @@ async def accept_oferta(telegram_id: int):
             description="Oferta shartnomasini imzolaganlik uchun bonus (so'm)"
         )
         session.add(tx)
+        session.add(BalanceTransaction(
+            telegram_id=telegram_id,
+            amount=bonus,
+            transaction_type="income",
+            title="Oferta bonusi",
+            item_category="hisob",
+        ))
         await session.commit()
 
         return {
@@ -6126,6 +6171,311 @@ async def master_voice_check(payload: MasterVoiceCheckSchema):
         "savol_matni": payload.savol_matni,
         **gemini,
     }
+
+
+# ==========================================================
+# CLICK MERCHANT (YaTT) — TO'LOV VA WEBHOOK
+# ==========================================================
+def _click_md5_sign(
+    click_trans_id: str,
+    service_id: str,
+    secret_key: str,
+    merchant_trans_id: str,
+    amount: str,
+    action: str,
+    sign_time: str,
+    merchant_prepare_id: Optional[str] = None,
+) -> str:
+    """Click rasmiy MD5 imzo (Prepare: prepare_id yo'q; Complete: bor)."""
+    parts = [
+        str(click_trans_id),
+        str(service_id),
+        str(secret_key),
+        str(merchant_trans_id),
+    ]
+    if merchant_prepare_id is not None and str(merchant_prepare_id) != "":
+        parts.append(str(merchant_prepare_id))
+    parts.extend([str(amount), str(action), str(sign_time)])
+    return hashlib.md5("".join(parts).encode("utf-8")).hexdigest()
+
+
+def _click_error(error: int, error_note: str, **extra) -> JSONResponse:
+    payload = {"error": error, "error_note": error_note, **extra}
+    return JSONResponse(content=payload)
+
+
+@app.post("/api/payments/click/create")
+async def create_click_payment(payload: ClickCreatePaymentSchema):
+    """Mini App / Profil: Click to'lov havolasini yaratish."""
+    if not CLICK_SERVICE_ID or not CLICK_MERCHANT_ID:
+        raise HTTPException(
+            status_code=503,
+            detail="Click Merchant sozlanmagan (CLICK_SERVICE_ID / CLICK_MERCHANT_ID)",
+        )
+
+    amount = int(payload.amount or 0)
+    if amount < 1000:
+        raise HTTPException(status_code=400, detail="Minimal to'lov summasi 1 000 so'm")
+
+    telegram_id = int(payload.telegram_id)
+    async with async_session() as session:
+        user = (
+            await session.execute(select(User).where(User.telegram_id == telegram_id))
+        ).scalar_one_or_none()
+        if not user:
+            raise HTTPException(status_code=404, detail="Foydalanuvchi topilmadi")
+
+        merchant_trans_id = str(telegram_id)
+        payment = PaymentHistory(
+            telegram_id=telegram_id,
+            amount=amount,
+            provider="click",
+            merchant_trans_id=merchant_trans_id,
+            status="pending",
+        )
+        session.add(payment)
+        await session.commit()
+        await session.refresh(payment)
+
+    params = {
+        "service_id": CLICK_SERVICE_ID,
+        "merchant_id": CLICK_MERCHANT_ID,
+        "amount": amount,
+        "transaction_param": merchant_trans_id,
+        "merchant_user_id": CLICK_MERCHANT_USER_ID or str(telegram_id),
+        "return_url": f"{WEBAPP_URL}/?paid=1",
+    }
+    pay_url = f"https://my.click.uz/services/pay?{urlencode(params)}"
+    return {
+        "status": "ok",
+        "payment_id": payment.id,
+        "amount": amount,
+        "pay_url": pay_url,
+    }
+
+
+@app.post("/api/payments/click/webhook")
+async def click_merchant_webhook(request: Request):
+    """
+    Click Prepare (action=0) va Complete (action=1) webhook.
+    merchant_trans_id / transaction_param = foydalanuvchi telegram_id.
+    """
+    form = await request.form()
+    data: Dict[str, Any] = {k: form.get(k) for k in form.keys()}
+
+    try:
+        action = int(str(data.get("action", "")).strip())
+    except (TypeError, ValueError):
+        return _click_error(-3, "Action not found")
+
+    click_trans_id = str(data.get("click_trans_id") or "")
+    service_id = str(data.get("service_id") or "")
+    merchant_trans_id = str(
+        data.get("merchant_trans_id") or data.get("transaction_param") or ""
+    ).strip()
+    amount_raw = str(data.get("amount") or "0")
+    sign_time = str(data.get("sign_time") or "")
+    sign_string = str(data.get("sign_string") or "").lower()
+    merchant_prepare_id_raw = data.get("merchant_prepare_id")
+    error_from_click = data.get("error")
+
+    if not CLICK_SECRET_KEY:
+        return _click_error(-1, "SIGN CHECK FAILED")
+
+    prepare_for_sign = None
+    if action == 1 and merchant_prepare_id_raw is not None:
+        prepare_for_sign = str(merchant_prepare_id_raw)
+
+    expected_sign = _click_md5_sign(
+        click_trans_id=click_trans_id,
+        service_id=service_id or CLICK_SERVICE_ID,
+        secret_key=CLICK_SECRET_KEY,
+        merchant_trans_id=merchant_trans_id,
+        amount=amount_raw,
+        action=str(action),
+        sign_time=sign_time,
+        merchant_prepare_id=prepare_for_sign,
+    )
+    if expected_sign != sign_string:
+        return _click_error(-1, "SIGN CHECK FAILED")
+
+    if CLICK_SERVICE_ID and service_id and str(service_id) != str(CLICK_SERVICE_ID):
+        return _click_error(-8, "Error in request from click")
+
+    try:
+        amount_val = int(float(amount_raw))
+    except (TypeError, ValueError):
+        return _click_error(-2, "Incorrect parameter amount")
+
+    if amount_val <= 0:
+        return _click_error(-2, "Incorrect parameter amount")
+
+    try:
+        telegram_id = int(merchant_trans_id)
+    except (TypeError, ValueError):
+        return _click_error(-5, "User does not exist")
+
+    async with async_session() as session:
+        user = (
+            await session.execute(select(User).where(User.telegram_id == telegram_id))
+        ).scalar_one_or_none()
+        if not user:
+            return _click_error(-5, "User does not exist")
+
+        # ---------- PREPARE (action = 0) ----------
+        if action == 0:
+            payment = PaymentHistory(
+                telegram_id=telegram_id,
+                amount=amount_val,
+                provider="click",
+                click_trans_id=int(click_trans_id) if str(click_trans_id).isdigit() else None,
+                merchant_trans_id=merchant_trans_id,
+                status="pending",
+            )
+            session.add(payment)
+            await session.commit()
+            await session.refresh(payment)
+
+            return JSONResponse(
+                content={
+                    "click_trans_id": int(click_trans_id) if str(click_trans_id).isdigit() else click_trans_id,
+                    "merchant_trans_id": merchant_trans_id,
+                    "merchant_prepare_id": payment.id,
+                    "error": 0,
+                    "error_note": "Success",
+                }
+            )
+
+        # ---------- COMPLETE (action = 1) ----------
+        if action == 1:
+            try:
+                prepare_id = int(merchant_prepare_id_raw)
+            except (TypeError, ValueError):
+                return _click_error(-6, "Transaction does not exist")
+
+            payment = (
+                await session.execute(
+                    select(PaymentHistory).where(PaymentHistory.id == prepare_id)
+                )
+            ).scalar_one_or_none()
+            if not payment:
+                return _click_error(-6, "Transaction does not exist")
+
+            # Click tomonidan bekor qilingan
+            try:
+                click_err = int(error_from_click) if error_from_click is not None else 0
+            except (TypeError, ValueError):
+                click_err = 0
+            if click_err < 0:
+                payment.status = "cancelled"
+                await session.commit()
+                return JSONResponse(
+                    content={
+                        "click_trans_id": int(click_trans_id) if str(click_trans_id).isdigit() else click_trans_id,
+                        "merchant_trans_id": merchant_trans_id,
+                        "merchant_confirm_id": payment.id,
+                        "error": -9,
+                        "error_note": "Transaction cancelled",
+                    }
+                )
+
+            # Allaqachon to'langan (idempotent)
+            if payment.status == "completed":
+                return JSONResponse(
+                    content={
+                        "click_trans_id": int(click_trans_id) if str(click_trans_id).isdigit() else click_trans_id,
+                        "merchant_trans_id": merchant_trans_id,
+                        "merchant_confirm_id": payment.id,
+                        "error": -4,
+                        "error_note": "Already paid",
+                    }
+                )
+
+            if payment.telegram_id != telegram_id:
+                return _click_error(-5, "User does not exist")
+
+            if int(payment.amount) != amount_val:
+                return _click_error(-2, "Incorrect parameter amount")
+
+            try:
+                user.balance = int(user.balance or 0) + amount_val
+                user.coins = int(user.balance or 0)
+                user.is_paid = True
+
+                payment.status = "completed"
+                payment.click_trans_id = (
+                    int(click_trans_id) if str(click_trans_id).isdigit() else payment.click_trans_id
+                )
+                payment.completed_at = datetime.utcnow()
+
+                session.add(
+                    BalanceTransaction(
+                        telegram_id=telegram_id,
+                        amount=amount_val,
+                        transaction_type="income",
+                        title="Click orqali to'lov",
+                        item_category="hisob",
+                    )
+                )
+                session.add(
+                    CoinTransaction(
+                        user_id=telegram_id,
+                        amount=amount_val,
+                        tx_type="topup",
+                        description="Click orqali to'lov",
+                    )
+                )
+                await session.commit()
+            except Exception:
+                await session.rollback()
+                return _click_error(-7, "Failed to update user")
+
+            try:
+                await tg_bot.send_message(
+                    chat_id=telegram_id,
+                    text=f"Hisobingiz {amount_val:,.0f} so'mga to‘ldirildi! 🎉",
+                )
+            except Exception:
+                pass
+
+            return JSONResponse(
+                content={
+                    "click_trans_id": int(click_trans_id) if str(click_trans_id).isdigit() else click_trans_id,
+                    "merchant_trans_id": merchant_trans_id,
+                    "merchant_confirm_id": payment.id,
+                    "error": 0,
+                    "error_note": "Success",
+                }
+            )
+
+        return _click_error(-3, "Action not found")
+
+
+@app.get("/api/payments/history/{telegram_id}")
+async def get_balance_payment_history(telegram_id: int, limit: int = Query(50, ge=1, le=200)):
+    """Profil: BalanceTransaction tarixi."""
+    async with async_session() as session:
+        rows = (
+            await session.execute(
+                select(BalanceTransaction)
+                .where(BalanceTransaction.telegram_id == telegram_id)
+                .order_by(BalanceTransaction.created_at.desc())
+                .limit(limit)
+            )
+        ).scalars().all()
+
+        items = []
+        for t in rows:
+            items.append({
+                "id": t.id,
+                "amount": t.amount,
+                "transaction_type": t.transaction_type,
+                "title": t.title,
+                "item_category": t.item_category,
+                "created_at": t.created_at.isoformat() if t.created_at else None,
+                "date": t.created_at.strftime("%d-%b, %H:%M") if t.created_at else "-",
+            })
+        return {"status": "ok", "items": items}
 
 
 # ==========================================================

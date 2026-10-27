@@ -1266,7 +1266,7 @@
                         <p class="text-slate-400 text-[11px]">Hamyon balansi:</p>
                         <p class="text-base font-bold text-emerald-400 mt-0.5"><span id="coin-balance">0</span> so'm</p>
                     </div>
-                    <button onclick="alert('Hisobni to\'ldirish uchun bot orqali to\'lov chekini yuboring.')" class="px-3 py-1.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold rounded-xl text-xs shadow active:scale-95 transition-all cursor-pointer">
+                    <button type="button" onclick="openTopUpModal()" class="px-3 py-1.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold rounded-xl text-xs shadow active:scale-95 transition-all cursor-pointer">
                         + To'ldirish
                     </button>
                 </div>
@@ -1499,6 +1499,31 @@
     </div>
 
     <!-- MINI APP ICHKI MODALLARI (DRAWER / BOTTOM SHEET) -->
+    <!-- 0. Hisobni to'ldirish (Click) -->
+    <div id="topup-modal" class="hidden fixed inset-0 bg-black/80 z-50 flex items-end justify-center backdrop-blur-sm">
+        <div class="bg-[#111827] border-t border-[#1F2937] w-full max-w-md rounded-t-3xl p-5">
+            <div class="flex justify-between items-center mb-3">
+                <h4 class="text-sm font-bold text-white">💳 Hisobni to'ldirish</h4>
+                <button onclick="closeModal('topup-modal')" class="text-slate-400 p-1 text-sm">✕</button>
+            </div>
+            <p class="text-xs text-slate-400 mb-3">Click orqali xavfsiz to'lov. Summani tanlang yoki kiriting.</p>
+            <div class="grid grid-cols-3 gap-2 mb-3">
+                <button type="button" onclick="selectTopUpAmount(50000)" class="topup-amt-btn py-2.5 rounded-xl text-xs font-bold bg-[#161F30] border border-[#283548] text-slate-200 hover:border-emerald-500/50 cursor-pointer" data-amt="50000">50 000</button>
+                <button type="button" onclick="selectTopUpAmount(100000)" class="topup-amt-btn py-2.5 rounded-xl text-xs font-bold bg-[#161F30] border border-[#283548] text-slate-200 hover:border-emerald-500/50 cursor-pointer" data-amt="100000">100 000</button>
+                <button type="button" onclick="selectTopUpAmount(200000)" class="topup-amt-btn py-2.5 rounded-xl text-xs font-bold bg-[#161F30] border border-[#283548] text-slate-200 hover:border-emerald-500/50 cursor-pointer" data-amt="200000">200 000</button>
+            </div>
+            <label class="block text-[10px] text-slate-400 mb-1">Boshqa summa (so'm)</label>
+            <input type="number" id="topup-amount-input" min="1000" step="1000" placeholder="Masalan: 75000"
+                   class="w-full bg-[#161F30] border border-[#283548] rounded-xl px-3 py-2.5 text-white text-sm outline-none focus:border-emerald-500 mb-4"
+                   oninput="document.querySelectorAll('.topup-amt-btn').forEach(b=>b.classList.remove('border-emerald-500','bg-emerald-500/15','text-emerald-400'))">
+            <button type="button" onclick="startClickTopUp()" id="topup-pay-btn"
+                    class="w-full py-3 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold rounded-xl text-sm active:scale-95 transition-all cursor-pointer">
+                Click orqali to'lash
+            </button>
+            <p class="text-[10px] text-slate-500 text-center mt-3">Do'st/ota-ona to'lashi uchun ularning Clickida ham xuddi shu havoladan foydalanish mumkin.</p>
+        </div>
+    </div>
+
     <!-- 1. Tranzaksiyalar tarixi -->
     <div id="transactions-modal" class="hidden fixed inset-0 bg-black/80 z-50 flex items-end justify-center backdrop-blur-sm">
         <div class="bg-[#111827] border-t border-[#1F2937] w-full max-w-md rounded-t-3xl p-5 max-h-[75vh] flex flex-col">

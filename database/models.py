@@ -93,6 +93,34 @@ class CoinTransaction(Base):
     user = relationship("User", back_populates="coin_transactions")
 
 
+class BalanceTransaction(Base):
+    """Profil hisobi: to'ldirish (income) va xarid (expense) tarixi."""
+    __tablename__ = 'balance_transactions'
+
+    id = Column(Integer, primary_key=True)
+    telegram_id = Column(BigInteger, nullable=False, index=True)
+    amount = Column(Integer, nullable=False)  # Masalan: +50000 yoki -30000
+    transaction_type = Column(String, nullable=False)  # "income" | "expense"
+    title = Column(String, nullable=False)  # "Click orqali to'lov", "Tarix kursi xaridi", ...
+    item_category = Column(String, nullable=True)  # "kurs", "kitob", "obuna", "hisob"
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class PaymentHistory(Base):
+    """Click Merchant Prepare/Complete holati va to'lov yozuvlari."""
+    __tablename__ = 'payment_history'
+
+    id = Column(Integer, primary_key=True)
+    telegram_id = Column(BigInteger, nullable=False, index=True)
+    amount = Column(Integer, nullable=False)
+    provider = Column(String, default="click")
+    click_trans_id = Column(BigInteger, nullable=True, index=True)
+    merchant_trans_id = Column(String, nullable=False, index=True)
+    status = Column(String, default="pending", index=True)  # pending | completed | cancelled
+    created_at = Column(DateTime, default=datetime.utcnow)
+    completed_at = Column(DateTime, nullable=True)
+
+
 # ==========================================================
 # 4. KUNLIK FAOLLIK DIAGRAMMASI
 # ==========================================================
