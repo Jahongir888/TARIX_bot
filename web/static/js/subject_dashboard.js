@@ -548,27 +548,6 @@ function shSpeakMasterDrill() {
     _shSpeakText(`${fact.asl_gap ? fact.asl_gap + '. ' : ''}${fact.savol_matni || ''}`);
 }
 
-async function shListenMasterCard(idx) {
-    const fact = shState.masterFacts[idx];
-    if (!fact) return;
-    const heardEl = document.getElementById(`master-card-heard-${idx}`);
-    const resultEl = document.getElementById(`master-card-result-${idx}`);
-    if (heardEl) heardEl.textContent = 'Tinglanmoqda... gapiring';
-    if (resultEl) resultEl.classList.add('hidden');
-
-    const captured = await _shCaptureVoiceAnswer((partial) => {
-        if (heardEl && partial) heardEl.textContent = `Eshitildi: ${partial}`;
-    }, fact);
-
-    if (!captured.transcript) {
-        if (heardEl) heardEl.textContent = 'Javob eshitilmadi. Qayta urinib ko\'ring.';
-        return;
-    }
-    if (heardEl) heardEl.textContent = `Siz: ${captured.transcript}`;
-    const data = captured.check || await _shCheckAnswerText(captured.transcript, fact);
-    _shShowVoiceResult(resultEl, data, fact.etalon_javob);
-}
-
 function shStartMasterVoiceDrill() {
     if (!shState.masterFacts.length) return;
     shState.masterVoice.active = true;
@@ -600,15 +579,33 @@ function shRenderMasterVoiceDrill() {
     const qEl = document.getElementById('sh-master-voice-question');
     const heard = document.getElementById('sh-master-voice-heard');
     const result = document.getElementById('sh-master-voice-result');
+    const textIn = document.getElementById('sh-master-text-answer');
     if (prog) prog.textContent = `${idx + 1} / ${facts.length}`;
     if (factEl) factEl.textContent = fact.asl_gap || '';
     if (qEl) qEl.textContent = fact.savol_matni || '';
     if (heard) heard.textContent = '';
+    if (textIn) textIn.value = '';
     if (result) {
         result.classList.add('hidden');
         result.innerHTML = '';
     }
     if (window.lucide) lucide.createIcons();
+}
+
+async function shSubmitMasterTextAnswer() {
+    const fact = shState.masterFacts[shState.masterVoice.idx];
+    const input = document.getElementById('sh-master-text-answer');
+    const heard = document.getElementById('sh-master-voice-heard');
+    const result = document.getElementById('sh-master-voice-result');
+    if (!fact || !input) return;
+    const text = (input.value || '').trim();
+    if (!text) {
+        if (heard) heard.textContent = 'Avval javob yozing yoki mikrofon bilan ayting.';
+        return;
+    }
+    if (heard) heard.textContent = `Siz: ${text}`;
+    const data = await _shCheckAnswerText(text, fact);
+    _shShowVoiceResult(result, data, fact.etalon_javob);
 }
 
 function shRevealMasterDrillAnswer() {
@@ -631,130 +628,191 @@ function shMasterVoiceNext() {
     shRenderMasterVoiceDrill();
 }
 
-async function shToggleMasterMic() {
-    if (shState.masterVoice.listening) {
-        _shStopAllVoice();
-        return;
+function _shSetMicButton(listening) {
+    const mic = document.getElementById('sh-master-mic-btn');
+    if (!mic) return;
+    if (listening) {
+        mic.classList.add('animate-pulse', 'bg-rose-500');
+        mic.classList.remove('bg-emerald-500');
+        mic.innerHTML = '<i data-lucide="square" class="w-3.5 h-3.5"></i> To\'xtatish';
+    } else {
+        mic.classList.remove('animate-pulse', 'bg-rose-500');
+        mic.classList.add('bg-emerald-500');
+        mic.innerHTML = '<i data-lucide="mic" class="w-3.5 h-3.5"></i> Javob aytish';
     }
+    if (window.lucide) lucide.createIcons();
+}
+
+async function shToggleMasterMic() {
     const fact = shState.masterFacts[shState.masterVoice.idx];
     if (!fact) return;
     const heard = document.getElementById('sh-master-voice-heard');
     const result = document.getElementById('sh-master-voice-result');
-    const mic = document.getElementById('sh-master-mic-btn');
-    if (result) result.classList.add('hidden');
-    if (heard) heard.textContent = 'Mikrofon ochiq — javobingizni ayting...';
-    if (mic) {
-        mic.classList.add('animate-pulse', 'bg-rose-500');
-        mic.classList.remove('bg-emerald-500');
-        mic.innerHTML = '<i data-lucide="square" class="w-3.5 h-3.5"></i> To\'xtatish';
-        if (window.lucide) lucide.createIcons();
-    }
-    shState.masterVoice.listening = true;
 
-    const captured = await _shCaptureVoiceAnswer((partial) => {
-        if (heard && partial) heard.textContent = `Eshitildi: ${partial}`;
-    }, fact);
-
-    shState.masterVoice.listening = false;
-    if (mic) {
-        mic.classList.remove('animate-pulse', 'bg-rose-500');
-        mic.classList.add('bg-emerald-500');
-        mic.innerHTML = '<i data-lucide="mic" class="w-3.5 h-3.5"></i> Javob aytish';
-        if (window.lucide) lucide.createIcons();
-    }
-
-    if (!captured.transcript) {
-        if (heard) heard.textContent = 'Javob eshitilmadi. Qayta bosing.';
+    // 2-bosish: yozuvni to'xtatib tekshirish
+    if (shState.masterVoice.listening) {
+        if (heard) heard.textContent = 'Yozuv yakunlanmoqda...';
+        const captured = await _shStopPushToTalk(fact, (msg) => {
+            if (heard && msg) heard.textContent = msg;
+        });
+        shState.masterVoice.listening = false;
+        _shSetMicButton(false);
+        if (!captured.transcript) {
+            if (heard) {
+                heard.textContent = captured.error
+                    || 'Javob eshitilmadi. Mikrofon ruxsatini tekshiring yoki pastda yozib tekshiring.';
+            }
+            return;
+        }
+        if (heard) heard.textContent = `Siz: ${captured.transcript}`;
+        const data = captured.check || await _shCheckAnswerText(captured.transcript, fact);
+        _shShowVoiceResult(result, data, fact.etalon_javob);
         return;
     }
-    if (heard) heard.textContent = `Siz: ${captured.transcript}`;
-    const data = captured.check || await _shCheckAnswerText(captured.transcript, fact);
-    _shShowVoiceResult(result, data, fact.etalon_javob);
+
+    // 1-bosish: yozuvni boshlash
+    if (result) result.classList.add('hidden');
+    if (heard) heard.textContent = 'Gapiring... tayyor bo\'lgach yana «To\'xtatish» ni bosing';
+    try {
+        await _shStartPushToTalk((msg) => { if (heard && msg) heard.textContent = msg; });
+        shState.masterVoice.listening = true;
+        _shSetMicButton(true);
+        _shHaptic('light');
+    } catch (e) {
+        shState.masterVoice.listening = false;
+        _shSetMicButton(false);
+        if (heard) {
+            heard.textContent = 'Mikrofon ochilmadi. Telegram sozlamalarida mikrofon ruxsatini yoqing yoki javobni yozing.';
+        }
+    }
 }
 
-/**
- * Avval Web Speech API, bo'lmasa MediaRecorder + Gemini /api/master/voice-check.
- * @returns {Promise<{transcript: string, check?: object}>}
- */
-function _shCaptureVoiceAnswer(onPartial, factForGemini) {
-    return new Promise(async (resolve) => {
-        const empty = { transcript: '', check: null };
-        const rec = _shSpeechRecognition();
-        if (rec) {
-            let finalText = '';
-            let settled = false;
-            const finish = (text) => {
-                if (settled) return;
-                settled = true;
-                try { rec.stop(); } catch (e) {}
-                shState.masterVoice.recognition = null;
-                resolve({ transcript: (text || '').trim(), check: null });
-            };
+async function shListenMasterCard(idx) {
+    const fact = shState.masterFacts[idx];
+    if (!fact) return;
+    const heardEl = document.getElementById(`master-card-heard-${idx}`);
+    const resultEl = document.getElementById(`master-card-result-${idx}`);
+    if (heardEl) heardEl.textContent = 'Tinglanmoqda... 5 soniya gapiring';
+    if (resultEl) resultEl.classList.add('hidden');
+
+    const captured = await _shCaptureVoiceAnswer((partial) => {
+        if (heardEl && partial) heardEl.textContent = partial;
+    }, fact);
+
+    if (!captured.transcript) {
+        if (heardEl) {
+            heardEl.textContent = captured.error
+                || 'Javob eshitilmadi. Qayta urinib ko\'ring yoki ovozli mashqda yozib tekshiring.';
+        }
+        return;
+    }
+    if (heardEl) heardEl.textContent = `Siz: ${captured.transcript}`;
+    const data = captured.check || await _shCheckAnswerText(captured.transcript, fact);
+    _shShowVoiceResult(resultEl, data, fact.etalon_javob);
+}
+
+async function _shStartPushToTalk(onPartial) {
+    if (!navigator.mediaDevices?.getUserMedia) {
+        throw new Error('getUserMedia yo\'q');
+    }
+    _shStopAllVoice();
+    const stream = await navigator.mediaDevices.getUserMedia({
+        audio: { echoCancellation: true, noiseSuppression: true },
+    });
+    shState.masterVoice.mediaStream = stream;
+    const chunks = [];
+    shState.masterVoice.mediaChunks = chunks;
+    const mime = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
+        ? 'audio/webm;codecs=opus'
+        : (MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm'
+            : (MediaRecorder.isTypeSupported('audio/mp4') ? 'audio/mp4' : ''));
+    const recorder = new MediaRecorder(stream, mime ? { mimeType: mime } : undefined);
+    shState.masterVoice.mediaRecorder = recorder;
+    recorder.ondataavailable = (ev) => { if (ev.data?.size) chunks.push(ev.data); };
+    recorder.start(250);
+    if (onPartial) onPartial('Yozilmoqda... gapiring, keyin To\'xtatish');
+
+    // Parallel: brauzer STT (bo'lsa) — tezroq matn
+    const rec = _shSpeechRecognition();
+    if (rec) {
+        try {
+            let live = '';
             rec.lang = 'uz-UZ';
             rec.interimResults = true;
-            rec.continuous = false;
-            rec.maxAlternatives = 3;
+            rec.continuous = true;
             rec.onresult = (event) => {
                 let interim = '';
                 for (let i = event.resultIndex; i < event.results.length; i++) {
                     const t = event.results[i][0].transcript;
-                    if (event.results[i].isFinal) finalText += t;
+                    if (event.results[i].isFinal) live += `${t} `;
                     else interim += t;
                 }
-                if (onPartial) onPartial((finalText || interim).trim());
-            };
-            rec.onerror = async () => {
-                if (!settled) {
-                    settled = true;
-                    resolve(await _shRecordAndGeminiCheck(onPartial, factForGemini));
+                shState.masterVoice._liveTranscript = (live || interim).trim();
+                if (onPartial && shState.masterVoice._liveTranscript) {
+                    onPartial(`Eshitildi: ${shState.masterVoice._liveTranscript}`);
                 }
             };
-            rec.onend = () => finish(finalText);
+            rec.onerror = () => {};
             shState.masterVoice.recognition = rec;
-            try {
-                rec.start();
-                setTimeout(() => { try { rec.stop(); } catch (e) {} }, 8000);
-            } catch (e) {
-                resolve(await _shRecordAndGeminiCheck(onPartial, factForGemini));
-            }
-            return;
+            rec.start();
+        } catch (e) {
+            shState.masterVoice.recognition = null;
         }
-        resolve(await _shRecordAndGeminiCheck(onPartial, factForGemini) || empty);
-    });
+    }
 }
 
-async function _shRecordAndGeminiCheck(onPartial, fact) {
-    if (!navigator.mediaDevices?.getUserMedia) {
-        if (onPartial) onPartial('Mikrofon ruxsati yo\'q');
-        return { transcript: '', check: null };
-    }
-    if (!fact) return { transcript: '', check: null };
-    try {
-        if (onPartial) onPartial('Yozilmoqda... (4 soniya)');
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        shState.masterVoice.mediaStream = stream;
-        const chunks = [];
-        shState.masterVoice.mediaChunks = chunks;
-        const mime = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
-            ? 'audio/webm;codecs=opus'
-            : (MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : '');
-        const recorder = new MediaRecorder(stream, mime ? { mimeType: mime } : undefined);
-        shState.masterVoice.mediaRecorder = recorder;
-        recorder.ondataavailable = (ev) => { if (ev.data?.size) chunks.push(ev.data); };
+async function _shStopPushToTalk(fact, onPartial) {
+    const v = shState.masterVoice;
+    const live = (v._liveTranscript || '').trim();
+    v._liveTranscript = '';
 
-        const stopped = new Promise((res) => { recorder.onstop = () => res(); });
-        recorder.start();
-        await new Promise((r) => setTimeout(r, 4000));
-        if (recorder.state !== 'inactive') recorder.stop();
+    // STT to'xtatish
+    try { v.recognition?.stop(); } catch (e) {}
+    try { v.recognition?.abort(); } catch (e) {}
+    v.recognition = null;
+
+    const recorder = v.mediaRecorder;
+    const stream = v.mediaStream;
+    const chunks = v.mediaChunks || [];
+
+    if (recorder && recorder.state !== 'inactive') {
+        const stopped = new Promise((res) => {
+            recorder.onstop = () => res();
+            setTimeout(res, 1500);
+        });
+        try { recorder.requestData?.(); } catch (e) {}
+        try { recorder.stop(); } catch (e) {}
         await stopped;
-        stream.getTracks().forEach((t) => t.stop());
-        shState.masterVoice.mediaStream = null;
-        shState.masterVoice.mediaRecorder = null;
+    }
+    if (stream) stream.getTracks().forEach((t) => t.stop());
+    v.mediaRecorder = null;
+    v.mediaStream = null;
 
-        if (!chunks.length) return { transcript: '', check: null };
-        const blob = new Blob(chunks, { type: recorder.mimeType || 'audio/webm' });
+    // Brauzer STT matn bersa — darhol tekshiramiz (Telegramda ko'pincha bo'sh)
+    if (live) {
+        return { transcript: live, check: null, error: null };
+    }
+
+    if (!chunks.length) {
+        return {
+            transcript: '',
+            check: null,
+            error: 'Audio yozilmadi. Mikrofon ruxsatini tekshiring yoki javobni yozing.',
+        };
+    }
+
+    const blob = new Blob(chunks, { type: (recorder && recorder.mimeType) || 'audio/webm' });
+    if (blob.size < 800) {
+        return {
+            transcript: '',
+            check: null,
+            error: 'Yozuv juda qisqa. Uzunroq gapiring, keyin To\'xtatishni bosing.',
+        };
+    }
+
+    if (onPartial) onPartial('Ovoz tekshirilmoqda...');
+    try {
         const b64 = await _shBlobToBase64(blob);
-        if (onPartial) onPartial('Tekshirilmoqda...');
         const res = await fetch('/api/master/voice-check', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -765,14 +823,51 @@ async function _shRecordAndGeminiCheck(onPartial, fact) {
                 savol_matni: fact.savol_matni,
             }),
         });
-        const data = await res.json();
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+            return {
+                transcript: '',
+                check: null,
+                error: data.detail || `Server xatosi (${res.status}). Javobni yozib tekshiring.`,
+            };
+        }
         const transcript = (data.transcript || '').trim();
-        if (transcript && onPartial) onPartial(transcript);
-        return { transcript, check: data };
+        if (!transcript) {
+            return {
+                transcript: '',
+                check: data,
+                error: data.feedback || 'Ovozni matnga aylantirib bo\'lmadi. Javobni yozib tekshiring.',
+            };
+        }
+        return { transcript, check: data, error: null };
     } catch (e) {
-        if (onPartial) onPartial('Mikrofon / yozuv xatosi');
-        return { transcript: '', check: null };
+        return {
+            transcript: '',
+            check: null,
+            error: 'Tarmoq xatosi. Javobni pastda yozib tekshiring.',
+        };
     }
+}
+
+/**
+ * Kartalar uchun: qisqa avtomatik yozuv + Gemini / STT.
+ * @returns {Promise<{transcript: string, check?: object, error?: string}>}
+ */
+function _shCaptureVoiceAnswer(onPartial, factForGemini) {
+    return new Promise(async (resolve) => {
+        try {
+            await _shStartPushToTalk(onPartial);
+            // Kartada avtomatik 6 soniya
+            await new Promise((r) => setTimeout(r, 6000));
+            resolve(await _shStopPushToTalk(factForGemini, onPartial));
+        } catch (e) {
+            resolve({
+                transcript: '',
+                check: null,
+                error: 'Mikrofon ochilmadi. Ruxsat bering yoki ovozli mashqda yozib tekshiring.',
+            });
+        }
+    });
 }
 
 function _shBlobToBase64(blob) {
@@ -1402,6 +1497,7 @@ window.shStartMasterVoiceDrill = shStartMasterVoiceDrill;
 window.shStopMasterVoiceDrill = shStopMasterVoiceDrill;
 window.shSpeakMasterDrill = shSpeakMasterDrill;
 window.shToggleMasterMic = shToggleMasterMic;
+window.shSubmitMasterTextAnswer = shSubmitMasterTextAnswer;
 window.shRevealMasterDrillAnswer = shRevealMasterDrillAnswer;
 window.shMasterVoiceNext = shMasterVoiceNext;
 window.shSendCommunityChallenge = shSendCommunityChallenge;
