@@ -6,7 +6,7 @@ from sqlalchemy import select
 from states.register import PaymentState
 from keyboards.reply import get_main_menu, cancel_payment
 from database.db import async_session
-from database.models import User
+from database.models import User, BalanceTransaction, CoinTransaction
 from data.config import ADMINS
 
 router = Router()
@@ -88,8 +88,22 @@ async def admin_approve_payment(callback: CallbackQuery):
         user = result.scalar_one_or_none()
 
         if user:
-            user.balance += amount
+            user.balance = int(user.balance or 0) + amount
+            user.coins = int(user.balance or 0)
             user.is_paid = True
+            session.add(BalanceTransaction(
+                telegram_id=target_user_id,
+                amount=amount,
+                transaction_type="income",
+                title="Admin tasdiqlagan to'lov",
+                item_category="hisob",
+            ))
+            session.add(CoinTransaction(
+                user_id=target_user_id,
+                amount=amount,
+                tx_type="topup",
+                description="Admin tasdiqlagan to'lov",
+            ))
             await session.commit()
             new_balance = user.balance
         else:

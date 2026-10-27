@@ -483,11 +483,12 @@ function renderTransactions(txs) {
 
     container.innerHTML = list.map(t => {
         const isPlus = t.amount > 0;
+        const title = t.title || t.description || "Tranzaksiya";
         return `
             <div class="bg-[#161F30] border border-[#283548] p-2.5 rounded-xl flex items-center justify-between">
                 <div>
-                    <p class="text-slate-200 font-medium">${t.description}</p>
-                    <span class="text-[10px] text-slate-500">${t.date}</span>
+                    <p class="text-slate-200 font-medium">${title}</p>
+                    <span class="text-[10px] text-slate-500">${t.date || ""}</span>
                 </div>
                 <span class="font-bold font-mono ${isPlus ? 'text-emerald-400' : 'text-rose-400'}">
                     ${isPlus ? '+' : ''}${Number(t.amount || 0).toLocaleString('uz-UZ')} so'm
@@ -500,6 +501,74 @@ function renderTransactions(txs) {
 // Modallar
 function openModal(id) { document.getElementById(id)?.classList.remove('hidden'); }
 function closeModal(id) { document.getElementById(id)?.classList.add('hidden'); }
+
+// Hisobni Click orqali to'ldirish
+function openTopUpModal() {
+    const input = document.getElementById("topup-amount-input");
+    if (input) input.value = "50000";
+    selectTopUpAmount(50000);
+    openModal("topup-modal");
+}
+
+function selectTopUpAmount(amount) {
+    const input = document.getElementById("topup-amount-input");
+    if (input) input.value = String(amount);
+    document.querySelectorAll(".topup-amt-btn").forEach((btn) => {
+        const active = Number(btn.getAttribute("data-amt")) === Number(amount);
+        btn.classList.toggle("border-emerald-500", active);
+        btn.classList.toggle("bg-emerald-500/15", active);
+        btn.classList.toggle("text-emerald-400", active);
+    });
+}
+
+async function startClickTopUp() {
+    const tgId = getCurrentTelegramId();
+    const raw = document.getElementById("topup-amount-input")?.value;
+    const amount = Number(raw);
+    if (!tgId) {
+        alert("Telegram ID aniqlanmadi. Mini Appni bot orqali oching.");
+        return;
+    }
+    if (!amount || amount < 1000) {
+        alert("Minimal summa 1 000 so'm.");
+        return;
+    }
+
+    const btn = document.getElementById("topup-pay-btn");
+    if (btn) {
+        btn.disabled = true;
+        btn.innerText = "Tayyorlanmoqda...";
+    }
+    try {
+        const res = await fetch("/api/payments/click/create", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ telegram_id: tgId, amount: Math.round(amount) })
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+            alert(data.detail || "Click to'lovi yaratilmadi. Sozlamalarni tekshiring.");
+            return;
+        }
+        if (data.pay_url) {
+            closeModal("topup-modal");
+            if (window.Telegram?.WebApp?.openLink) {
+                window.Telegram.WebApp.openLink(data.pay_url);
+            } else {
+                window.open(data.pay_url, "_blank");
+            }
+        } else {
+            alert("To'lov havolasi olinmadi.");
+        }
+    } catch (e) {
+        alert("Server bilan aloqa uzildi.");
+    } finally {
+        if (btn) {
+            btn.disabled = false;
+            btn.innerText = "Click orqali to'lash";
+        }
+    }
+}
 
 // Oferta bonusi
 async function claimOfertaBonus() {
