@@ -732,14 +732,16 @@ async function _shStartPushToTalk(onPartial) {
     recorder.start(250);
     if (onPartial) onPartial('Yozilmoqda... gapiring, keyin To\'xtatish');
 
-    // Parallel: brauzer STT (bo'lsa) — tezroq matn
+    // Parallel: brauzer STT (Telegramda uz-UZ ko'pincha ishlamaydi → ru-RU)
     const rec = _shSpeechRecognition();
     if (rec) {
         try {
             let live = '';
-            rec.lang = 'uz-UZ';
+            const langs = ['uz-UZ', 'ru-RU', 'tr-TR', 'en-US'];
+            rec.lang = langs[0];
             rec.interimResults = true;
             rec.continuous = true;
+            rec.maxAlternatives = 3;
             rec.onresult = (event) => {
                 let interim = '';
                 for (let i = event.resultIndex; i < event.results.length; i++) {
@@ -752,7 +754,17 @@ async function _shStartPushToTalk(onPartial) {
                     onPartial(`Eshitildi: ${shState.masterVoice._liveTranscript}`);
                 }
             };
-            rec.onerror = () => {};
+            rec.onerror = (ev) => {
+                // language-not-supported bo'lsa keyingi tilga o'tamiz
+                const err = String(ev?.error || '');
+                const idx = langs.indexOf(rec.lang);
+                if ((err === 'language-not-supported' || err === 'service-not-allowed') && idx >= 0 && idx < langs.length - 1) {
+                    try {
+                        rec.lang = langs[idx + 1];
+                        rec.start();
+                    } catch (e2) {}
+                }
+            };
             shState.masterVoice.recognition = rec;
             rec.start();
         } catch (e) {

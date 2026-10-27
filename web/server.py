@@ -5885,8 +5885,8 @@ async def _gemini_transcribe_and_check(
             "transcript": "",
             "is_correct": False,
             "score": 0,
-            "feedback": "GEMINI_API_KEY sozlanmagan — brauzer STT ishlating",
-            "source": "fallback",
+            "feedback": "Serverda Gemini kaliti yo'q. Javobni yozib «Tekshir» bosing yoki deploy qilib kalitni sinxronlang.",
+            "source": "no_api_key",
         }
 
     prompt = (
