@@ -484,6 +484,40 @@
                             </select>
                         </div>
                         <div id="sh-master-topics" class="flex gap-1.5 overflow-x-auto pb-0.5 scrollbar-none"></div>
+                        <button type="button" id="sh-master-voice-start" onclick="shStartMasterVoiceDrill()"
+                                class="hidden w-full py-2.5 rounded-xl text-[11px] font-bold bg-gradient-to-r from-emerald-500 to-emerald-600 text-slate-950 active:scale-[0.98] transition-all cursor-pointer flex items-center justify-center gap-2">
+                            <i data-lucide="mic" class="w-3.5 h-3.5"></i>
+                            Ovozli savol-javobni boshlash
+                        </button>
+                        <div id="sh-master-voice-drill" class="hidden space-y-2.5 rounded-2xl border border-emerald-500/30 bg-emerald-500/5 p-3">
+                            <div class="flex items-center justify-between gap-2">
+                                <p id="sh-master-voice-progress" class="text-[10px] font-bold text-emerald-400">1 / 38</p>
+                                <button type="button" onclick="shStopMasterVoiceDrill()" class="text-[10px] text-slate-400 hover:text-rose-400 cursor-pointer">Yopish</button>
+                            </div>
+                            <p id="sh-master-voice-fact" class="text-[11px] text-slate-300 leading-relaxed"></p>
+                            <div class="rounded-lg bg-[#0A0E17]/70 border border-[#283548] px-2.5 py-2">
+                                <p class="text-[9px] text-slate-500 mb-0.5 uppercase tracking-wide">Savol</p>
+                                <p id="sh-master-voice-question" class="text-xs font-semibold text-white leading-snug"></p>
+                            </div>
+                            <div class="grid grid-cols-2 gap-2">
+                                <button type="button" onclick="shSpeakMasterDrill()"
+                                        class="py-2 rounded-xl text-[10px] font-bold bg-[#161F30] border border-[#283548] text-slate-200 active:scale-95 cursor-pointer flex items-center justify-center gap-1.5">
+                                    <i data-lucide="volume-2" class="w-3.5 h-3.5 text-sky-400"></i> O'qib ber
+                                </button>
+                                <button type="button" id="sh-master-mic-btn" onclick="shToggleMasterMic()"
+                                        class="py-2 rounded-xl text-[10px] font-bold bg-emerald-500 text-slate-950 active:scale-95 cursor-pointer flex items-center justify-center gap-1.5">
+                                    <i data-lucide="mic" class="w-3.5 h-3.5"></i> Javob aytish
+                                </button>
+                            </div>
+                            <p id="sh-master-voice-heard" class="text-[10px] text-slate-400 min-h-[1rem]"></p>
+                            <div id="sh-master-voice-result" class="hidden rounded-lg px-2.5 py-2 text-[11px]"></div>
+                            <div class="flex gap-2">
+                                <button type="button" onclick="shRevealMasterDrillAnswer()"
+                                        class="flex-1 py-1.5 rounded-lg text-[10px] font-semibold bg-[#161F30] border border-[#283548] text-slate-300 cursor-pointer">Etalon</button>
+                                <button type="button" onclick="shMasterVoiceNext()"
+                                        class="flex-1 py-1.5 rounded-lg text-[10px] font-bold bg-emerald-500/20 border border-emerald-500/40 text-emerald-400 cursor-pointer">Keyingi →</button>
+                            </div>
+                        </div>
                         <div id="sh-master-results" class="space-y-2 max-h-[28rem] overflow-y-auto">
                             <p class="text-[11px] text-slate-500 text-center py-6">Sinf va mavzuni tanlang</p>
                         </div>
@@ -1795,7 +1829,7 @@
     <script src="/static/js/target.js?v=20261026-media-proxy-v1"></script>
     <script src="/static/js/cabinet.js?v=header-back-1"></script>
     <script src="/static/js/octagon.js?v=1"></script>
-    <script src="/static/js/subject_dashboard.js?v=20261027-master-qa"></script>
+    <script src="/static/js/subject_dashboard.js?v=20261027-master-voice"></script>
     <script src="/static/js/tests.js?v=20261022-essay-rasch"></script>
 
     <!-- ASOSIY BOSHQARUV LOGIKASI -->

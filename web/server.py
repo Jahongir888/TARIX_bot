@@ -5818,6 +5818,153 @@ def _master_fact_to_dict(row: MasterFactQuestion) -> dict:
     }
 
 
+def _normalize_answer_text(value: str) -> str:
+    text = (value or "").lower().strip()
+    for src, dst in (
+        ("ʻ", "'"), ("ʼ", "'"), ("‘", "'"), ("’", "'"), ("`", "'"),
+        ("o'", "o"), ("g'", "g"), ("oʻ", "o"), ("gʻ", "g"),
+        ("ў", "o"), ("ғ", "g"), ("қ", "q"), ("ҳ", "h"),
+        ("ё", "yo"), ("й", "y"), ("ц", "ts"), ("щ", "sh"),
+        ("я", "ya"), ("ю", "yu"), ("э", "e"), ("ъ", ""), ("ь", ""),
+    ):
+        text = text.replace(src, dst)
+    text = re.sub(r"[^0-9a-zа-я]+", " ", text, flags=re.IGNORECASE)
+    return re.sub(r"\s+", " ", text).strip()
+
+
+def _score_answer_match(user_answer: str, etalon: str) -> dict:
+    """Oddiy matn solishtirish: aniq moslik / ichida bor / token Jaccard."""
+    u = _normalize_answer_text(user_answer)
+    e = _normalize_answer_text(etalon)
+    if not u or not e:
+        return {"is_correct": False, "score": 0, "feedback": "Javob eshitilmadi"}
+    if u == e:
+        return {"is_correct": True, "score": 100, "feedback": "Aniq mos keldi"}
+    if e in u or u in e:
+        score = 90 if min(len(u), len(e)) >= 3 else 70
+        return {"is_correct": score >= 70, "score": score, "feedback": "Javob etalonga juda yaqin"}
+    ut, et = set(u.split()), set(e.split())
+    if not ut or not et:
+        return {"is_correct": False, "score": 0, "feedback": "Javobni aniqlab bo'lmadi"}
+    inter = len(ut & et)
+    union = len(ut | et) or 1
+    jaccard = inter / union
+    # Muhim so'zlar etalonda ko'p qamralsa — to'g'ri deb hisoblaymiz
+    coverage = inter / (len(et) or 1)
+    score = int(round(max(jaccard, coverage) * 100))
+    ok = coverage >= 0.6 or jaccard >= 0.5 or (len(et) == 1 and inter == 1)
+    return {
+        "is_correct": ok,
+        "score": score,
+        "feedback": "To'g'ri!" if ok else "Etalonga yaqinlashiring",
+    }
+
+
+class MasterAnswerCheckSchema(BaseModel):
+    user_answer: str
+    etalon_javob: str
+    savol_matni: Optional[str] = None
+
+
+class MasterVoiceCheckSchema(BaseModel):
+    audio_base64: str
+    mime_type: str = "audio/webm"
+    etalon_javob: str
+    savol_matni: Optional[str] = None
+
+
+async def _gemini_transcribe_and_check(
+    audio_b64: str,
+    mime_type: str,
+    etalon: str,
+    savol: Optional[str] = None,
+) -> dict:
+    """Gemini orqali ovozdan matn va etalon tekshiruvi."""
+    if not GEMINI_API_KEY:
+        return {
+            "transcript": "",
+            "is_correct": False,
+            "score": 0,
+            "feedback": "GEMINI_API_KEY sozlanmagan — brauzer STT ishlating",
+            "source": "fallback",
+        }
+
+    prompt = (
+        "Siz o'zbek tarixi ovozli savol-javob tekshiruvchisisiz.\n"
+        "1) Audiojavobni o'zbek tilida matnga o'giring (transcript).\n"
+        "2) Uni etalon javob bilan solishtiring (ma'no bir xil bo'lsa to'g'ri).\n"
+        "Faqat JSON qaytaring: "
+        '{"transcript":"...","is_correct":true/false,"score":0-100,"feedback":"qisqa izoh"}\n\n'
+        f"Savol: {savol or '—'}\n"
+        f"Etalon javob: {etalon}\n"
+    )
+    url = (
+        f"https://generativelanguage.googleapis.com/v1beta/models/"
+        f"{GEMINI_ESSAY_MODEL}:generateContent?key={GEMINI_API_KEY}"
+    )
+    body = {
+        "contents": [{
+            "role": "user",
+            "parts": [
+                {"text": prompt},
+                {"inline_data": {"mime_type": mime_type or "audio/webm", "data": audio_b64}},
+            ],
+        }],
+        "generationConfig": {
+            "temperature": 0.1,
+            "responseMimeType": "application/json",
+        },
+    }
+    try:
+        status_code, payload = await _gemini_http_post_json(url, body)
+        if status_code >= 400:
+            return {
+                "transcript": "",
+                "is_correct": False,
+                "score": 0,
+                "feedback": f"Gemini HTTP {status_code}",
+                "source": "gemini_error",
+            }
+        text = ""
+        for candidate in payload.get("candidates") or []:
+            content = candidate.get("content") or {}
+            for part in content.get("parts") or []:
+                if part.get("text"):
+                    text += part["text"]
+        parsed = _extract_json_object(text) if text else None
+        if not isinstance(parsed, dict):
+            return {
+                "transcript": "",
+                "is_correct": False,
+                "score": 0,
+                "feedback": "Gemini javobini o'qib bo'lmadi",
+                "source": "gemini_parse_error",
+            }
+        transcript = str(parsed.get("transcript") or "").strip()
+        local = _score_answer_match(transcript, etalon)
+        is_correct = bool(parsed.get("is_correct")) if "is_correct" in parsed else local["is_correct"]
+        try:
+            score = int(parsed.get("score", local["score"]))
+        except (TypeError, ValueError):
+            score = local["score"]
+        feedback = str(parsed.get("feedback") or local["feedback"]).strip()
+        return {
+            "transcript": transcript,
+            "is_correct": is_correct,
+            "score": max(0, min(100, score)),
+            "feedback": feedback,
+            "source": "gemini",
+        }
+    except Exception as exc:
+        return {
+            "transcript": "",
+            "is_correct": False,
+            "score": 0,
+            "feedback": str(exc)[:120],
+            "source": "gemini_exception",
+        }
+
+
 async def _master_grade_rows(session):
     return (
         await session.execute(
@@ -5932,6 +6079,52 @@ async def get_master_facts(grade: int, topic_num: int):
         "title": f"Mavzu {topic_num}",
         "count": len(rows),
         "facts": [_master_fact_to_dict(r) for r in rows],
+    }
+
+
+@app.post("/api/master/check-answer")
+async def master_check_answer(payload: MasterAnswerCheckSchema):
+    """Ovoz/matn javobini etalon bilan solishtirish."""
+    result = _score_answer_match(payload.user_answer, payload.etalon_javob)
+    return {
+        "transcript": (payload.user_answer or "").strip(),
+        "etalon_javob": payload.etalon_javob,
+        "savol_matni": payload.savol_matni,
+        **result,
+        "source": "local",
+    }
+
+
+@app.post("/api/master/voice-check")
+async def master_voice_check(payload: MasterVoiceCheckSchema):
+    """Audiojavobni Gemini bilan matnga o'girib etalon bilan tekshiradi."""
+    raw = (payload.audio_base64 or "").strip()
+    if raw.startswith("data:"):
+        try:
+            header, raw = raw.split(",", 1)
+            if "audio/" in header and ";base64" in header:
+                mime = header.split(";")[0].replace("data:", "") or payload.mime_type
+            else:
+                mime = payload.mime_type
+        except ValueError:
+            mime = payload.mime_type
+    else:
+        mime = payload.mime_type or "audio/webm"
+
+    if not raw or len(raw) < 32:
+        raise HTTPException(status_code=400, detail="Audio juda qisqa yoki bo'sh")
+
+    gemini = await _gemini_transcribe_and_check(
+        raw, mime, payload.etalon_javob, payload.savol_matni
+    )
+    # Gemini transcript bo'sh bo'lsa ham local score qaytaramiz
+    if gemini.get("transcript") and gemini.get("source") != "gemini":
+        local = _score_answer_match(gemini["transcript"], payload.etalon_javob)
+        gemini = {**gemini, **local, "transcript": gemini["transcript"]}
+    return {
+        "etalon_javob": payload.etalon_javob,
+        "savol_matni": payload.savol_matni,
+        **gemini,
     }
 
 
