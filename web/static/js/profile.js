@@ -499,15 +499,49 @@ function renderTransactions(txs) {
 }
 
 // Modallar
-function openModal(id) { document.getElementById(id)?.classList.remove('hidden'); }
-function closeModal(id) { document.getElementById(id)?.classList.add('hidden'); }
+function openModal(id) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.classList.remove("hidden");
+    if (el.classList.contains("ph-modal")) el.classList.add("ph-open");
+}
+function closeModal(id) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.classList.add("hidden");
+    el.classList.remove("ph-open");
+}
 
-// Hisobni Click orqali to'ldirish
+function tgNotify(message) {
+    const text = String(message || "");
+    try {
+        if (window.Telegram?.WebApp?.showAlert) {
+            window.Telegram.WebApp.showAlert(text);
+            return;
+        }
+    } catch (e) {}
+    try { window.alert(text); } catch (e2) { console.warn(text); }
+}
+
+// Hisobni Click orqali to'ldirish (kalitsiz ham modal ochiladi)
 function openTopUpModal() {
+    const modal = document.getElementById("topup-modal");
+    if (!modal) {
+        tgNotify("To'ldirish oynasi topilmadi. Mini Appni qayta oching.");
+        return;
+    }
     const input = document.getElementById("topup-amount-input");
-    if (input) input.value = "50000";
-    selectTopUpAmount(50000);
-    openModal("topup-modal");
+    if (input && !input.value) input.value = "50000";
+    selectTopUpAmount(Number(input?.value) || 50000);
+    modal.classList.remove("hidden");
+    modal.classList.add("ph-open");
+}
+
+function closeTopUpModal() {
+    const modal = document.getElementById("topup-modal");
+    if (!modal) return;
+    modal.classList.add("hidden");
+    modal.classList.remove("ph-open");
 }
 
 function selectTopUpAmount(amount) {
@@ -526,11 +560,11 @@ async function startClickTopUp() {
     const raw = document.getElementById("topup-amount-input")?.value;
     const amount = Number(raw);
     if (!tgId) {
-        alert("Telegram ID aniqlanmadi. Mini Appni bot orqali oching.");
+        tgNotify("Telegram ID aniqlanmadi. Mini Appni bot orqali oching.");
         return;
     }
     if (!amount || amount < 1000) {
-        alert("Minimal summa 1 000 so'm.");
+        tgNotify("Minimal summa 1 000 so'm.");
         return;
     }
 
@@ -547,21 +581,25 @@ async function startClickTopUp() {
         });
         const data = await res.json().catch(() => ({}));
         if (!res.ok) {
-            alert(data.detail || "Click to'lovi yaratilmadi. Sozlamalarni tekshiring.");
+            const detail = data.detail;
+            const msg = typeof detail === "string"
+                ? detail
+                : "Click sozlanmagan. .env ga SERVICE_ID va MERCHANT_ID yozing.";
+            tgNotify(msg);
             return;
         }
         if (data.pay_url) {
-            closeModal("topup-modal");
+            closeTopUpModal();
             if (window.Telegram?.WebApp?.openLink) {
                 window.Telegram.WebApp.openLink(data.pay_url);
             } else {
                 window.open(data.pay_url, "_blank");
             }
         } else {
-            alert("To'lov havolasi olinmadi.");
+            tgNotify("To'lov havolasi olinmadi.");
         }
     } catch (e) {
-        alert("Server bilan aloqa uzildi.");
+        tgNotify("Server bilan aloqa uzildi.");
     } finally {
         if (btn) {
             btn.disabled = false;
@@ -569,6 +607,25 @@ async function startClickTopUp() {
         }
     }
 }
+
+// Global + click listener (Telegram WebView / eski kesh uchun)
+window.openTopUpModal = openTopUpModal;
+window.closeTopUpModal = closeTopUpModal;
+window.selectTopUpAmount = selectTopUpAmount;
+window.startClickTopUp = startClickTopUp;
+
+function bindTopUpButton() {
+    const topUpBtn = document.getElementById("btn-topup-balance");
+    if (!topUpBtn || topUpBtn.dataset.bound === "1") return;
+    topUpBtn.dataset.bound = "1";
+    topUpBtn.addEventListener("click", (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        openTopUpModal();
+    });
+}
+bindTopUpButton();
+document.addEventListener("DOMContentLoaded", bindTopUpButton);
 
 // Oferta bonusi
 async function claimOfertaBonus() {

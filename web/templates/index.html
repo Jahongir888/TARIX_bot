@@ -1266,7 +1266,8 @@
                         <p class="text-slate-400 text-[11px]">Hamyon balansi:</p>
                         <p class="text-base font-bold text-emerald-400 mt-0.5"><span id="coin-balance">0</span> so'm</p>
                     </div>
-                    <button type="button" onclick="openTopUpModal()" class="px-3 py-1.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold rounded-xl text-xs shadow active:scale-95 transition-all cursor-pointer">
+                    <button type="button" id="btn-topup-balance"
+                            class="relative z-10 px-3 py-1.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold rounded-xl text-xs shadow active:scale-95 transition-all cursor-pointer">
                         + To'ldirish
                     </button>
                 </div>
@@ -1500,11 +1501,11 @@
 
     <!-- MINI APP ICHKI MODALLARI (DRAWER / BOTTOM SHEET) -->
     <!-- 0. Hisobni to'ldirish (Click) -->
-    <div id="topup-modal" class="hidden fixed inset-0 bg-black/80 z-50 flex items-end justify-center backdrop-blur-sm">
-        <div class="bg-[#111827] border-t border-[#1F2937] w-full max-w-md rounded-t-3xl p-5">
+    <div id="topup-modal" class="ph-modal fixed inset-0 z-[90] bg-black/80 backdrop-blur-sm items-end justify-center" onclick="if(event.target===this)closeTopUpModal()">
+        <div class="bg-[#111827] border-t border-[#1F2937] w-full max-w-md rounded-t-3xl p-5" onclick="event.stopPropagation()">
             <div class="flex justify-between items-center mb-3">
                 <h4 class="text-sm font-bold text-white">💳 Hisobni to'ldirish</h4>
-                <button onclick="closeModal('topup-modal')" class="text-slate-400 p-1 text-sm">✕</button>
+                <button type="button" onclick="closeTopUpModal()" class="text-slate-400 p-1 text-sm">✕</button>
             </div>
             <p class="text-xs text-slate-400 mb-3">Click orqali xavfsiz to'lov. Summani tanlang yoki kiriting.</p>
             <div class="grid grid-cols-3 gap-2 mb-3">
@@ -1857,7 +1858,7 @@
 
     <!-- MODULLI JAVASCRIPT FAYLLARI -->
     <script src="/static/js/home.js?v=20261026-fav-timers"></script>
-    <script src="/static/js/profile.js"></script>
+    <script src="/static/js/profile.js?v=20261027-topup-click-v2"></script>
     <script src="/static/js/catalog.js?v=20261026-target-filter"></script>
     <script src="/static/js/target.js?v=20261026-media-proxy-v1"></script>
     <script src="/static/js/cabinet.js?v=header-back-1"></script>
