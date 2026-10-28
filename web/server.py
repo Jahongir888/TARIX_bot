@@ -47,6 +47,7 @@ import secrets
 from data.config import BOT_TOKEN, GEMINI_API_KEY, GEMINI_ESSAY_MODEL, WEBAPP_URL
 from aiogram import Bot
 from web.routes.admin_routes import router as admin_router
+from web.routes import click as click_routes
 import asyncio
 import re
 import base64
@@ -78,6 +79,9 @@ app.mount("/static", StaticFiles(directory=static_path), name="static")
 
 # Admin panel marshrutlari (GET /admin + /api/admin/*)
 app.include_router(admin_router)
+
+# Click Shop API (Prepare / Complete)
+app.include_router(click_routes.router)
 
 # index.html shabloniga mutlaq manzil
 CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
