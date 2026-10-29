@@ -1,5 +1,7 @@
 @echo off
+setlocal EnableExtensions EnableDelayedExpansion
 chcp 65001 >nul
+
 echo ===================================================
 echo [1/2] O'zgarishlar GitHub'ga yuklanmoqda...
 echo ===================================================
@@ -11,32 +13,84 @@ echo.
 echo ===================================================
 echo [2/2] Serverdagi kodlar va bot yangilanmoqda...
 echo ===================================================
-REM Lokal .env dagi GEMINI_API_KEY ni serverga yuborish (gitga kiritilmaydi)
-for /f "usebackq tokens=1,* delims==" %%A in (`findstr /B /C:"GEMINI_API_KEY=" ".env" 2^>nul`) do set "GEMINI_SYNC_KEY=%%B"
-if defined GEMINI_SYNC_KEY (
-  echo [sync] GEMINI_API_KEY serverga yozilmoqda...
-  ssh root@134.209.228.223 "cd /root/TARIX_bot && touch .env && if grep -q '^GEMINI_API_KEY=' .env; then sed -i 's|^GEMINI_API_KEY=.*|GEMINI_API_KEY=%GEMINI_SYNC_KEY%|' .env; else echo GEMINI_API_KEY=%GEMINI_SYNC_KEY% >> .env; fi"
-) else (
-  echo [warn] Lokal .env da GEMINI_API_KEY topilmadi — ovozli STT serverda ishlamasligi mumkin.
+echo [info] Parol faqat 1 marta so'raladi (barcha sync + deploy bitta SSH).
+
+REM Barcha .env sync + deploy bitta remote skriptda (bir nechta ssh emas)
+set "TMPSH=%TEMP%\tarix_bot_deploy.sh"
+> "%TMPSH%" (
+  echo #!/bin/bash
+  echo set -e
+  echo cd /root/TARIX_bot
+  echo touch .env
+  echo upsert_env^(^) {
+  echo   local key="$1"
+  echo   local val="$2"
+  echo   if [ -z "$val" ]; then return 0; fi
+  echo   if grep -q "^${key}=" .env; then
+  echo     sed -i "s|^${key}=.*|${key}=${val}|" .env
+  echo   else
+  echo     printf '%%s=%%s\n' "$key" "$val" ^>^> .env
+  echo   fi
+  echo   echo "[sync] $key OK"
+  echo }
 )
 
-REM Click Merchant kalitlarini server .env ga sinxronlash
-for %%K in (CLICK_SERVICE_ID CLICK_MERCHANT_ID CLICK_SECRET_KEY CLICK_MERCHANT_USER_ID) do (
-  for /f "usebackq tokens=1,* delims==" %%A in (`findstr /B /C:"%%K=" ".env" 2^>nul`) do (
-    if not "%%B"=="" (
-      echo [sync] %%K serverga yozilmoqda...
-      ssh root@134.209.228.223 "cd /root/TARIX_bot && touch .env && if grep -q '^%%K=' .env; then sed -i 's|^%%K=.*|%%K=%%B|' .env; else echo %%K=%%B >> .env; fi"
-    ) else (
-      echo [warn] Lokal .env da %%K bo'sh.
-    )
-  )
+REM Lokal .env dan kalitlarni o'qib remote skriptga qo'shamiz
+call :emit_upsert GEMINI_API_KEY
+call :emit_upsert CLICK_SERVICE_ID
+call :emit_upsert CLICK_MERCHANT_ID
+call :emit_upsert CLICK_SECRET_KEY
+call :emit_upsert CLICK_MERCHANT_USER_ID
+
+>> "%TMPSH%" (
+  echo echo "[deploy] git pull + restart..."
+  echo git stash
+  echo git pull origin main
+  echo PY=./venv/bin/python
+  echo test -x "$PY" ^|^| PY=./.venv/bin/python
+  echo "$PY" -m pip install -q httpx openpyxl
+  echo "$PY" import_master_baza.py
+  echo pm2 restart fastapi-app tg-bot
+  echo sleep 2
+  echo "$PY" -c "from data.config import GEMINI_API_KEY; print('GEMINI:', 'OK' if GEMINI_API_KEY else 'YOQ')"
+  echo pm2 describe fastapi-app ^| head -n 40
 )
 
-ssh root@134.209.228.223 "cd /root/TARIX_bot && git stash && git pull origin main && PY=./venv/bin/python; test -x \"$PY\" || PY=./.venv/bin/python; \"$PY\" -m pip install -q httpx openpyxl; \"$PY\" import_master_baza.py; pm2 restart fastapi-app tg-bot && sleep 2 && \"$PY\" -c \"from data.config import GEMINI_API_KEY; print('GEMINI:', 'OK' if GEMINI_API_KEY else 'YOQ')\" && pm2 describe fastapi-app | head -n 40"
+REM Bitta SSH: lokal skriptni remote bash ga uzatamiz
+type "%TMPSH%" | ssh root@134.209.228.223 "bash -s"
+set "SSH_EXIT=!ERRORLEVEL!"
+del /q "%TMPSH%" >nul 2>&1
+
+if not "!SSH_EXIT!"=="0" (
+  echo.
+  echo [xato] Server deploy muvaffaqiyatsiz ^(exit !SSH_EXIT!^).
+  echo Maslahat: SSH kalit sozlang — keyin umuman parol so'ralmaydi.
+  echo   ssh-keygen -t ed25519 -N "" -f %%USERPROFILE%%\.ssh\id_ed25519
+  echo   type %%USERPROFILE%%\.ssh\id_ed25519.pub ^| ssh root@134.209.228.223 "mkdir -p ~/.ssh && chmod 700 ~/.ssh && cat ^>^> ~/.ssh/authorized_keys && chmod 600 ~/.ssh/authorized_keys"
+  pause
+  exit /b !SSH_EXIT!
+)
 
 echo.
 echo ===================================================
-echo  Muvaffaqiyatli yakunlandi! 
+echo  Muvaffaqiyatli yakunlandi!
 echo  Mini App va bot serverda yangilandi.
 echo ===================================================
+echo.
+echo Tip: kelajakda 0 marta parol uchun SSH kalit qo'shing:
+echo   type %%USERPROFILE%%\.ssh\id_ed25519.pub ^| ssh root@134.209.228.223 "mkdir -p ~/.ssh && cat ^>^> ~/.ssh/authorized_keys"
+echo.
 pause
+exit /b 0
+
+:emit_upsert
+set "K=%~1"
+set "V="
+for /f "usebackq tokens=1,* delims==" %%A in (`findstr /B /C:"%K%=" ".env" 2^>nul`) do set "V=%%B"
+if defined V (
+  echo [queue] %K% sync qilinadi
+  >> "%TMPSH%" echo upsert_env '%K%' '%V%'
+) else (
+  echo [warn] Lokal .env da %K% topilmadi/bo'sh.
+)
+goto :eof
