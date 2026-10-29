@@ -1,5 +1,5 @@
 @echo off
-setlocal EnableExtensions EnableDelayedExpansion
+setlocal EnableExtensions
 chcp 65001 >nul
 
 echo ===================================================
@@ -15,7 +15,7 @@ echo [2/2] Serverdagi kodlar va bot yangilanmoqda...
 echo ===================================================
 echo [info] Parol faqat 1 marta so'raladi (barcha sync + deploy bitta SSH).
 
-REM Barcha .env sync + deploy bitta remote skriptda (bir nechta ssh emas)
+REM Barcha .env sync + deploy bitta remote skriptda
 set "TMPSH=%TEMP%\tarix_bot_deploy.sh"
 > "%TMPSH%" (
   echo #!/bin/bash
@@ -35,7 +35,6 @@ set "TMPSH=%TEMP%\tarix_bot_deploy.sh"
   echo }
 )
 
-REM Lokal .env dan kalitlarni o'qib remote skriptga qo'shamiz
 call :emit_upsert GEMINI_API_KEY
 call :emit_upsert CLICK_SERVICE_ID
 call :emit_upsert CLICK_MERCHANT_ID
@@ -56,20 +55,12 @@ call :emit_upsert CLICK_MERCHANT_USER_ID
   echo pm2 describe fastapi-app ^| head -n 40
 )
 
-REM Bitta SSH: lokal skriptni remote bash ga uzatamiz
-type "%TMPSH%" | ssh root@134.209.228.223 "bash -s"
-set "SSH_EXIT=!ERRORLEVEL!"
+REM Bitta SSH (stdin orqali) — parol 1 marta
+ssh root@134.209.228.223 "bash -s" < "%TMPSH%"
+set "SSH_EXIT=%ERRORLEVEL%"
 del /q "%TMPSH%" >nul 2>&1
 
-if not "!SSH_EXIT!"=="0" (
-  echo.
-  echo [xato] Server deploy muvaffaqiyatsiz ^(exit !SSH_EXIT!^).
-  echo Maslahat: SSH kalit sozlang — keyin umuman parol so'ralmaydi.
-  echo   ssh-keygen -t ed25519 -N "" -f %%USERPROFILE%%\.ssh\id_ed25519
-  echo   type %%USERPROFILE%%\.ssh\id_ed25519.pub ^| ssh root@134.209.228.223 "mkdir -p ~/.ssh && chmod 700 ~/.ssh && cat ^>^> ~/.ssh/authorized_keys && chmod 600 ~/.ssh/authorized_keys"
-  pause
-  exit /b !SSH_EXIT!
-)
+if not "%SSH_EXIT%"=="0" goto :deploy_fail
 
 echo.
 echo ===================================================
@@ -77,11 +68,19 @@ echo  Muvaffaqiyatli yakunlandi!
 echo  Mini App va bot serverda yangilandi.
 echo ===================================================
 echo.
-echo Tip: kelajakda 0 marta parol uchun SSH kalit qo'shing:
+echo Tip: 0 marta parol uchun SSH kalit:
+echo   ssh-keygen -t ed25519 -N "" -f %%USERPROFILE%%\.ssh\id_ed25519
 echo   type %%USERPROFILE%%\.ssh\id_ed25519.pub ^| ssh root@134.209.228.223 "mkdir -p ~/.ssh && cat ^>^> ~/.ssh/authorized_keys"
 echo.
 pause
 exit /b 0
+
+:deploy_fail
+echo.
+echo [xato] Server deploy muvaffaqiyatsiz (exit %SSH_EXIT%).
+echo Maslahat: SSH kalit sozlang — keyin umuman parol so'ralmaydi.
+pause
+exit /b %SSH_EXIT%
 
 :emit_upsert
 set "K=%~1"

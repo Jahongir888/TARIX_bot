@@ -49,12 +49,17 @@
         flex-direction: column;
         align-items: center;
         gap: 1.35rem;
-        transform: translateY(-4%);
+        animation: splash-fade-in 0.35s ease-out both;
       }
       #app-splash-screen .splash-logo {
         width: 148px;
         height: 148px;
         overflow: visible;
+      }
+      /* Nur aylanishi: translate(50,26) ichida — Telegram WebView da ishonchli */
+      #app-splash-screen .splash-beam-spin {
+        transform-origin: 0 0;
+        animation: splash-beam-sweep 2.4s linear infinite;
       }
       #app-splash-screen .splash-core {
         animation: splash-core-pulse 1.6s ease-in-out infinite;
@@ -77,6 +82,14 @@
         text-align: center;
         line-height: 1;
       }
+      @keyframes splash-fade-in {
+        from { opacity: 0; transform: translateY(-4%) scale(0.96); }
+        to   { opacity: 1; transform: translateY(-4%) scale(1); }
+      }
+      @keyframes splash-beam-sweep {
+        from { transform: rotate(0deg); }
+        to   { transform: rotate(360deg); }
+      }
       @keyframes splash-core-pulse {
         0%, 100% {
           opacity: 1;
@@ -96,7 +109,7 @@
         <div class="splash-inner">
             <svg class="splash-logo" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg" overflow="visible">
                 <defs>
-                    <linearGradient id="splash-beam-grad" x1="59" y1="26" x2="118" y2="26" gradientUnits="userSpaceOnUse">
+                    <linearGradient id="splash-beam-grad" x1="0" y1="0" x2="1" y2="0" gradientUnits="objectBoundingBox">
                         <stop offset="0%" stop-color="#F59E0B" stop-opacity="0.95"/>
                         <stop offset="42%" stop-color="#FBBF24" stop-opacity="0.55"/>
                         <stop offset="100%" stop-color="#FBBF24" stop-opacity="0"/>
@@ -107,11 +120,11 @@
                         <stop offset="100%" stop-color="#F59E0B" stop-opacity="0"/>
                     </radialGradient>
                 </defs>
-                <!-- Aylanuvchi oltin nur konusi (mayoq skaner, markaz: chiroq yadrosi 50,26) -->
-                <g class="splash-beam">
-                    <polygon points="52,24 118,8 118,44 52,28" fill="url(#splash-beam-grad)"/>
-                    <animateTransform attributeName="transform" type="rotate"
-                        from="0 50 26" to="360 50 26" dur="2.8s" repeatCount="indefinite"/>
+                <!-- Aylanuvchi oltin nur (markaz: chiroq 50,26) — CSS rotate WebView uchun -->
+                <g transform="translate(50 26)">
+                    <g class="splash-beam-spin">
+                        <polygon points="2,-2 68,-18 68,18 2,2" fill="url(#splash-beam-grad)"/>
+                    </g>
                 </g>
                 <!-- Poydevor -->
                 <rect x="25" y="76" width="50" height="7" rx="3.5" fill="#FFFFFF"/>
@@ -2197,7 +2210,7 @@
             if (window.lucide) lucide.createIcons();
         });
 
-        // Mayoq Nuri splash: asosiy resurslar tayyor bo'lgach silliq yo'qoladi
+        // Mayoq Nuri splash: load + minimal ko'rinish (animatsiya to'liq chiqsin)
         function hideAppSplashScreen() {
             const splash = document.getElementById('app-splash-screen');
             if (!splash || splash.dataset.hiding === '1') return;
@@ -2213,12 +2226,15 @@
 
         window.addEventListener('load', () => {
             const shownAt = window.__splashShownAt || Date.now();
-            const minVisibleMs = 750;
-            const wait = Math.max(0, minVisibleMs - (Date.now() - shownAt));
+            const elapsed = Date.now() - shownAt;
+            // Kamida ~2.5s (bir to'liq nur aylanishi) + load dan keyin yana ~1.5s ushlab turish
+            const minVisibleMs = 2500;
+            const afterLoadHoldMs = 1500;
+            const wait = Math.max(afterLoadHoldMs, minVisibleMs - elapsed);
             setTimeout(hideAppSplashScreen, wait);
         });
-        // Xavfsizlik: hech qachon "yopishib" qolmasin
-        setTimeout(hideAppSplashScreen, 4000);
+        // Xavfsizlik: uzoq "yopishib" qolmasin
+        setTimeout(hideAppSplashScreen, 8000);
     </script>
 </body>
 </html>
