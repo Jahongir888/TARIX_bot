@@ -6247,7 +6247,8 @@ async def create_click_payment(payload: ClickCreatePaymentSchema):
         "amount": amount,
         "transaction_param": merchant_trans_id,
         "merchant_user_id": CLICK_MERCHANT_USER_ID or str(telegram_id),
-        "return_url": f"{WEBAPP_URL}/?paid=1",
+        # Doimiy domen: eski trycloudflare / WEBAPP_URL ga qaytmasin
+        "return_url": "https://pharos.uz/?paid=1",
     }
     pay_url = f"https://my.click.uz/services/pay?{urlencode(params)}"
     return {
