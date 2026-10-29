@@ -56,7 +56,8 @@ call :emit_upsert CLICK_MERCHANT_USER_ID
 )
 
 REM Bitta SSH (stdin orqali) — parol 1 marta
-ssh root@134.209.228.223 "bash -s" < "%TMPSH%"
+REM Windows CRLF ni serverda olib tashlaymiz (aks holda bash \r dan yiqiladi)
+ssh root@134.209.228.223 "tr -d '\r' | bash -s" < "%TMPSH%"
 set "SSH_EXIT=%ERRORLEVEL%"
 del /q "%TMPSH%" >nul 2>&1
 
