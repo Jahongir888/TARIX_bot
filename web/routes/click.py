@@ -59,6 +59,25 @@ def _click_json(error: int, error_note: str, **extra) -> JSONResponse:
     return JSONResponse(content={"error": error, "error_note": error_note, **extra})
 
 
+async def _notify_payment_success(telegram_id: int, amount: int, new_balance: int) -> None:
+    """To'lov tasdiqlangach foydalanuvchiga Telegram xabar. Xato bo'lsa Click javobiga ta'sir qilmaydi."""
+    if tg_bot is None:
+        return
+    try:
+        await tg_bot.send_message(
+            chat_id=telegram_id,
+            text=(
+                "To'lovingiz muvaffaqiyatli qabul qilindi! ✅\n"
+                f"Hisobingizga +{amount} so'm qo'shildi.\n"
+                f"Hozirgi balansingiz: {new_balance} so'm."
+            ),
+        )
+    except Exception:
+        logger.exception(
+            "Click complete: Telegram xabar yuborilmadi (tg_id=%s)", telegram_id
+        )
+
+
 async def _parse_click_body(request: Request) -> Dict[str, Any]:
     """Click form-urlencoded yoki JSON body ni o'qiydi (500 bermaslik uchun xavfsiz)."""
     import json
@@ -272,21 +291,9 @@ async def _click_complete_impl(request: Request):
             logger.exception("Click complete: balans yangilanmadi")
             return _click_json(-7, "Failed to update user")
 
-    if tg_bot is not None:
-        try:
-            await tg_bot.send_message(
-                chat_id=telegram_id,
-                text=(
-                    "🎉 <b>To'lov muvaffaqiyatli qabul qilindi!</b>\n\n"
-                    f"💰 Qo'shildi: <b>+{amount_val:,} UZS</b>\n"
-                    f"🧾 Chek: <code>{click_paydoc_id or click_trans_id}</code>\n"
-                    f"💳 Yangi balansingiz: <b>{new_balance:,} UZS</b>\n\n"
-                    "Endi ta'lim xizmatlaridan to'liq foydalanishingiz mumkin!"
-                ),
-                parse_mode="HTML",
-            )
-        except Exception:
-            logger.exception("Click complete: Telegram xabar yuborilmadi (tg_id=%s)", telegram_id)
+    # action==1 (Complete) muvaffaqiyat: balans yangilandi — foydalanuvchiga xabar.
+    # Xabar xatosi Click'ga 500/error bermasligi uchun silent ushlanadi.
+    await _notify_payment_success(telegram_id, amount_val, new_balance)
 
     return JSONResponse(
         content={
