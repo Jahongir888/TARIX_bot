@@ -47,7 +47,7 @@ call :emit_upsert CLICK_MERCHANT_USER_ID
   echo git pull origin main
   echo PY=./venv/bin/python
   echo test -x "$PY" ^|^| PY=./.venv/bin/python
-  echo "$PY" -m pip install -q httpx openpyxl
+  echo "$PY" -m pip install -q httpx openpyxl python-multipart
   echo "$PY" import_master_baza.py
   echo pm2 restart fastapi-app tg-bot
   echo sleep 2

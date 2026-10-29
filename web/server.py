@@ -6264,8 +6264,23 @@ async def click_merchant_webhook(request: Request):
     Click Prepare (action=0) va Complete (action=1) webhook.
     merchant_trans_id / transaction_param = foydalanuvchi telegram_id.
     """
-    form = await request.form()
-    data: Dict[str, Any] = {k: form.get(k) for k in form.keys()}
+    # python-multipart bo'lmasa ham ishlashi uchun raw body parse
+    from urllib.parse import parse_qs
+
+    raw = await request.body()
+    text = raw.decode("utf-8", errors="ignore") if raw else ""
+    content_type = (request.headers.get("content-type") or "").lower()
+    data: Dict[str, Any] = {}
+    if "application/json" in content_type:
+        try:
+            parsed_json = json.loads(text or "{}")
+            if isinstance(parsed_json, dict):
+                data = parsed_json
+        except Exception:
+            data = {}
+    else:
+        parsed = parse_qs(text, keep_blank_values=True)
+        data = {k: (v[0] if isinstance(v, list) and v else "") for k, v in parsed.items()}
 
     try:
         action = int(str(data.get("action", "")).strip())
