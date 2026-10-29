@@ -26,9 +26,118 @@
       .ph-hide { display: none !important; }
       .katex, .katex-display { color: #e2e8f0; }
       .katex-display { margin: 0.35rem 0; overflow-x: auto; overflow-y: hidden; }
+
+      /* —— Mayoq Nuri Splash Screen —— */
+      #app-splash-screen {
+        position: fixed;
+        inset: 0;
+        z-index: 99999;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: #090D16;
+        opacity: 1;
+        transition: opacity 0.4s ease;
+        pointer-events: auto;
+      }
+      #app-splash-screen.fade-out {
+        opacity: 0;
+        pointer-events: none;
+      }
+      #app-splash-screen .splash-inner {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 1.35rem;
+        transform: translateY(-4%);
+      }
+      #app-splash-screen .splash-logo {
+        width: 148px;
+        height: 148px;
+        overflow: visible;
+      }
+      #app-splash-screen .splash-core {
+        animation: splash-core-pulse 1.6s ease-in-out infinite;
+      }
+      #app-splash-screen .splash-title {
+        color: #ffffff;
+        font-weight: 900;
+        font-size: 1.35rem;
+        letter-spacing: 0.15em;
+        line-height: 1;
+        text-align: center;
+      }
+      #app-splash-screen .splash-subtitle {
+        margin-top: 0.55rem;
+        color: #6B8F7A;
+        font-weight: 500;
+        font-size: 0.62rem;
+        letter-spacing: 0.28em;
+        text-transform: uppercase;
+        text-align: center;
+        line-height: 1;
+      }
+      @keyframes splash-core-pulse {
+        0%, 100% {
+          opacity: 1;
+          filter: drop-shadow(0 0 3px rgba(245, 158, 11, 0.85)) drop-shadow(0 0 10px rgba(251, 191, 36, 0.45));
+        }
+        50% {
+          opacity: 0.72;
+          filter: drop-shadow(0 0 8px rgba(245, 158, 11, 1)) drop-shadow(0 0 18px rgba(251, 191, 36, 0.75));
+        }
+      }
     </style>
 </head>
 <body class="bg-[#0A0E17] text-slate-100 min-h-screen flex flex-col select-none pb-24">
+
+    <!-- MAYOQ NURI SPLASH SCREEN (darhol ko'rinadi, load dan keyin fade-out) -->
+    <div id="app-splash-screen" aria-hidden="true" role="presentation">
+        <div class="splash-inner">
+            <svg class="splash-logo" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg" overflow="visible">
+                <defs>
+                    <linearGradient id="splash-beam-grad" x1="59" y1="26" x2="118" y2="26" gradientUnits="userSpaceOnUse">
+                        <stop offset="0%" stop-color="#F59E0B" stop-opacity="0.95"/>
+                        <stop offset="42%" stop-color="#FBBF24" stop-opacity="0.55"/>
+                        <stop offset="100%" stop-color="#FBBF24" stop-opacity="0"/>
+                    </linearGradient>
+                    <radialGradient id="splash-core-glow" cx="50%" cy="50%" r="50%">
+                        <stop offset="0%" stop-color="#FBBF24" stop-opacity="1"/>
+                        <stop offset="55%" stop-color="#F59E0B" stop-opacity="0.9"/>
+                        <stop offset="100%" stop-color="#F59E0B" stop-opacity="0"/>
+                    </radialGradient>
+                </defs>
+                <!-- Aylanuvchi oltin nur konusi (mayoq skaner, markaz: chiroq yadrosi 50,26) -->
+                <g class="splash-beam">
+                    <polygon points="52,24 118,8 118,44 52,28" fill="url(#splash-beam-grad)"/>
+                    <animateTransform attributeName="transform" type="rotate"
+                        from="0 50 26" to="360 50 26" dur="2.8s" repeatCount="indefinite"/>
+                </g>
+                <!-- Poydevor -->
+                <rect x="25" y="76" width="50" height="7" rx="3.5" fill="#FFFFFF"/>
+                <!-- Konussimon minora -->
+                <path d="M32 76L42 34H58L68 76H32Z" fill="#FFFFFF"/>
+                <!-- Chiroq xonasi maydonchasi -->
+                <rect x="39" y="30" width="22" height="4" rx="2" fill="#FFFFFF"/>
+                <!-- Chiroq korpusi -->
+                <path d="M41 30L41 23H59L59 30H41Z" fill="#FFFFFF"/>
+                <!-- Gumbaz -->
+                <path d="M40 23C40 16 60 16 60 23Z" fill="#FFFFFF"/>
+                <!-- Dumaloq uchli nishon -->
+                <circle cx="50" cy="15" r="2.5" fill="#FFFFFF"/>
+                <!-- Pulsatsiyalanuvchi oltin yadro -->
+                <g class="splash-core">
+                    <circle cx="50" cy="26" r="7" fill="url(#splash-core-glow)" opacity="0.55"/>
+                    <circle cx="50" cy="26" r="2.6" fill="#F59E0B"/>
+                </g>
+            </svg>
+            <div>
+                <div class="splash-title">PHAROS</div>
+                <div class="splash-subtitle">TA'LIM PLATFORMASI</div>
+            </div>
+        </div>
+    </div>
+    <script>window.__splashShownAt = Date.now();</script>
 
     <!-- 1. YUQORI SARLAVHA (ZAMONAVIY GLASSO-NEON HEADER) -->
     <header class="px-4 py-3 bg-[#111827]/90 backdrop-blur-xl border-b border-[#1F2937]/80 flex items-center justify-between sticky top-0 z-20 shadow-lg shadow-black/40">
@@ -2087,6 +2196,29 @@
             startSessionTimer();
             if (window.lucide) lucide.createIcons();
         });
+
+        // Mayoq Nuri splash: asosiy resurslar tayyor bo'lgach silliq yo'qoladi
+        function hideAppSplashScreen() {
+            const splash = document.getElementById('app-splash-screen');
+            if (!splash || splash.dataset.hiding === '1') return;
+            splash.dataset.hiding = '1';
+            splash.classList.add('fade-out');
+            const finalize = () => {
+                splash.style.display = 'none';
+                splash.setAttribute('aria-hidden', 'true');
+            };
+            splash.addEventListener('transitionend', finalize, { once: true });
+            setTimeout(finalize, 500);
+        }
+
+        window.addEventListener('load', () => {
+            const shownAt = window.__splashShownAt || Date.now();
+            const minVisibleMs = 750;
+            const wait = Math.max(0, minVisibleMs - (Date.now() - shownAt));
+            setTimeout(hideAppSplashScreen, wait);
+        });
+        // Xavfsizlik: hech qachon "yopishib" qolmasin
+        setTimeout(hideAppSplashScreen, 4000);
     </script>
 </body>
 </html>
