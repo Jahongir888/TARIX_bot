@@ -60,16 +60,28 @@ def _click_json(error: int, error_note: str, **extra) -> JSONResponse:
 
 
 async def _parse_click_body(request: Request) -> Dict[str, Any]:
-    """Click form-urlencoded yoki JSON body ni o'qiydi."""
+    """Click form-urlencoded yoki JSON body ni o'qiydi (500 bermaslik uchun xavfsiz)."""
+    import json
+    from urllib.parse import parse_qs
+
+    raw = await request.body()
+    text = raw.decode("utf-8", errors="ignore") if raw else ""
     content_type = (request.headers.get("content-type") or "").lower()
+
     if "application/json" in content_type:
         try:
-            body = await request.json()
+            body = json.loads(text or "{}")
             return body if isinstance(body, dict) else {}
         except Exception:
             return {}
-    form = await request.form()
-    return {k: form.get(k) for k in form.keys()}
+
+    # Click odatda x-www-form-urlencoded yuboradi
+    try:
+        parsed = parse_qs(text, keep_blank_values=True)
+        return {k: (v[0] if isinstance(v, list) and v else "") for k, v in parsed.items()}
+    except Exception:
+        logger.exception("Click body parse xatosi")
+        return {}
 
 
 def _verify_sign(data: Dict[str, Any], action: int) -> bool:
@@ -108,47 +120,57 @@ async def click_prepare(request: Request):
     Click Shop API — Prepare (action=0).
     merchant_trans_id = foydalanuvchi telegram_id.
     """
-    data = await _parse_click_body(request)
-
-    if not _verify_sign(data, action=0):
-        return _click_json(-1, "SIGN CHECK FAILED")
-
-    click_trans_id = str(data.get("click_trans_id") or "")
-    merchant_trans_id = str(data.get("merchant_trans_id") or "").strip()
-
     try:
-        telegram_id = int(merchant_trans_id)
-    except (TypeError, ValueError):
-        return _click_json(
-            -5,
-            "User not found",
-            click_trans_id=click_trans_id,
-            merchant_trans_id=merchant_trans_id,
-        )
+        data = await _parse_click_body(request)
+        logger.info("Click prepare payload keys=%s", list(data.keys()))
 
-    async with async_session() as session:
-        user = (
-            await session.execute(select(User).where(User.telegram_id == telegram_id))
-        ).scalar_one_or_none()
+        if not _verify_sign(data, action=0):
+            logger.warning(
+                "Click prepare SIGN FAIL (secret_set=%s, service=%s)",
+                bool(CLICK_SECRET_KEY),
+                data.get("service_id"),
+            )
+            return _click_json(-1, "SIGN CHECK FAILED")
 
-        if not user:
+        click_trans_id = str(data.get("click_trans_id") or "")
+        merchant_trans_id = str(data.get("merchant_trans_id") or "").strip()
+
+        try:
+            telegram_id = int(merchant_trans_id)
+        except (TypeError, ValueError):
             return _click_json(
                 -5,
                 "User not found",
-                click_trans_id=int(click_trans_id) if str(click_trans_id).isdigit() else click_trans_id,
+                click_trans_id=click_trans_id,
                 merchant_trans_id=merchant_trans_id,
             )
 
-    click_id_out: Any = int(click_trans_id) if str(click_trans_id).isdigit() else click_trans_id
-    return JSONResponse(
-        content={
-            "click_trans_id": click_id_out,
-            "merchant_trans_id": merchant_trans_id,
-            "merchant_prepare_id": click_id_out,
-            "error": 0,
-            "error_note": "Success",
-        }
-    )
+        async with async_session() as session:
+            user = (
+                await session.execute(select(User).where(User.telegram_id == telegram_id))
+            ).scalar_one_or_none()
+
+            if not user:
+                return _click_json(
+                    -5,
+                    "User not found",
+                    click_trans_id=int(click_trans_id) if str(click_trans_id).isdigit() else click_trans_id,
+                    merchant_trans_id=merchant_trans_id,
+                )
+
+        click_id_out: Any = int(click_trans_id) if str(click_trans_id).isdigit() else click_trans_id
+        return JSONResponse(
+            content={
+                "click_trans_id": click_id_out,
+                "merchant_trans_id": merchant_trans_id,
+                "merchant_prepare_id": click_id_out,
+                "error": 0,
+                "error_note": "Success",
+            }
+        )
+    except Exception:
+        logger.exception("Click prepare: unhandled error")
+        return _click_json(-8, "Error in request from click")
 
 
 @router.post("/complete")
@@ -157,6 +179,14 @@ async def click_complete(request: Request):
     Click Shop API — Complete (action=1).
     Muvaffaqiyatda balansni oshiradi, CoinTransaction yozadi va Telegram xabar yuboradi.
     """
+    try:
+        return await _click_complete_impl(request)
+    except Exception:
+        logger.exception("Click complete: unhandled error")
+        return _click_json(-8, "Error in request from click")
+
+
+async def _click_complete_impl(request: Request):
     data = await _parse_click_body(request)
 
     if not _verify_sign(data, action=1):
