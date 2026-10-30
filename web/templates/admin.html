@@ -115,6 +115,9 @@
         <button data-tab="pricing" onclick="AdminApp.switchTab('pricing')" class="admin-tab shrink-0 px-3 py-2 rounded-xl border border-[#283548] text-xs font-bold text-slate-300 flex items-center gap-1.5">
             <i data-lucide="badge-percent" class="w-3.5 h-3.5"></i> Narxlar
         </button>
+        <button data-tab="db" onclick="AdminApp.switchTab('db')" class="admin-tab shrink-0 px-3 py-2 rounded-xl border border-[#283548] text-xs font-bold text-slate-300 flex items-center gap-1.5">
+            <i data-lucide="database" class="w-3.5 h-3.5"></i> Ma'lumotlar bazasi
+        </button>
     </nav>
 
     <main class="px-3 sm:px-5 py-4 max-w-7xl mx-auto w-full">
@@ -236,6 +239,51 @@
                 </div>
             </div>
         </section>
+
+        <!-- DATABASE INSPECTOR -->
+        <section id="tab-db" class="ph-hide space-y-3">
+            <div class="rounded-2xl border border-[#283548] bg-[#111827]/80 p-3">
+                <div class="flex items-center justify-between gap-2 mb-2">
+                    <h2 class="text-sm font-bold text-emerald-400 flex items-center gap-2">
+                        <i data-lucide="database" class="w-4 h-4"></i> DB Manager
+                    </h2>
+                    <span id="db-table-count" class="text-[10px] text-slate-500 font-semibold">0 jadval</span>
+                </div>
+                <div id="db-tables-list" class="flex flex-wrap gap-1.5 max-h-36 overflow-y-auto admin-scroll"></div>
+            </div>
+
+            <div class="flex flex-col lg:flex-row gap-2">
+                <input id="db-search" type="search" placeholder="Jadval ichidan qidirish..." oninput="AdminApp.debounceDbRows()" class="flex-1">
+                <select id="db-page-size" onchange="AdminApp.loadDbRows(true)" class="lg:max-w-[120px]">
+                    <option value="20">20 / sahifa</option>
+                    <option value="30" selected>30 / sahifa</option>
+                    <option value="50">50 / sahifa</option>
+                </select>
+                <button onclick="AdminApp.openDbCreate()" class="shrink-0 px-3 py-2 rounded-xl bg-emerald-500 text-[#0A0E17] text-xs font-bold flex items-center justify-center gap-1.5">
+                    <i data-lucide="plus" class="w-3.5 h-3.5"></i> Yangi qo'shish
+                </button>
+            </div>
+
+            <div class="flex items-center justify-between gap-2 text-[11px] text-slate-400">
+                <div id="db-meta" class="font-semibold truncate">Jadval tanlang</div>
+                <div class="flex items-center gap-1.5 shrink-0">
+                    <button onclick="AdminApp.dbPrevPage()" class="px-2.5 py-1 rounded-lg border border-[#283548] bg-[#161F30] font-bold hover:border-emerald-500/40">←</button>
+                    <span id="db-page-label" class="font-mono text-slate-300 min-w-[4.5rem] text-center">1</span>
+                    <button onclick="AdminApp.dbNextPage()" class="px-2.5 py-1 rounded-lg border border-[#283548] bg-[#161F30] font-bold hover:border-emerald-500/40">→</button>
+                </div>
+            </div>
+
+            <div class="rounded-2xl border border-[#283548] bg-[#111827]/70 overflow-hidden">
+                <div class="overflow-x-auto admin-scroll">
+                    <table class="w-full text-left text-xs min-w-[720px]">
+                        <thead class="bg-[#161F30] text-slate-400 uppercase tracking-wider text-[10px]">
+                            <tr id="db-thead-row"></tr>
+                        </thead>
+                        <tbody id="db-tbody" class="divide-y divide-[#1F2937]"></tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
     </main>
 
     <!-- MODAL: QUIZ EDIT / CREATE -->
@@ -350,6 +398,22 @@
             <div class="mt-4 flex gap-2">
                 <button onclick="AdminApp.saveNews()" class="flex-1 py-2.5 rounded-xl bg-emerald-500 text-[#0A0E17] font-bold text-sm">Saqlash</button>
                 <button onclick="AdminApp.closeModal('modal-news')" class="px-4 py-2.5 rounded-xl border border-[#283548] text-sm">Bekor</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL: DB ROW EDIT / CREATE -->
+    <div id="modal-db" class="ph-hide fixed inset-0 z-40 flex items-end sm:items-center justify-center bg-black/70 p-0 sm:p-4">
+        <div class="w-full sm:max-w-2xl max-h-[94dvh] overflow-y-auto admin-scroll rounded-t-2xl sm:rounded-2xl border border-[#283548] bg-[#111827] p-4 sm:p-5">
+            <div class="flex items-center justify-between mb-3 gap-2">
+                <h3 id="modal-db-title" class="text-sm font-bold truncate">Yozuvni tahrirlash</h3>
+                <button onclick="AdminApp.closeModal('modal-db')" class="p-1.5 rounded-lg hover:bg-[#161F30] shrink-0"><i data-lucide="x" class="w-4 h-4"></i></button>
+            </div>
+            <input type="hidden" id="db-edit-id">
+            <div id="db-form-fields" class="space-y-2.5 text-xs"></div>
+            <div class="mt-4 flex gap-2">
+                <button onclick="AdminApp.saveDbRow()" class="flex-1 py-2.5 rounded-xl bg-emerald-500 text-[#0A0E17] font-bold text-sm">Saqlash</button>
+                <button onclick="AdminApp.closeModal('modal-db')" class="px-4 py-2.5 rounded-xl border border-[#283548] text-sm">Bekor</button>
             </div>
         </div>
     </div>

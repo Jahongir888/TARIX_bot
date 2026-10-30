@@ -9,11 +9,20 @@ const AdminApp = (() => {
         currentQuizId: null,
         quizTimer: null,
         newsTimer: null,
+        dbTimer: null,
         quizzesById: {},
         newsById: {},
         questionsById: {},
         pricingQuizzes: [],
         pricingProducts: [],
+        dbTables: [],
+        dbTable: null,
+        dbColumns: [],
+        dbPk: 'id',
+        dbRows: [],
+        dbTotal: 0,
+        dbOffset: 0,
+        dbLimit: 30,
     };
 
     function esc(s) {
@@ -89,7 +98,7 @@ const AdminApp = (() => {
 
     function switchTab(tab) {
         state.currentTab = tab;
-        ['dashboard', 'quizzes', 'news', 'pricing'].forEach((name) => {
+        ['dashboard', 'quizzes', 'news', 'pricing', 'db'].forEach((name) => {
             const section = document.getElementById(`tab-${name}`);
             if (section) section.classList.toggle('ph-hide', name !== tab);
         });
@@ -102,6 +111,7 @@ const AdminApp = (() => {
         if (tab === 'quizzes') loadQuizzes();
         if (tab === 'news') loadNews();
         if (tab === 'pricing') loadPricing();
+        if (tab === 'db') loadDbTables();
         if (window.lucide) lucide.createIcons();
     }
 
@@ -649,6 +659,295 @@ const AdminApp = (() => {
         }
     }
 
+    // ---------- DB MANAGER ----------
+    function truncateCell(val, max = 48) {
+        const s = val == null ? '' : String(val);
+        if (s.length <= max) return esc(s);
+        return `<span title="${esc(s)}">${esc(s.slice(0, max))}…</span>`;
+    }
+
+    function renderDbTableChips() {
+        const box = document.getElementById('db-tables-list');
+        const countEl = document.getElementById('db-table-count');
+        if (countEl) countEl.textContent = `${state.dbTables.length} jadval`;
+        if (!box) return;
+        if (!state.dbTables.length) {
+            box.innerHTML = `<span class="text-xs text-slate-500">Jadvallar topilmadi</span>`;
+            return;
+        }
+        box.innerHTML = state.dbTables.map((t) => {
+            const active = t.name === state.dbTable;
+            return `
+                <button
+                    onclick="AdminApp.selectDbTable('${esc(t.name)}')"
+                    class="px-2.5 py-1 rounded-lg border text-[10px] font-bold transition ${
+                        active
+                            ? 'bg-emerald-500/15 border-emerald-500/45 text-emerald-300'
+                            : 'bg-[#161F30] border-[#283548] text-slate-300 hover:border-emerald-500/30'
+                    }"
+                    title="${esc(t.model)}"
+                >${esc(t.name)}</button>
+            `;
+        }).join('');
+    }
+
+    async function loadDbTables() {
+        try {
+            const data = await api('/api/admin/db/tables');
+            state.dbTables = data.tables || [];
+            if (!state.dbTable && state.dbTables.length) {
+                state.dbTable = state.dbTables[0].name;
+            }
+            renderDbTableChips();
+            if (state.dbTable) await loadDbRows(true);
+            if (window.lucide) lucide.createIcons();
+        } catch (e) {
+            toast(e.message, true);
+        }
+    }
+
+    function selectDbTable(name) {
+        state.dbTable = name;
+        state.dbOffset = 0;
+        renderDbTableChips();
+        loadDbRows(true);
+    }
+
+    function debounceDbRows() {
+        clearTimeout(state.dbTimer);
+        state.dbTimer = setTimeout(() => loadDbRows(true), 320);
+    }
+
+    function dbPrevPage() {
+        if (state.dbOffset <= 0) return;
+        state.dbOffset = Math.max(0, state.dbOffset - state.dbLimit);
+        loadDbRows(false);
+    }
+
+    function dbNextPage() {
+        if (state.dbOffset + state.dbLimit >= state.dbTotal) return;
+        state.dbOffset += state.dbLimit;
+        loadDbRows(false);
+    }
+
+    async function loadDbRows(resetOffset) {
+        if (!state.dbTable) return;
+        if (resetOffset) state.dbOffset = 0;
+        const q = document.getElementById('db-search')?.value?.trim() || '';
+        const size = Number(document.getElementById('db-page-size')?.value || 30);
+        state.dbLimit = size;
+        const params = new URLSearchParams({
+            limit: String(state.dbLimit),
+            offset: String(state.dbOffset),
+        });
+        if (q) params.set('q', q);
+
+        const thead = document.getElementById('db-thead-row');
+        const tbody = document.getElementById('db-tbody');
+        const meta = document.getElementById('db-meta');
+        const pageLabel = document.getElementById('db-page-label');
+
+        try {
+            const data = await api(`/api/admin/db/${encodeURIComponent(state.dbTable)}?${params}`);
+            state.dbColumns = data.columns || [];
+            state.dbPk = data.pk || 'id';
+            state.dbRows = data.rows || [];
+            state.dbTotal = data.total || 0;
+
+            const page = Math.floor(state.dbOffset / state.dbLimit) + 1;
+            const pages = Math.max(1, Math.ceil(state.dbTotal / state.dbLimit));
+            if (meta) {
+                meta.textContent = `${data.model || state.dbTable} · ${state.dbTotal} ta yozuv`;
+            }
+            if (pageLabel) pageLabel.textContent = `${page} / ${pages}`;
+
+            if (thead) {
+                thead.innerHTML = state.dbColumns
+                    .map((c) => `<th class="px-3 py-2.5">${esc(c.name)}</th>`)
+                    .join('') + `<th class="px-3 py-2.5">Amallar</th>`;
+            }
+
+            if (!tbody) return;
+            if (!state.dbRows.length) {
+                tbody.innerHTML = `<tr><td colspan="${state.dbColumns.length + 1}" class="px-3 py-6 text-center text-slate-500">Ma'lumot yo'q</td></tr>`;
+                return;
+            }
+
+            tbody.innerHTML = state.dbRows.map((row) => {
+                const pkVal = row[state.dbPk];
+                const cells = state.dbColumns.map((c) => {
+                    const v = row[c.name];
+                    if (c.type === 'boolean') {
+                        return `<td class="px-3 py-2.5">${v ? '<span class="text-emerald-400">✓</span>' : '<span class="text-slate-600">—</span>'}</td>`;
+                    }
+                    if (c.type === 'text' || (typeof v === 'string' && v.length > 48)) {
+                        return `<td class="px-3 py-2.5 max-w-[220px]">${truncateCell(v, 48)}</td>`;
+                    }
+                    return `<td class="px-3 py-2.5 font-mono text-[11px] text-slate-300">${truncateCell(v, 40)}</td>`;
+                }).join('');
+                return `
+                    <tr class="hover:bg-[#161F30]/60" data-pk="${esc(pkVal)}">
+                        ${cells}
+                        <td class="px-3 py-2.5">
+                            <div class="flex gap-1 whitespace-nowrap">
+                                <button onclick="AdminApp.openDbEdit(${JSON.stringify(String(pkVal))})" class="px-2 py-1 rounded-lg bg-[#161F30] border border-[#283548] text-[10px] font-bold hover:border-emerald-500/40">✏️ Tahrirlash</button>
+                                <button onclick="AdminApp.deleteDbRow(${JSON.stringify(String(pkVal))})" class="px-2 py-1 rounded-lg bg-rose-500/10 border border-rose-500/30 text-rose-300 text-[10px] font-bold">🗑️ O'chirish</button>
+                            </div>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+        } catch (e) {
+            toast(e.message, true);
+        }
+    }
+
+    function buildDbForm(row, creating) {
+        const box = document.getElementById('db-form-fields');
+        if (!box) return;
+        box.innerHTML = state.dbColumns.map((c) => {
+            const val = row && row[c.name] != null ? row[c.name] : '';
+            const isPk = c.primary_key;
+            const disabled = !creating && isPk ? 'disabled' : '';
+            const hint = [
+                c.type,
+                c.nullable ? 'nullable' : 'required',
+                isPk ? 'PK' : '',
+            ].filter(Boolean).join(' · ');
+
+            if (c.type === 'boolean') {
+                const checked = val === true || val === 1 || val === '1' || val === 'true' ? 'checked' : '';
+                return `
+                    <label class="flex items-center gap-2 text-slate-300">
+                        <input type="checkbox" data-db-field="${esc(c.name)}" data-db-type="boolean" class="w-4 h-4" ${checked} ${disabled}>
+                        <span>${esc(c.name)} <span class="text-slate-500">(${esc(hint)})</span></span>
+                    </label>
+                `;
+            }
+
+            if (c.type === 'text') {
+                return `
+                    <label class="block text-slate-400">${esc(c.name)}
+                        <span class="text-slate-600">(${esc(hint)})</span>
+                        <textarea data-db-field="${esc(c.name)}" data-db-type="text" rows="3" ${disabled}>${esc(val)}</textarea>
+                    </label>
+                `;
+            }
+
+            let inputType = 'text';
+            if (c.type === 'integer' || c.type === 'float') inputType = 'number';
+            if (c.type === 'date') inputType = 'date';
+            if (c.type === 'datetime') inputType = 'text';
+            const step = c.type === 'float' ? 'step="any"' : (c.type === 'integer' ? 'step="1"' : '');
+            const placeholder = c.type === 'datetime' ? 'YYYY-MM-DD HH:MM:SS' : '';
+
+            return `
+                <label class="block text-slate-400">${esc(c.name)}
+                    <span class="text-slate-600">(${esc(hint)})</span>
+                    <input data-db-field="${esc(c.name)}" data-db-type="${esc(c.type)}" type="${inputType}" ${step} value="${esc(val)}" placeholder="${esc(placeholder)}" ${disabled}>
+                </label>
+            `;
+        }).join('');
+    }
+
+    function collectDbFormPayload(creating) {
+        const payload = {};
+        document.querySelectorAll('#db-form-fields [data-db-field]').forEach((el) => {
+            const name = el.dataset.dbField;
+            const type = el.dataset.dbType;
+            const col = state.dbColumns.find((c) => c.name === name);
+            if (!creating && col?.primary_key) return;
+            if (el.disabled) return;
+
+            if (type === 'boolean') {
+                payload[name] = !!el.checked;
+                return;
+            }
+            let v = el.value;
+            if (v === '' || v == null) {
+                payload[name] = null;
+                return;
+            }
+            if (type === 'integer') {
+                payload[name] = Number(v);
+                return;
+            }
+            if (type === 'float') {
+                payload[name] = Number(v);
+                return;
+            }
+            payload[name] = v;
+        });
+        return payload;
+    }
+
+    function openDbCreate() {
+        if (!state.dbTable) {
+            toast('Avval jadval tanlang', true);
+            return;
+        }
+        document.getElementById('modal-db-title').textContent = `➕ Yangi · ${state.dbTable}`;
+        document.getElementById('db-edit-id').value = '';
+        buildDbForm({}, true);
+        openModal('modal-db');
+    }
+
+    function openDbEdit(pkVal) {
+        const row = state.dbRows.find((r) => String(r[state.dbPk]) === String(pkVal));
+        if (!row) {
+            toast('Yozuv topilmadi', true);
+            return;
+        }
+        document.getElementById('modal-db-title').textContent = `✏️ ${state.dbTable} #${pkVal}`;
+        document.getElementById('db-edit-id').value = String(pkVal);
+        buildDbForm(row, false);
+        openModal('modal-db');
+    }
+
+    async function saveDbRow() {
+        if (!state.dbTable) return;
+        const id = document.getElementById('db-edit-id').value;
+        const creating = !id;
+        const payload = collectDbFormPayload(creating);
+        try {
+            if (creating) {
+                await api(`/api/admin/db/${encodeURIComponent(state.dbTable)}`, {
+                    method: 'POST',
+                    body: JSON.stringify(payload),
+                });
+                toast("Qo'shildi");
+            } else {
+                const res = await api(
+                    `/api/admin/db/${encodeURIComponent(state.dbTable)}/${encodeURIComponent(id)}`,
+                    { method: 'PUT', body: JSON.stringify(payload) },
+                );
+                // Sahifa yangilanmasdan qatorni yangilash
+                const idx = state.dbRows.findIndex((r) => String(r[state.dbPk]) === String(id));
+                if (idx >= 0 && res.row) state.dbRows[idx] = res.row;
+                toast('Saqlandi');
+            }
+            closeModal('modal-db');
+            await loadDbRows(false);
+        } catch (e) {
+            toast(e.message, true);
+        }
+    }
+
+    async function deleteDbRow(pkVal) {
+        if (!state.dbTable) return;
+        if (!confirm(`"${state.dbTable}" jadvalidan #${pkVal} ni o'chirishni tasdiqlaysizmi?`)) return;
+        try {
+            await api(
+                `/api/admin/db/${encodeURIComponent(state.dbTable)}/${encodeURIComponent(pkVal)}`,
+                { method: 'DELETE' },
+            );
+            toast("O'chirildi");
+            await loadDbRows(false);
+        } catch (e) {
+            toast(e.message, true);
+        }
+    }
+
     function init() {
         tryAuth();
     }
@@ -679,5 +978,15 @@ const AdminApp = (() => {
         deleteNews,
         loadPricing,
         saveAllPricing,
+        loadDbTables,
+        selectDbTable,
+        debounceDbRows,
+        loadDbRows,
+        dbPrevPage,
+        dbNextPage,
+        openDbCreate,
+        openDbEdit,
+        saveDbRow,
+        deleteDbRow,
     };
 })();

@@ -3,17 +3,21 @@ from __future__ import annotations
 
 import json
 from datetime import datetime, date
-from typing import Optional
+from typing import Any, Optional
 from urllib.parse import parse_qsl
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request
+from fastapi import APIRouter, Body, Depends, Header, HTTPException, Query, Request
 from fastapi.responses import HTMLResponse, Response
 from pydantic import BaseModel, Field
-from sqlalchemy import func, or_, select
+from sqlalchemy import BigInteger, Boolean, Date, DateTime, Float, Integer, String, Text
+from sqlalchemy import cast, func, or_, select
+from sqlalchemy.sql.sqltypes import Numeric
 
 from data.config import ADMINS, ADMIN_PANEL_TOKEN, BOT_TOKEN
 from database.db import async_session
+import database.models as _db_models  # noqa: F401 — barcha modellarni registryga yuklash
 from database.models import (
+    Base,
     BookOrder,
     CoinTransaction,
     ExamQuestion,
@@ -718,3 +722,322 @@ async def update_pricing(
                 updated += 1
         await session.commit()
     return {"ok": True, "updated": updated}
+
+
+# ==========================================================
+# DATABASE INSPECTOR & CRUD MANAGER
+# ==========================================================
+_TEXT_LIKE_TYPES = (String, Text)
+_INT_TYPES = (Integer, BigInteger)
+_FLOAT_TYPES = (Float, Numeric)
+_BOOL_TYPES = (Boolean,)
+_DT_TYPES = (DateTime,)
+_DATE_TYPES = (Date,)
+
+
+def _model_map() -> dict[str, type]:
+    return {
+        mapper.class_.__tablename__: mapper.class_
+        for mapper in Base.registry.mappers
+        if getattr(mapper.class_, "__tablename__", None)
+    }
+
+
+def _resolve_model(table_name: str):
+    model = _model_map().get(table_name)
+    if model is None:
+        raise HTTPException(404, f"Jadval topilmadi: {table_name}")
+    return model
+
+
+def _pk_column(model):
+    pks = [c for c in model.__table__.columns if c.primary_key]
+    if not pks:
+        raise HTTPException(400, f"{model.__tablename__}: primary key yo'q")
+    return pks[0]
+
+
+def _col_type_name(col) -> str:
+    col_type = col.type
+    if isinstance(col_type, _BOOL_TYPES):
+        return "boolean"
+    if isinstance(col_type, _INT_TYPES):
+        return "integer"
+    if isinstance(col_type, _FLOAT_TYPES):
+        return "float"
+    if isinstance(col_type, _DT_TYPES):
+        return "datetime"
+    if isinstance(col_type, _DATE_TYPES):
+        return "date"
+    if isinstance(col_type, Text):
+        return "text"
+    return "string"
+
+
+def _columns_meta(model) -> list[dict[str, Any]]:
+    return [
+        {
+            "name": c.name,
+            "type": _col_type_name(c),
+            "nullable": bool(c.nullable),
+            "primary_key": bool(c.primary_key),
+            "autoincrement": bool(getattr(c, "autoincrement", False) is True
+                                  or (c.primary_key and isinstance(c.type, _INT_TYPES))),
+        }
+        for c in model.__table__.columns
+    ]
+
+
+def _serialize_value(value: Any) -> Any:
+    if value is None:
+        return None
+    if isinstance(value, datetime):
+        return value.isoformat(sep=" ", timespec="seconds")
+    if isinstance(value, date):
+        return value.isoformat()
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (int, float, str)):
+        return value
+    return str(value)
+
+
+def _row_to_dict(row) -> dict[str, Any]:
+    return {c.name: _serialize_value(getattr(row, c.name, None)) for c in row.__table__.columns}
+
+
+def _parse_datetime(raw: Any) -> Optional[datetime]:
+    if raw is None or raw == "":
+        return None
+    if isinstance(raw, datetime):
+        return raw
+    text = str(raw).strip().replace("T", " ")
+    for fmt in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%d %H:%M", "%Y-%m-%d"):
+        try:
+            return datetime.strptime(text, fmt)
+        except ValueError:
+            continue
+    try:
+        return datetime.fromisoformat(str(raw).strip().replace("Z", "+00:00")).replace(tzinfo=None)
+    except ValueError as exc:
+        raise HTTPException(400, f"Noto'g'ri datetime: {raw}") from exc
+
+
+def _parse_date(raw: Any) -> Optional[date]:
+    if raw is None or raw == "":
+        return None
+    if isinstance(raw, datetime):
+        return raw.date()
+    if isinstance(raw, date):
+        return raw
+    text = str(raw).strip()[:10]
+    try:
+        return datetime.strptime(text, "%Y-%m-%d").date()
+    except ValueError as exc:
+        raise HTTPException(400, f"Noto'g'ri date: {raw}") from exc
+
+
+def _coerce_value(col, raw: Any) -> Any:
+    if raw is None:
+        return None
+    if isinstance(raw, str) and raw.strip() == "":
+        return None if col.nullable else ""
+
+    tname = _col_type_name(col)
+    if tname == "boolean":
+        if isinstance(raw, bool):
+            return raw
+        if isinstance(raw, (int, float)):
+            return bool(raw)
+        s = str(raw).strip().lower()
+        if s in {"1", "true", "yes", "on", "ha"}:
+            return True
+        if s in {"0", "false", "no", "off", "yo'q", "yoq"}:
+            return False
+        raise HTTPException(400, f"{col.name}: boolean qiymat kutilgan")
+    if tname == "integer":
+        try:
+            return int(float(raw)) if not isinstance(raw, bool) else int(raw)
+        except (TypeError, ValueError) as exc:
+            raise HTTPException(400, f"{col.name}: butun son kutilgan") from exc
+    if tname == "float":
+        try:
+            return float(raw)
+        except (TypeError, ValueError) as exc:
+            raise HTTPException(400, f"{col.name}: son kutilgan") from exc
+    if tname == "datetime":
+        return _parse_datetime(raw)
+    if tname == "date":
+        return _parse_date(raw)
+    return str(raw)
+
+
+def _apply_payload(model, obj, payload: dict[str, Any], *, creating: bool) -> None:
+    cols = {c.name: c for c in model.__table__.columns}
+    for key, raw in payload.items():
+        if key not in cols:
+            continue
+        col = cols[key]
+        if col.primary_key and not creating:
+            continue  # PK ni UPDATE da o'zgartirmaymiz
+        if creating and col.primary_key and (raw is None or raw == ""):
+            continue  # autoincrement
+        setattr(obj, key, _coerce_value(col, raw))
+
+    if creating:
+        for col in model.__table__.columns:
+            if col.nullable is False and not col.primary_key:
+                has_default = col.default is not None or col.server_default is not None
+                if getattr(obj, col.name, None) is None and not has_default:
+                    if col.name not in payload or payload.get(col.name) in (None, ""):
+                        raise HTTPException(400, f"Majburiy maydon: {col.name}")
+
+
+@router.get("/api/admin/db/tables")
+async def db_list_tables(admin_id: int = Depends(require_admin)):
+    tables = []
+    for name, model in sorted(_model_map().items(), key=lambda x: x[0]):
+        tables.append(
+            {
+                "name": name,
+                "model": model.__name__,
+                "columns": [c.name for c in model.__table__.columns],
+                "pk": _pk_column(model).name,
+            }
+        )
+    return {"ok": True, "tables": tables, "count": len(tables)}
+
+
+@router.get("/api/admin/db/{table_name}")
+async def db_list_rows(
+    table_name: str,
+    admin_id: int = Depends(require_admin),
+    q: Optional[str] = Query(None),
+    limit: int = Query(30, ge=1, le=200),
+    offset: int = Query(0, ge=0),
+):
+    model = _resolve_model(table_name)
+    pk = _pk_column(model)
+    columns = _columns_meta(model)
+
+    filters = []
+    query_text = (q or "").strip()
+    if query_text:
+        like = f"%{query_text}%"
+        or_parts = []
+        for col in model.__table__.columns:
+            if isinstance(col.type, _TEXT_LIKE_TYPES):
+                or_parts.append(col.ilike(like))
+            elif isinstance(col.type, _INT_TYPES) and query_text.isdigit():
+                or_parts.append(col == int(query_text))
+            elif isinstance(col.type, (_INT_TYPES + _FLOAT_TYPES + _BOOL_TYPES + _DT_TYPES + _DATE_TYPES)):
+                # Raqam/boolean/sana ustunlarida matn qidiruv — cast orqali
+                or_parts.append(cast(col, String).ilike(like))
+        if or_parts:
+            filters.append(or_(*or_parts))
+
+    async with async_session() as session:
+        count_stmt = select(func.count()).select_from(model)
+        if filters:
+            count_stmt = count_stmt.where(*filters)
+        total = int((await session.execute(count_stmt)).scalar() or 0)
+
+        stmt = select(model)
+        if filters:
+            stmt = stmt.where(*filters)
+        stmt = stmt.order_by(pk.desc()).limit(limit).offset(offset)
+        rows = (await session.execute(stmt)).scalars().all()
+
+    return {
+        "ok": True,
+        "table": table_name,
+        "model": model.__name__,
+        "pk": pk.name,
+        "columns": columns,
+        "rows": [_row_to_dict(r) for r in rows],
+        "total": total,
+        "limit": limit,
+        "offset": offset,
+    }
+
+
+@router.post("/api/admin/db/{table_name}")
+async def db_create_row(
+    table_name: str,
+    payload: dict[str, Any] = Body(...),
+    admin_id: int = Depends(require_admin),
+):
+    model = _resolve_model(table_name)
+    if not isinstance(payload, dict):
+        raise HTTPException(400, "JSON object kutilgan")
+
+    obj = model()
+    _apply_payload(model, obj, payload, creating=True)
+
+    async with async_session() as session:
+        session.add(obj)
+        try:
+            await session.commit()
+            await session.refresh(obj)
+        except Exception as exc:
+            await session.rollback()
+            raise HTTPException(400, f"Qo'shish xatosi: {exc}") from exc
+
+    return {"ok": True, "row": _row_to_dict(obj)}
+
+
+@router.put("/api/admin/db/{table_name}/{record_id}")
+async def db_update_row(
+    table_name: str,
+    record_id: str,
+    payload: dict[str, Any] = Body(...),
+    admin_id: int = Depends(require_admin),
+):
+    model = _resolve_model(table_name)
+    pk = _pk_column(model)
+    if not isinstance(payload, dict):
+        raise HTTPException(400, "JSON object kutilgan")
+
+    coerced_id = _coerce_value(pk, record_id)
+    async with async_session() as session:
+        obj = (
+            await session.execute(select(model).where(pk == coerced_id))
+        ).scalar_one_or_none()
+        if obj is None:
+            raise HTTPException(404, f"Yozuv topilmadi: {record_id}")
+        _apply_payload(model, obj, payload, creating=False)
+        try:
+            await session.commit()
+            await session.refresh(obj)
+        except Exception as exc:
+            await session.rollback()
+            raise HTTPException(400, f"Yangilash xatosi: {exc}") from exc
+        row = _row_to_dict(obj)
+
+    return {"ok": True, "row": row}
+
+
+@router.delete("/api/admin/db/{table_name}/{record_id}")
+async def db_delete_row(
+    table_name: str,
+    record_id: str,
+    admin_id: int = Depends(require_admin),
+):
+    model = _resolve_model(table_name)
+    pk = _pk_column(model)
+    coerced_id = _coerce_value(pk, record_id)
+
+    async with async_session() as session:
+        obj = (
+            await session.execute(select(model).where(pk == coerced_id))
+        ).scalar_one_or_none()
+        if obj is None:
+            raise HTTPException(404, f"Yozuv topilmadi: {record_id}")
+        try:
+            await session.delete(obj)
+            await session.commit()
+        except Exception as exc:
+            await session.rollback()
+            raise HTTPException(400, f"O'chirish xatosi: {exc}") from exc
+
+    return {"ok": True, "deleted": record_id, "table": table_name}

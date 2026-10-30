@@ -261,7 +261,9 @@ async def _click_complete_impl(request: Request):
             )
 
         try:
+            # Qat'iy increment: overwrite emas (har bir muvaffaqiyatli to'lov qo'shiladi)
             user.balance = int(user.balance or 0) + amount_val
+            user.coins = int(user.balance or 0)
             user.is_paid = True
             new_balance = int(user.balance or 0)
 
