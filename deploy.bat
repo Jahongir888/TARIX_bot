@@ -40,6 +40,7 @@ call :emit_upsert CLICK_SERVICE_ID
 call :emit_upsert CLICK_MERCHANT_ID
 call :emit_upsert CLICK_SECRET_KEY
 call :emit_upsert CLICK_MERCHANT_USER_ID
+call :emit_upsert WEBAPP_URL
 
 >> "%TMPSH%" (
   echo echo "[deploy] git pull + restart..."
